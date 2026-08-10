@@ -1,0 +1,116 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-main: #fcf8f5;
+  --bg-card: #ffffff;
+  --text-main: #3d2c22;
+  --text-muted: #7a6558;
+  --border-color: #e6d7cc;
+  --sidebar-bg: #2d1e16;
+  --sidebar-text: #f5ebe6;
+  --primary: #d97706;
+  --primary-hover: #b45309;
+}
+
+.dark {
+  --bg-main: #1c1411;
+  --bg-card: #2a1f1a;
+  --text-main: #f5ebe6;
+  --text-muted: #bfa89b;
+  --border-color: #423228;
+  --sidebar-bg: #140d0a;
+  --sidebar-text: #f5ebe6;
+  --primary: #f59e0b;
+  --primary-hover: #d97706;
+}
+
+body {
+  background-color: var(--bg-main);
+  color: var(--text-main);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+@layer components {
+  .field {
+    @apply block w-full mt-1.5 px-3 py-2.5 rounded-xl border border-[var(--border-color)] bg-[var(--bg-card)] text-[var(--text-main)] outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-600;
+  }
+  .panel-card {
+    @apply bg-[var(--bg-card)] border border-[var(--border-color)] rounded-2xl p-5 sm:p-6 shadow-sm;
+  }
+  .metric-card {
+    @apply bg-[var(--bg-card)] border border-[var(--border-color)] rounded-2xl p-5 flex items-center gap-4 shadow-sm;
+  }
+  .metric-card span {
+    @apply block text-sm text-[var(--text-muted)];
+  }
+  .metric-card strong {
+    @apply block text-3xl text-[var(--text-main)];
+  }
+  .section-label {
+    @apply text-xs uppercase tracking-widest font-bold text-amber-700;
+  }
+  .section-title {
+    @apply text-xl font-bold text-[var(--text-main)];
+  }
+}
+
+@media print {
+  @page { size: A4; margin: 8mm; }
+  .no-print { display: none !important; }
+  body { background: #fff !important; color: #111 !important; }
+  .evaluation-report { max-width: none !important; box-shadow: none !important; padding: 0 !important; }
+  .evaluation-section { break-inside: avoid; }
+  .evaluation-section h3 { font-size: 9pt !important; }
+  .evaluation-section ol, .evaluation-section div { font-size: 7.5pt; }
+  .performance-print { break-before: page; }
+}
+
+.evaluation-report {
+  --text-main: #292524;
+  --text-muted: #78716c;
+  --border-color: #a8a29e;
+  --primary: #d97706;
+  color: #292524;
+}
+
+/* =========================================
+   AJUSTES RESPONSIVOS PARA CELULAR (MIPS)
+   ========================================= */
+
+/* Força QUALQUER imagem gerada no texto a caber na tela sem quebrar o layout */
+.ql-editor img, 
+.ql-snow .ql-editor img,
+div[dangerouslySetInnerHTML] img,
+img {
+  max-width: 100% !important;
+  height: auto !important;
+  border-radius: 8px; /* Bordinha arredondada para ficar bonito */
+  margin: 15px auto !important;
+  display: block;
+}
+
+/* Aumenta o tamanho da fonte apenas quando estiver no celular (telas menores que 768px) */
+@media (max-width: 768px) {
+  html {
+    font-size: 16px;
+  }
+  
+  .ql-editor, 
+  .ql-editor p, 
+  .ql-editor li {
+    font-size: 1.15rem !important; /* Texto visivelmente maior no celular */
+    line-height: 1.7 !important;   /* Espaçamento melhor para leitura */
+  }
+
+  /* No celular, a foto ocupa 100% da largura disponível para máximo de zoom */
+  .ql-editor img {
+    width: 100% !important; 
+  }
+}
+
+/* Cursor de Lupa para avisar o usuário que a imagem expande */
+img {
+  cursor: zoom-in !important;
+}

@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: portal_mips_db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./backend/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - mips-net
+    restart: always
+
+  backend:
+    build: ./backend
+    container_name: portal_mips_backend
+    environment:
+      - DB_HOST=db
+      - DB_USER=${POSTGRES_USER}
+      - DB_PASS=${POSTGRES_PASSWORD}
+      - DB_NAME=${POSTGRES_DB}
+      - JWT_SECRET=${JWT_SECRET}
+      - ADMIN_INITIAL_PASSWORD=${ADMIN_INITIAL_PASSWORD}
+    ports:
+      - "7001:7001"
+      - "7002:7002"
+    volumes:
+      - ./backend/uploads:/app/uploads
+    networks:
+      - mips-net
+    depends_on:
+      - db
+    restart: always
+
+  frontend:
+    build: ./frontend
+    container_name: portal_mips_frontend
+    ports:
+      - "7070:80"
+    networks:
+      - mips-net
+    depends_on:
+      - backend
+    restart: always
+
+volumes:
+  pgdata:
+
+networks:
+  mips-net:
+    driver: bridge
