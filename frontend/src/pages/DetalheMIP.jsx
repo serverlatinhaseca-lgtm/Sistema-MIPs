@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { ArrowLeft, Clock, User, Trash2, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Clock, User, Trash2, CheckCircle, Pencil, History } from 'lucide-react';
 
 export default function DetalheMIP() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [mip, setMip] = useState(null);
+  const [versoes, setVersoes] = useState([]);
+  const [mostrarVersoes, setMostrarVersoes] = useState(false);
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const isAdmin = user.perfil?.toLowerCase() === 'administrador';
   const isLeitor = user.perfil?.toLowerCase() === 'leitor';
@@ -46,6 +48,11 @@ export default function DetalheMIP() {
     } catch (err) { alert('Erro ao excluir MIP'); }
   };
 
+  const abrirHistorico = async () => {
+    try { const r=await axios.get(`http://${window.location.hostname}:7001/api/mips/${id}/versoes`,{headers:{Authorization:`Bearer ${localStorage.getItem('token')}`}});setVersoes(r.data);setMostrarVersoes(true); }
+    catch { alert('Erro ao carregar histórico.'); }
+  };
+
   if (!mip) return <div className="p-8 text-center text-[var(--text-muted)]">Carregando MIP...</div>;
 
   return (
@@ -65,9 +72,9 @@ export default function DetalheMIP() {
               </button>
             )}
             {!isLeitor && (
-              <button onClick={handleExcluir} className="flex items-center text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 px-3 py-2 rounded-lg font-medium text-xs sm:text-sm transition-colors">
+              <><button onClick={()=>navigate(`/mips/${id}/editar`)} className="flex items-center text-amber-700 px-3 py-2 rounded-lg font-medium text-xs sm:text-sm"><Pencil size={16} className="mr-1.5"/>Editar</button><button onClick={abrirHistorico} className="flex items-center text-blue-700 px-3 py-2 rounded-lg font-medium text-xs sm:text-sm"><History size={16} className="mr-1.5"/>Versões</button><button onClick={handleExcluir} className="flex items-center text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 px-3 py-2 rounded-lg font-medium text-xs sm:text-sm transition-colors">
                 <Trash2 size={16} className="mr-1.5 shrink-0" /> Excluir
-              </button>
+              </button></>
             )}
           </div>
         </div>
@@ -100,6 +107,8 @@ export default function DetalheMIP() {
             dangerouslySetInnerHTML={{ __html: mip.conteudo }}
           />
         </div>
+
+        {mostrarVersoes && <div className="fixed inset-0 bg-black/60 z-50 grid place-items-center p-4"><div className="bg-[var(--bg-card)] rounded-2xl p-6 max-w-2xl w-full max-h-[80vh] overflow-auto"><div className="flex justify-between mb-4"><h2 className="text-xl font-bold">Histórico de versões</h2><button onClick={()=>setMostrarVersoes(false)}>Fechar</button></div>{versoes.map((v,i)=><article key={v.id} className="border-t border-[var(--border-color)] py-4"><strong>Versão anterior {versoes.length-i}</strong><p className="text-sm text-[var(--text-muted)]">{new Date(v.criado_em).toLocaleString('pt-BR')} · {v.alterado_por_nome||'Sistema'} · {v.status}</p><p>{v.titulo}</p></article>)}{!versoes.length&&<p>Nenhuma alteração registrada.</p>}</div></div>}
 
       </div>
     </div>

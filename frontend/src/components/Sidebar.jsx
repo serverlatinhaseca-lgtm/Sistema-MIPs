@@ -43,11 +43,9 @@ export default function Sidebar() {
           <div onClick={() => navigate('/receitas')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/receitas') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}>
             <Calculator size={20} className="mr-3" /> Receitas
           </div>
-          {user.perfil?.toLowerCase() !== 'leitor' && (
-            <div onClick={() => navigate('/avaliacoes')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/avaliacoes') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}>
-              <ClipboardCheck size={20} className="mr-3" /> Avaliações
-            </div>
-          )}
+          <div onClick={() => navigate('/avaliacoes')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/avaliacoes') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}>
+            <ClipboardCheck size={20} className="mr-3" /> {user.perfil?.toLowerCase() === 'leitor' ? 'Meu desempenho' : 'Avaliações'}
+          </div>
           {user.perfil?.toLowerCase() === 'administrador' && (
             <div onClick={() => navigate('/usuarios')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/usuarios') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}>
               <Users size={20} className="mr-3" /> Usuários

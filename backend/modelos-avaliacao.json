@@ -1,0 +1,486 @@
+[
+  {
+    "nome": "Aux. Padeiro",
+    "chave": "aux-padeiro",
+    "perguntas": [
+      {
+        "titulo": "MANIPULAÇÃO HIGIÊNICA",
+        "pergunta": "SEÇÃO 1: O colaborador cumpre corretamente as práticas de higiene, organização e limpeza durante a produção?",
+        "criterios": [
+          "1.1  Ao finalizar a produção, na parada obrigatória de  higiêne das máquina e organização, o mesmo colabora com esse processo?",
+          "1.2 Cumpre com a rotina de higienização e organização das demais áreas ? (exemplo: armazém de farinha, mantém sacos fechados? Palets são levantados para área ser varrida?)",
+          "1.3 É mantida a organização e limpeza da produção DURANTE OS PROCESSOS do dia?"
+        ],
+        "obrigatoria": true
+      },
+      {
+        "titulo": "TRABALHO EM EQUIPE",
+        "pergunta": "SEÇÃO 2: O colaborador demonstra cooperação, contribuindo positivamente para o trabalho em equipe e para o alcance dos objetivos comuns?",
+        "criterios": [
+          "2.1 É educado com os colegas, respeita as opniões e habilidades de cada colega, é adaptável às necessidades e mudanças no time, compartilha responssabilidades e ideias, mantém diálogo claro e aberto ?",
+          "2.2 O colaborador respeita a hierarquia da empresa?",
+          "2.3 O colaborador é omisso ao erro do colega?"
+        ],
+        "obrigatoria": true
+      },
+      {
+        "titulo": "PROATIVIDADE",
+        "pergunta": "SEÇÃO 3: O colaborador demonstra proatividade ao identificar problemas, sugerir melhorias e agir antecipadamente sem necessidade de supervisão constante?",
+        "criterios": [
+          "1. Demonstra interesse em reuniões e treinamentos?",
+          "2.O colaborar apresenta resitência? (Não segue o orientado ou processo ensinado)"
+        ],
+        "obrigatoria": true
+      },
+      {
+        "titulo": "COMPROMETIMENTO",
+        "pergunta": "SEÇÃO 4: O Aux.  é comprometido com a entrega do produto e qualidade?",
+        "criterios": [
+          "1. O auxiliar segue corretamente os processos de produção dos pães passados pelos padeiros ou lider?",
+          "2. O Auxiliar se atenta as orientações e treinamentos de panificação?"
+        ],
+        "obrigatoria": true
+      },
+      {
+        "titulo": "HIGIÊNE PESSOAL",
+        "pergunta": "SEÇÃO 5: As práticas de higiene pessoal são adotadas diariamente para garantir a segurança e  a qualidade do processo produtivo?",
+        "criterios": [
+          "1.Uniformes  e sapatos adequados, limpos e em bom estado de conservação,ausência de qualquer tipo de adorno, unhas curtas e sem feridas?",
+          "2.Camisas nos dias corretos e uniforme completo (camisa, calça, balaclava, avental e sapato) ?",
+          "3.Há acesso a área de manipulação sem a barba feita diáriamente, braços raspados e a proteção adequada para os cabelos?",
+          "4. É realizado a lavagem das mãos até o cotuvelo ?"
+        ],
+        "obrigatoria": true
+      },
+      {
+        "titulo": "PRODUTIVIDADE",
+        "pergunta": "SEÇÃO 6: Contribui para a produtividade, considerando eficiência e cumprimento dos prazos?",
+        "criterios": [
+          "1.O colaborador costuma distrair-se de suas tarefas ?",
+          "2.O colaborador cumpre com sua rotina diária de atividades?",
+          "3.Preenche planilhas e tem conhecimento das mesmas que estão no seu setor?"
+        ],
+        "obrigatoria": true
+      },
+      {
+        "titulo": "GERAIS",
+        "pergunta": "SEÇÃO 7: GERAIS",
+        "criterios": [
+          "1.ASSIDUIDADE (comprometimento do colaborador em estar presente e realizar suas atividades ou tarefas de maneira contínua e pontual)",
+          "2.Assimilação a carta de valores (entendem, adotam e colocam em prática os princípios definidos)",
+          "3.Advertências (o colaborador foi advertido por algum motivo de forma verbal ou escrita)"
+        ],
+        "obrigatoria": true
+      }
+    ]
+  },
+  {
+    "nome": "Lideres",
+    "chave": "lideres",
+    "perguntas": [
+      {
+        "titulo": "APRESENTAÇÃO, HIGIENE E COMPORTAMENTO",
+        "pergunta": "SEÇÃO 1: APRESENTAÇÃO, HIGIENE E COMPORTAMENTO",
+        "criterios": [
+          "1.1  MANTÉM BOA APRESENTAÇÃO PESSOAL E HIGIENE ADEQUADA?",
+          "1.2 CUMPRE AS NORMAS E REGRAS DE CONDUTA DA EMPRESA ?",
+          "1.3 DEMONSTRA POSTURA PROFISSIONAL E ÉTICA?",
+          "1.4 ATINGIR 90% DE PRESENÇA EM REUNIÃOES E TREINAMENTOS ?"
+        ],
+        "obrigatoria": true
+      },
+      {
+        "titulo": "LIDERANÇA E EXEMPLO",
+        "pergunta": "SEÇÃO 2: LIDERANÇA E EXEMPLO",
+        "criterios": [
+          "2.1 INSPIRA, MOTIVA E SERVE COMO EXEMPLO POSITIVO PARA EQUIPE",
+          "2.2 EVITA BRINCADEIRAS INAPROPRIADAS OU COMPORTAMENTOS INADEQUADOS?",
+          "2.3 CUMPRE HORÁRIOS COM RESPONSABILIDADE? (PREENCHIDO O HORARIO NA PLANILHA)",
+          "2.4 SEGUE E FAZ CUMPRIR RIGOROZAMENTE TODAS AS REGRAS DA EMPRESA?",
+          "2.5 COMO A PRESENÇA DIÁRIA DO LIDER NA EMPRESA  E APLICAÇÃO DE ATESTADOS IMPACTA A GESTÃO DA EQUIPE?"
+        ],
+        "obrigatoria": true
+      },
+      {
+        "titulo": "DESENVOLVIMENTO E TREINAMENTO DE COLABORADORES",
+        "pergunta": "SEÇÃO 3: DESENVOLVIMENTO E TREINAMENTO DE COLABORADORES",
+        "criterios": [
+          "3.1 TREINA OS NOVOS COLABORADORES  CONFORME O PROCESSO DA EMPRESA?",
+          "3.2 IDENTIFICA E APROVEITA AS HABILIDADES INDIVIDUAIS DOS MESMBROS DA EQUIPE?",
+          "3.3 É FEITA SUPERVISÃO DOS PROCESSOS DE BOAS PRÁTICAS ?",
+          "3.4 É ADVERTIDO OS COLABORADORES QUE NÃO SEGUEM AS REGRAS DE HIGIENE PESSOAL E COBRADO DIARIAMENTE?",
+          "3.5 DINÂMICA DA CARTA DE VALORES REALIZADA? QUAL FOI O TEMA DO MÊS?"
+        ],
+        "obrigatoria": true
+      },
+      {
+        "titulo": "COMUNICAÇÃO",
+        "pergunta": "SEÇÃO 4: COMUNICAÇÃO",
+        "criterios": [
+          "4.1 USA A COMUNICAÇÃO CLARA, EMPÁTICA E ASSERTIVA?",
+          "4.2 BASEIA SUA COMUNICAÇÃO EM PRINCÍPIOS DA PNL E RESPEITO MUTUO?"
+        ],
+        "obrigatoria": true
+      },
+      {
+        "titulo": "PRODUTIVIDADE E EFICIÊNCIA",
+        "pergunta": "SEÇÃO 5: PRODUTIVIDADE E EFICIÊNCIA",
+        "criterios": [
+          "5.1 GARANTE ENTREGA DA PRODUÇÃO COM AGILIDADE E QUALIDADE?",
+          "5.2 ALINHA A EQUIPE COM OBJETIVOS LOGÍSTICOS E PROPÓSITO DA EMPRESA?",
+          "5.3 ATUA NA REDUÇÃO DE DESPERDÍCIOS COM CONTROLE E PLANILHAS MENSURÁVEIS ?",
+          "5.4 AVALIAÇÃO E FEEDBACK DOS COLABORADORES REALIZADO EM TEMPO ADEQUADO?"
+        ],
+        "obrigatoria": true
+      },
+      {
+        "titulo": "GESTÃO DE CONFLITOS",
+        "pergunta": "SEÇÃO 6: GESTÃO DE CONFLITOS",
+        "criterios": [
+          "6.1 LIDA COM CONFLITOS COM IMPARCIALIDADE, BUSCANDO SOLUÇÕES JUSTAS?",
+          "6.2 ESTÁ A SERVIÇO DA EQUIPE, OUVINDO E APOIANDO SEMPRE QUE NECESSÁRIO?"
+        ],
+        "obrigatoria": true
+      },
+      {
+        "titulo": "CULTURA E VALORES",
+        "pergunta": "SEÇÃO 7: CULTURA E VALORES",
+        "criterios": [
+          "7.1 ATUA EM CONFORMIDADE COM OS VALORES DA EMPRESA?"
+        ],
+        "obrigatoria": true
+      },
+      {
+        "titulo": "GESTÃO DE TEMPO E ORGANIZAÇÃO",
+        "pergunta": "SEÇÃO 8: GESTÃO DE TEMPO E ORGANIZAÇÃO",
+        "criterios": [
+          "8.1 PLANEJA ATIVIDADES COM EFICIÊNCIA E ORGANIZA A EQUIPE ADEQUADAMENTE ?",
+          "8.2 ANTECIPAÇÃO E RESOLUÇÃO DE PROBLEMAS NO DIA A DIA?"
+        ],
+        "obrigatoria": true
+      },
+      {
+        "titulo": "CAPACIDADE DE DAR E RECEBER FEEDBACKS",
+        "pergunta": "SEÇÃO 9: CAPACIDADE DE DAR E RECEBER FEEDBACKS",
+        "criterios": [
+          "9.1 OFERECE FEEDBACKS CONSTRUTIVOS DE FORMA RESPEITOSA?",
+          "9.2 ESTÁ ABERTO A RECEBER ORIENTAÇÕES E CRESCER COM ELAS?",
+          "9.3 RECEBEU ADVERTÊNCIA VERBAL OU ESCRITA ?"
+        ],
+        "obrigatoria": true
+      },
+      {
+        "titulo": "COMPROMETIMENTO COM PROCESSOS",
+        "pergunta": "SEÇÃO 10: COMPROMETIMENTO COM PROCESSOS",
+        "criterios": [
+          "10.1 MANTEM O PREENCHIMENTO DA PLANILHA DE PASSAGEM DE TURNO?",
+          "10.2 MANTEM  O PREENCHIMENTO DA PLANILHA DE VALIDADE?"
+        ],
+        "obrigatoria": true
+      }
+    ]
+  },
+  {
+    "nome": "Forneiro",
+    "chave": "forneiro",
+    "perguntas": [
+      {
+        "titulo": "MANIPULAÇÃO HIGIÊNICA",
+        "pergunta": "SEÇÃO 1: O colaborador cumpre corretamente as práticas de higiene, organização e limpeza durante a produção?",
+        "criterios": [
+          "1.1  Ao finalizar a produção, na parada obrigatória de  higiêne das máquina e organização, o mesmo colabora com esse processo?",
+          "1.2 Cumpre com a rotina de higienização e organização das demais áreas ?",
+          "1.3 O forneiro realiza manutenção da higienização dos fornos?"
+        ],
+        "obrigatoria": true
+      },
+      {
+        "titulo": "TRABALHO EM EQUIPE",
+        "pergunta": "SEÇÃO 2: O colaborador demonstra cooperação, contribuindo positivamente para o trabalho em equipe e para o alcance dos objetivos comuns?",
+        "criterios": [
+          "2.1 É educado com os colegas, respeita as opniões e habilidades de cada colega, é adaptável às necessidades e mudanças no time, compartilha responssabilidades e ideias, mantém diálogo claro e aberto ?",
+          "2.2 O colaborador respeita a hierarquia da empresa?",
+          "2.3 O colaborador é omisso ao erro do colega?"
+        ],
+        "obrigatoria": true
+      },
+      {
+        "titulo": "PROATIVIDADE",
+        "pergunta": "SEÇÃO 3: O colaborador demonstra proatividade ao identificar problemas, sugerir melhorias e agir antecipadamente sem necessidade de supervisão constante?",
+        "criterios": [
+          "3.1 Demonstra interesse em reuniões e treinamentos? Participa da dinâmica da carta de valores?",
+          "3.2.O colaborar apresenta resitência? (Não segue o orientado ou processo ensinado)"
+        ],
+        "obrigatoria": true
+      },
+      {
+        "titulo": "COMPROMETIMENTO",
+        "pergunta": "SEÇÃO 4: O forneiro  é comprometido com a entrega do produto e qualidade?",
+        "criterios": [
+          "4.1. O forneiro segue corretamente os processos de cocção dos pães (tempo e temperatura) ?",
+          "4.2 O forneiro se atenta as orientações e treinamentos de panificação?",
+          "4.3 A forma que retira e coloca os pães no carrinho está correta? Mata pães? Desorganiza latas?"
+        ],
+        "obrigatoria": true
+      },
+      {
+        "titulo": "HIGIÊNE PESSOAL",
+        "pergunta": "SEÇÃO 5: As práticas de higiene pessoal são adotadas diariamente para garantir a segurança e  a qualidade do processo produtivo?",
+        "criterios": [
+          "5.1.Uniformes  e sapatos adequados, limpos e em bom estado de conservação,ausência de qualquer tipo de adorno, unhas curtas e sem feridas?",
+          "5.2.Camisas nos dias corretos e uniforme completo (camisa, calça, balaclava, avental e sapato) ?",
+          "5.3.Há acesso a área de manipulação sem a barba feita diáriamente, braços raspados e a proteção adequada para os cabelos?",
+          "5.4. É realizado a lavagem das mãos  ?"
+        ],
+        "obrigatoria": true
+      },
+      {
+        "titulo": "PRODUTIVIDADE",
+        "pergunta": "SEÇÃO 6: Contribui para a produtividade, considerando eficiência e cumprimento dos prazos?",
+        "criterios": [
+          "6.1.O colaborador costuma distrair-se de suas tarefas ?",
+          "6.2.O colaborador cumpre com sua rotina diária de atividades?",
+          "6.3.Preenche planilhas e tem conhecimento das mesmas que estão no seu setor?"
+        ],
+        "obrigatoria": true
+      },
+      {
+        "titulo": "GERAIS",
+        "pergunta": "SEÇÃO 7: GERAIS",
+        "criterios": [
+          "7.1.ASSIDUIDADE (comprometimento do colaborador em estar presente e realizar suas atividades ou tarefas de maneira contínua e pontual)",
+          "7.2.Assimilação a carta de valores (entendem, adotam e colocam em prática os princípios definidos)",
+          "7.3.Advertências (o colaborador foi advertido por algum motivo de forma verbal ou escrita)"
+        ],
+        "obrigatoria": true
+      }
+    ]
+  },
+  {
+    "nome": "Motorista",
+    "chave": "motorista",
+    "perguntas": [
+      {
+        "titulo": "MANIPULAÇÃO HIGIÊNICA",
+        "pergunta": "SEÇÃO 1: O colaborador cumpre corretamente as práticas de higiene, organização e limpeza durante o trabalho?",
+        "criterios": [
+          "1. Organiza as caixas na expedição?",
+          "2. Mantém o carro limpo? ( Baú, cabine e lataria)",
+          "3. Recolhe as caixas que estão no cliente?"
+        ],
+        "obrigatoria": true
+      },
+      {
+        "titulo": "TRABALHO EM EQUIPE",
+        "pergunta": "SEÇÃO 2: O colaborador demonstra cooperação, contribuindo positivamente para o trabalho em equipe e para o alcance dos objetivos comuns?",
+        "criterios": [
+          "2.1 É educado com os colegas, respeita as opniões e habilidades de cada colega, é adaptável às necessidades e mudanças no time, compartilha responssabilidades e ideias, mantém diálogo claro e aberto ?",
+          "2.2 O colaborador respeita a hierarquia da empresa?",
+          "2.3 O colaborador é omisso ao erro do colega?"
+        ],
+        "obrigatoria": true
+      },
+      {
+        "titulo": "PROATIVIDADE",
+        "pergunta": "SEÇÃO 3: O colaborador demonstra proatividade ao identificar problemas, sugerir melhorias e agir antecipadamente sem necessidade de supervisão constante?",
+        "criterios": [
+          "1. Demonstra interesse em reuniões e treinamentos?",
+          "2.O colaborar apresenta resitência para novas entregas? (Não segue o orientado ou processo ensinado)"
+        ],
+        "obrigatoria": true
+      },
+      {
+        "titulo": "COMPROMETIMENTO",
+        "pergunta": "SEÇÃO 4: O motorista é comprometido com os horarios de entrega e com as rotas?",
+        "criterios": [
+          "1.Mantém as notas e romaneios organizados ?",
+          "2. Realiza o check list diário de verificação do carro?",
+          "3.Preenche a planinha de saída dos congelados?"
+        ],
+        "obrigatoria": true
+      },
+      {
+        "titulo": "HIGIÊNE PESSOAL",
+        "pergunta": "SEÇÃO 5: As práticas de higiene pessoal são adotadas diariamente para garantir a segurança e  a qualidade do processo produtivo?",
+        "criterios": [
+          "1.Uniformes  e sapatos adequados, limpos e em bom estado de conservação,ausência de qualquer tipo de adorno, unhas curtas e sem feridas? BARBA APARADA?",
+          "2.Acesso na produção de barba? (deve ser colocado toquinha na barba ou protetor- MINIMO A SER FEITO)",
+          "3. Higieniza as mãos?"
+        ],
+        "obrigatoria": true
+      },
+      {
+        "titulo": "PRODUTIVIDADE",
+        "pergunta": "SEÇÃO 6: Contribui com o cumprimento dos prazos?",
+        "criterios": [
+          "1.O colaborador costuma distrair-se de suas tarefas ?",
+          "2.O colaborador cumpre com sua rotina diária de atividades?"
+        ],
+        "obrigatoria": true
+      },
+      {
+        "titulo": "GERAIS",
+        "pergunta": "SEÇÃO 7: GERAIS",
+        "criterios": [
+          "1.ASSIDUIDADE (comprometimento do colaborador em estar presente e realizar suas atividades ou tarefas de maneira contínua e pontual)",
+          "2.Assimilação a carta de valores (entendem, adotam e colocam em prática os princípios definidos)",
+          "3.Advertências (o colaborador foi advertido por algum motivo de forma verbal ou escrita)"
+        ],
+        "obrigatoria": true
+      }
+    ]
+  },
+  {
+    "nome": "Embalagem",
+    "chave": "embalagem",
+    "perguntas": [
+      {
+        "titulo": "MANIPULAÇÃO HIGIÊNICA",
+        "pergunta": "SEÇÃO 1: O colaborador cumpre corretamente as práticas de higiene, organização e limpeza durante a produção?",
+        "criterios": [
+          "1.1  Ao finalizar a produção, na parada obrigatória de  higiêne das máquina e organização, o mesmo colabora com esse processo?",
+          "1.2 Cumpre com a rotina de higienização e organização das demais áreas ? (Câmara fria, almoxa...)",
+          "1.3 Durante o trabalho na embalagem, mantém a organização? (pão não está no chão, bancadas organizadas)"
+        ],
+        "obrigatoria": true
+      },
+      {
+        "titulo": "TRABALHO EM EQUIPE",
+        "pergunta": "SEÇÃO 2: O colaborador demonstra cooperação, contribuindo positivamente para o trabalho em equipe e para o alcance dos objetivos comuns?",
+        "criterios": [
+          "2.1 É educado com os colegas, respeita as opniões e habilidades de cada colega, é adaptável às necessidades e mudanças no time, compartilha responssabilidades e ideias, mantém diálogo claro e aberto ?",
+          "2.2 O colaborador respeita a hierarquia da empresa?",
+          "2.3 O colaborador é omisso ao erro do colega?"
+        ],
+        "obrigatoria": true
+      },
+      {
+        "titulo": "PROATIVIDADE",
+        "pergunta": "SEÇÃO 3: O colaborador demonstra proatividade ao identificar problemas, sugerir melhorias e agir antecipadamente sem necessidade de supervisão constante?",
+        "criterios": [
+          "1. Demonstra interesse em reuniões e treinamentos? Participa da Dinamica da carta de valores?",
+          "2.O colaborar apresenta resitência? (Não segue o orientado ou processo ensinado)"
+        ],
+        "obrigatoria": true
+      },
+      {
+        "titulo": "COMPROMETIMENTO",
+        "pergunta": "SEÇÃO 4: O Auxiliar  é comprometido com o horário de entrega e qualidade do pão?",
+        "criterios": [
+          "1. É feito o uso do plastico com consciencia ?",
+          "2. É feita contagem do pão francês e do pão doce?",
+          "3. Tem consciencia das entregas diárias?"
+        ],
+        "obrigatoria": true
+      },
+      {
+        "titulo": "HIGIÊNE PESSOAL",
+        "pergunta": "SEÇÃO 5: As práticas de higiene pessoal são adotadas diariamente para garantir a segurança e  a qualidade do processo produtivo?",
+        "criterios": [
+          "1.Uniformes  e sapatos adequados, limpos e em bom estado de conservação,ausência de qualquer tipo de adorno, unhas curtas e sem feridas?",
+          "2.Camisas nos dias corretos e uniforme completo (camisa, calça, balaclava, avental e sapato) ?",
+          "3.Há acesso a área de manipulação sem a barba feita diáriamente, braços raspados e a proteção adequada para os cabelos?",
+          "4. É realizado a lavagem das mãos  ?"
+        ],
+        "obrigatoria": true
+      },
+      {
+        "titulo": "PRODUTIVIDADE",
+        "pergunta": "SEÇÃO 6: Contribui para a produtividade, considerando eficiência e cumprimento dos prazos?",
+        "criterios": [
+          "1.O colaborador costuma distrair-se de suas tarefas ?",
+          "2.O colaborador cumpre com sua rotina diária de atividades?",
+          "3.Preenche planilhas e tem conhecimento das mesmas que estão no seu setor?"
+        ],
+        "obrigatoria": true
+      },
+      {
+        "titulo": "GERAIS",
+        "pergunta": "SEÇÃO 7: GERAIS",
+        "criterios": [
+          "1.ASSIDUIDADE (comprometimento do colaborador em estar presente e realizar suas atividades ou tarefas de maneira contínua e pontual)",
+          "2.Assimilação a carta de valores (entendem, adotam e colocam em prática os princípios definidos)",
+          "3.Advertências (o colaborador foi advertido por algum motivo de forma verbal ou escrita)"
+        ],
+        "obrigatoria": true
+      }
+    ]
+  },
+  {
+    "nome": "Padeiro",
+    "chave": "padeiro",
+    "perguntas": [
+      {
+        "titulo": "MANIPULAÇÃO HIGIÊNICA",
+        "pergunta": "SEÇÃO 1: O colaborador cumpre corretamente as práticas de higiene, organização e limpeza durante a produção?",
+        "criterios": [
+          "1.1  Ao finalizar a produção, na parada obrigatória de  higiêne das máquina e organização, o mesmo colabora com esse processo?",
+          "1.2 Cumpre com a rotina de higienização e organização das demais áreas ?",
+          "1.3 A bancada do padeiro na confeitaria ou outro processo é organizada e limpa ? (tire foto e mostre pra nutri, se tiver dúvidas)"
+        ],
+        "obrigatoria": true
+      },
+      {
+        "titulo": "TRABALHO EM EQUIPE",
+        "pergunta": "SEÇÃO 2: O colaborador demonstra cooperação, contribuindo positivamente para o trabalho em equipe e para o alcance dos objetivos comuns?",
+        "criterios": [
+          "2.1 É educado com os colegas, respeita as opniões e habilidades de cada colega, é adaptável às necessidades e mudanças no time, compartilha responssabilidades e ideias, mantém diálogo claro e aberto ?",
+          "2.2 O colaborador respeita a hierarquia da empresa?",
+          "2.3 O colaborador é omisso ao erro do colega?"
+        ],
+        "obrigatoria": true
+      },
+      {
+        "titulo": "PROATIVIDADE",
+        "pergunta": "SEÇÃO 3: O colaborador demonstra proatividade ao identificar problemas, sugerir melhorias e agir antecipadamente sem necessidade de supervisão constante?",
+        "criterios": [
+          "3.1. Demonstra interesse em reuniões e treinamentos?",
+          "3.2.O colaborar apresenta resitência? (Não segue o orientado ou processo ensinado)"
+        ],
+        "obrigatoria": true
+      },
+      {
+        "titulo": "COMPROMETIMENTO",
+        "pergunta": "SEÇÃO 4: O Padeiro  é comprometido com a entrega do produto e qualidade?",
+        "criterios": [
+          "4.1. O Padeiro segue corretamente os processos de produção dos pães (receita) ?",
+          "4.2. O padeiro se atenta as orientações e treinamentos de panificação?",
+          "4.3. O padeiro orienta, supervisiona e corrige os processos na produção?",
+          "4.4. Houve falta, troca ou excesso de algum ingrediente no produto? (erro grave)"
+        ],
+        "obrigatoria": true
+      },
+      {
+        "titulo": "HIGIÊNE PESSOAL",
+        "pergunta": "SEÇÃO 5: As práticas de higiene pessoal são adotadas diariamente para garantir a segurança e  a qualidade do processo produtivo?",
+        "criterios": [
+          "5.1.Uniformes  e sapatos adequados, limpos e em bom estado de conservação,ausência de qualquer tipo de adorno, unhas curtas e sem feridas?",
+          "5.2.Camisas nos dias corretos e uniforme completo (camisa, calça, balaclava, avental e sapato) ?",
+          "5.3.Há acesso a área de manipulação sem a barba feita diáriamente, braços raspados e a proteção adequada para os cabelos?",
+          "5.4. É realizado a lavagem das mãos até o cotuvelo ?"
+        ],
+        "obrigatoria": true
+      },
+      {
+        "titulo": "PRODUTIVIDADE",
+        "pergunta": "SEÇÃO 6: Contribui para a produtividade, considerando eficiência e cumprimento dos prazos?",
+        "criterios": [
+          "6.1.O colaborador costuma distrair-se de suas tarefas ?",
+          "6.2.O colaborador cumpre com sua rotina diária de atividades?",
+          "6.3.Preenche planilhas e tem conhecimento das mesmas que estão no seu setor?"
+        ],
+        "obrigatoria": true
+      },
+      {
+        "titulo": "GERAIS",
+        "pergunta": "SEÇÃO 7: GERAIS",
+        "criterios": [
+          "7.1.ASSIDUIDADE (comprometimento do colaborador em estar presente e realizar suas atividades ou tarefas de maneira contínua e pontual)",
+          "7.2.Assimilação a carta de valores (entendem, adotam e colocam em prática os princípios definidos)",
+          "7.3.Advertências (o colaborador foi advertido por algum motivo de forma verbal ou escrita)"
+        ],
+        "obrigatoria": true
+      }
+    ]
+  }
+]

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { Calculator, Printer, Plus, Trash, ArrowLeft, Save, Search, BookOpen, LogOut, Sun, Moon } from 'lucide-react';
+import { Calculator, Printer, Plus, Trash, ArrowLeft, Save, Search, BookOpen, LogOut, Sun, Moon, Pencil, History } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 
 export default function Receitas() {
@@ -10,6 +10,9 @@ export default function Receitas() {
   const [receitaAtiva, setReceitaAtiva] = useState(null);
   const [quantidadeDesejada, setQuantidadeDesejada] = useState('');
   const [modoCriacao, setModoCriacao] = useState(false);
+  const [editandoId, setEditandoId] = useState(null);
+  const [versoes, setVersoes] = useState([]);
+  const [mostrarVersoes, setMostrarVersoes] = useState(false);
   const [titulo, setTitulo] = useState('');
   const [rendimentoBase, setRendimentoBase] = useState('');
   const [ingredientes, setIngredientes] = useState([{ nome: '', quantidade: '' }]);
@@ -45,25 +48,26 @@ export default function Receitas() {
   useEffect(() => { carregarReceitas(); }, []);
 
   const calcularQuantidade = (qtdBase) => {
-    if (!quantidadeDesejada) {
-      return Number(qtdBase).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 2 });
-    }
+    if (!quantidadeDesejada) return Math.round(Number(qtdBase)).toLocaleString('pt-BR');
     const porUnidade = Number(qtdBase) / Number(receitaAtiva.rendimento_base);
     const resultado = porUnidade * Number(quantidadeDesejada);
-    return resultado.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 2 });
+    return Math.round(resultado).toLocaleString('pt-BR');
   };
 
   const handleSalvar = async (e) => {
     e.preventDefault();
     try {
-      await axios.post(`http://${host}:7001/api/receitas`, {
+      await axios[editandoId ? 'put' : 'post'](`http://${host}:7001/api/receitas${editandoId ? `/${editandoId}` : ''}`, {
         titulo, rendimento_base: Number(rendimentoBase), ingredientes
       }, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
       setModoCriacao(false);
-      setTitulo(''); setRendimentoBase(''); setIngredientes([{ nome: '', quantidade: '' }]);
+      setTitulo(''); setRendimentoBase(''); setIngredientes([{ nome: '', quantidade: '' }]); setEditandoId(null);
       carregarReceitas();
     } catch (err) { alert('Erro ao salvar receita.'); }
   };
+
+  const iniciarEdicao = () => { setEditandoId(receitaAtiva.id); setTitulo(receitaAtiva.titulo); setRendimentoBase(String(receitaAtiva.rendimento_base)); setIngredientes(receitaAtiva.ingredientes.map(i=>({...i}))); setReceitaAtiva(null); setModoCriacao(true); };
+  const abrirHistorico = async () => { try { const r=await axios.get(`http://${host}:7001/api/receitas/${receitaAtiva.id}/versoes`,{headers:{Authorization:`Bearer ${localStorage.getItem('token')}`}});setVersoes(r.data);setMostrarVersoes(true); } catch { alert('Erro ao carregar histórico.'); } };
 
   const handleExcluirReceita = async (id) => {
     if (!confirm('Deseja realmente excluir esta receita? Esta ação não pode ser desfeita.')) return;
@@ -188,7 +192,7 @@ export default function Receitas() {
               <button onClick={() => setModoCriacao(false)} className="flex items-center text-[var(--primary)] font-semibold">
                 <ArrowLeft size={20} className="mr-2" /> Voltar
               </button>
-              <h2 className="text-2xl font-bold">Nova Receita Padrão</h2>
+              <h2 className="text-2xl font-bold">{editandoId ? 'Editar Receita' : 'Nova Receita Padrão'}</h2>
             </div>
             
             <form onSubmit={handleSalvar} className="space-y-6">
@@ -220,7 +224,7 @@ export default function Receitas() {
               </div>
 
               <button type="submit" className="w-full flex items-center justify-center bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white p-4 rounded-xl font-bold transition-colors">
-                <Save size={20} className="mr-2" /> Salvar Receita no Sistema
+                <Save size={20} className="mr-2" /> {editandoId ? 'Salvar nova versão' : 'Salvar Receita no Sistema'}
               </button>
             </form>
           </div>
@@ -233,9 +237,9 @@ export default function Receitas() {
               
               <div className="flex gap-3">
                 {(user.perfil?.toLowerCase() === 'administrador' || user.perfil?.toLowerCase() === 'editor') && (
-                  <button onClick={() => handleExcluirReceita(receitaAtiva.id)} className="flex items-center text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 px-4 py-2.5 rounded-xl font-medium transition-colors">
+                  <><button onClick={iniciarEdicao} className="flex items-center text-amber-700 px-4 py-2.5 rounded-xl font-medium"><Pencil size={18} className="mr-2"/>Editar</button><button onClick={abrirHistorico} className="flex items-center text-blue-700 px-4 py-2.5 rounded-xl font-medium"><History size={18} className="mr-2"/>Versões</button><button onClick={() => handleExcluirReceita(receitaAtiva.id)} className="flex items-center text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 px-4 py-2.5 rounded-xl font-medium transition-colors">
                     <Trash size={20} className="mr-2" /> Excluir Receita
-                  </button>
+                  </button></>
                 )}
                 <button onClick={() => window.print()} className="flex items-center bg-[var(--sidebar-bg)] text-[var(--sidebar-text)] px-5 py-2.5 rounded-xl hover:opacity-90 font-medium transition-opacity">
                   <Printer size={20} className="mr-2" /> Imprimir
@@ -308,6 +312,7 @@ export default function Receitas() {
           </div>
         )}
       </main>
+      {mostrarVersoes && <div className="fixed inset-0 bg-black/60 z-50 grid place-items-center p-4"><div className="bg-[var(--bg-card)] rounded-2xl p-6 max-w-2xl w-full max-h-[80vh] overflow-auto"><div className="flex justify-between mb-4"><h2 className="text-xl font-bold">Histórico da receita</h2><button onClick={()=>setMostrarVersoes(false)}>Fechar</button></div>{versoes.map(v=><article key={v.id} className="border-t border-[var(--border-color)] py-4"><strong>{v.titulo}</strong><p className="text-sm text-[var(--text-muted)]">{new Date(v.criado_em).toLocaleString('pt-BR')} · {v.alterado_por_nome||'Sistema'} · base {v.rendimento_base}</p></article>)}{!versoes.length&&<p>Nenhuma alteração registrada.</p>}</div></div>}
     </div>
   );
 }

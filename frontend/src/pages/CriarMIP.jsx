@@ -1,5 +1,5 @@
-import { useState, useRef, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useRef, useMemo, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
@@ -7,6 +7,7 @@ import { Save, ArrowLeft } from 'lucide-react';
 
 export default function CriarMIP() {
   const navigate = useNavigate();
+  const { id } = useParams();
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const [formData, setFormData] = useState({ 
     codigo: '', 
@@ -18,6 +19,13 @@ export default function CriarMIP() {
   const [conteudo, setConteudo] = useState('');
   const [erro, setErro] = useState('');
   const quillRef = useRef(null);
+
+  useEffect(() => {
+    if (!id) return;
+    axios.get(`http://${window.location.hostname}:7001/api/mips/${id}`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
+      .then(({data}) => { setFormData({codigo:data.codigo,titulo:data.titulo,resumo:data.resumo||'',objetivo:data.objetivo||'',status:data.status}); setConteudo(data.conteudo||''); })
+      .catch(() => setErro('Não foi possível carregar a MIP para edição.'));
+  }, [id]);
 
   const imageHandler = () => {
     const input = document.createElement('input');
@@ -81,7 +89,7 @@ export default function CriarMIP() {
 
     try {
       const token = localStorage.getItem('token');
-      await axios.post(`http://${window.location.hostname}:7001/api/mips`, { ...formData, conteudo }, {
+      await axios[id ? 'put' : 'post'](`http://${window.location.hostname}:7001/api/mips${id ? `/${id}` : ''}`, { ...formData, conteudo }, {
         headers: { Authorization: `Bearer ${token}` }
       });
       navigate('/mips');
@@ -97,7 +105,7 @@ export default function CriarMIP() {
           <button onClick={() => navigate('/dashboard')} className="flex items-center text-[var(--text-muted)] hover:text-amber-600 font-medium transition-colors">
             <ArrowLeft size={20} className="mr-2" /> Voltar
           </button>
-          <h1 className="text-2xl font-bold text-[var(--text-main)]">Criar Nova MIP</h1>
+          <h1 className="text-2xl font-bold text-[var(--text-main)]">{id ? 'Editar MIP' : 'Criar Nova MIP'}</h1>
         </div>
 
         {erro && <div className="mb-6 p-4 bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400 rounded-xl text-sm leading-relaxed border border-red-200 dark:border-red-900">{erro}</div>}
@@ -143,7 +151,7 @@ export default function CriarMIP() {
 
           <div className="flex justify-end pt-4 border-t border-[var(--border-color)]">
             <button type="submit" className="flex items-center bg-amber-600 text-white px-6 py-3 rounded-xl hover:bg-amber-700 shadow-md font-medium transition-colors">
-              <Save size={20} className="mr-2" /> Salvar MIP
+              <Save size={20} className="mr-2" /> {id ? 'Salvar nova versão' : 'Salvar MIP'}
             </button>
           </div>
         </form>

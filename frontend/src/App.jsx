@@ -23,6 +23,7 @@ export default function App() {
         <Route path="/dashboard" element={<RotaPrivada><Dashboard /></RotaPrivada>} />
         <Route path="/mips" element={<RotaPrivada><ListaMIPs /></RotaPrivada>} />
         <Route path="/mips/nova" element={<RotaPrivada><CriarMIP /></RotaPrivada>} />
+        <Route path="/mips/:id/editar" element={<RotaPrivada><CriarMIP /></RotaPrivada>} />
         <Route path="/mips/:id" element={<RotaPrivada><DetalheMIP /></RotaPrivada>} />
         <Route path="/usuarios" element={<RotaPrivada><Usuarios /></RotaPrivada>} />
         <Route path="/receitas" element={<RotaPrivada><Receitas /></RotaPrivada>} />

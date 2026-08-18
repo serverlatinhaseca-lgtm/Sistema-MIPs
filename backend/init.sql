@@ -4,6 +4,9 @@ CREATE TABLE IF NOT EXISTS usuarios (
   email VARCHAR(100) UNIQUE NOT NULL,
   senha VARCHAR(255) NOT NULL,
   perfil VARCHAR(50) NOT NULL,
+  setor VARCHAR(100) NOT NULL DEFAULT '',
+  cargo VARCHAR(100) NOT NULL DEFAULT '',
+  lider_id INT REFERENCES usuarios(id) ON DELETE SET NULL,
   criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -25,22 +28,46 @@ CREATE TABLE IF NOT EXISTS mips (
   criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS colaboradores (
+CREATE TABLE IF NOT EXISTS mip_versoes (
   id SERIAL PRIMARY KEY,
-  nome VARCHAR(120) NOT NULL,
-  setor VARCHAR(100) NOT NULL,
-  cargo VARCHAR(100) DEFAULT '',
-  ativo BOOLEAN DEFAULT TRUE,
+  mip_id INT NOT NULL REFERENCES mips(id) ON DELETE CASCADE,
+  codigo VARCHAR(20) NOT NULL,
+  titulo VARCHAR(255) NOT NULL,
+  resumo TEXT,
+  objetivo TEXT,
+  conteudo TEXT NOT NULL,
+  status VARCHAR(50) NOT NULL,
+  alterado_por INT REFERENCES usuarios(id) ON DELETE SET NULL,
+  criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS receita_versoes (
+  id SERIAL PRIMARY KEY,
+  receita_id INT NOT NULL REFERENCES receitas(id) ON DELETE CASCADE,
+  titulo VARCHAR(255) NOT NULL,
+  rendimento_base INT NOT NULL,
+  ingredientes JSONB NOT NULL,
+  alterado_por INT REFERENCES usuarios(id) ON DELETE SET NULL,
+  criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS perguntas_avaliacao (
+  id SERIAL PRIMARY KEY,
+  titulo VARCHAR(120) NOT NULL,
+  pergunta TEXT NOT NULL,
+  criterios JSONB NOT NULL DEFAULT '[]',
+  obrigatoria BOOLEAN NOT NULL DEFAULT FALSE,
+  ordem INT NOT NULL DEFAULT 0,
+  ativa BOOLEAN NOT NULL DEFAULT TRUE,
   criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS avaliacoes (
   id SERIAL PRIMARY KEY,
-  colaborador_id INT NOT NULL REFERENCES colaboradores(id),
+  usuario_avaliado_id INT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
   mes_referencia CHAR(7) NOT NULL,
   elaborado_por VARCHAR(150) NOT NULL,
   aplicado_por VARCHAR(150) NOT NULL,
-  duracao_minutos INT NOT NULL DEFAULT 60,
   pontuacao_total INT NOT NULL,
   percentual INT NOT NULL,
   classificacao VARCHAR(20) NOT NULL,
@@ -48,8 +75,8 @@ CREATE TABLE IF NOT EXISTS avaliacoes (
   token_compartilhamento VARCHAR(64) UNIQUE NOT NULL,
   criado_por INT REFERENCES usuarios(id) ON DELETE SET NULL,
   criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE (colaborador_id, mes_referencia)
+  UNIQUE (usuario_avaliado_id, mes_referencia)
 );
 
-CREATE INDEX IF NOT EXISTS avaliacoes_colaborador_mes_idx
-  ON avaliacoes (colaborador_id, mes_referencia DESC);
+CREATE INDEX IF NOT EXISTS avaliacoes_usuario_mes_idx
+  ON avaliacoes (usuario_avaliado_id, mes_referencia DESC);
