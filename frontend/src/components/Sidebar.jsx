@@ -66,7 +66,7 @@ export default function Sidebar() {
           <p className="text-sm font-bold text-[var(--sidebar-text)] truncate">{user.nome}</p>
           <span className="inline-block mt-1 text-[10px] px-2 py-0.5 bg-white/10 text-[var(--sidebar-text)] rounded">{user.perfil}</span>
         </div>
-        <div onClick={() => { localStorage.clear(); navigate('/'); }} className="p-3 text-red-400 hover:bg-red-500/10 rounded-lg cursor-pointer flex items-center">
+        <div onClick={() => { localStorage.removeItem('token'); localStorage.removeItem('user'); sessionStorage.clear(); navigate('/'); }} className="p-3 text-red-400 hover:bg-red-500/10 rounded-lg cursor-pointer flex items-center">
           <LogOut size={20} className="mr-3" /> Sair
         </div>
       </div>

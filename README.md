@@ -2,7 +2,7 @@
 
 Portal operacional com MIPs, receitas, usuários e avaliações mensais de colaboradores.
 
-## Versão 1.5.2
+## Versão 1.5.3
 
 - Corrige o salvamento de avaliações editadas.
 - Limpa o formulário após salvar, cancelar ou excluir.
@@ -26,6 +26,7 @@ Portal operacional com MIPs, receitas, usuários e avaliações mensais de colab
 - Restaura o layout exclusivo do Leitor sem barra lateral.
 - Unifica MIPs, Receitas, Avaliações, troca de senha, tema e saída em uma barra superior responsiva.
 - Mantém todas as áreas do Leitor somente para consulta.
+- Exibe o modal de avaliações apenas uma vez por usuário no navegador, preservando essa preferência após sair e entrar novamente.
 
 ## Configuração inicial
 

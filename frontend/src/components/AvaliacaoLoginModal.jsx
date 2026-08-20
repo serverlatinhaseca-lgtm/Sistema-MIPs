@@ -11,12 +11,14 @@ export default function AvaliacaoLoginModal() {
   const perfil = user.perfil?.toLowerCase();
 
   useEffect(() => {
-    if (!['leitor','editor'].includes(perfil) || sessionStorage.getItem('mostrar_avaliacoes_modal') !== '1') return;
+    const chaveVisto = `avaliacao_modal_visto_${user.id}`;
+    if (!['leitor','editor'].includes(perfil) || localStorage.getItem(chaveVisto) === '1' || sessionStorage.getItem('mostrar_avaliacoes_modal') !== '1') return;
     sessionStorage.removeItem('mostrar_avaliacoes_modal');
+    localStorage.setItem(chaveVisto, '1');
     axios.get(`http://${window.location.hostname}:7001/api/minhas-avaliacoes`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
       .then(r => { setQuantidade(r.data.length); setAberto(true); })
       .catch(() => setAberto(true));
-  }, [perfil]);
+  }, [perfil, user.id]);
 
   if (!aberto) return null;
   const destino = perfil === 'leitor' ? '/avaliacoes' : '/meu-desempenho';

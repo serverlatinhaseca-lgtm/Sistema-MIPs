@@ -20,7 +20,7 @@ export default function LeitorTopbar({ titulo }) {
     setDark(ativo);
     localStorage.setItem("theme", ativo ? "dark" : "light");
   };
-  const sair = () => { localStorage.clear(); sessionStorage.clear(); navigate("/"); };
+  const sair = () => { localStorage.removeItem("token"); localStorage.removeItem("user"); sessionStorage.clear(); navigate("/"); };
   const item = (rota, Icone, texto) => <button onClick={()=>navigate(rota)} className={`reader-nav-button ${location.pathname.startsWith(rota) ? "reader-nav-active" : ""}`} title={texto}><Icone size={18}/><span>{texto}</span></button>;
 
   return <header className="reader-topbar no-print">
