@@ -11,8 +11,6 @@ export default function Usuarios() {
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [perfil, setPerfil] = useState("Leitor");
-  const [setor, setSetor] = useState("");
-  const [cargo, setCargo] = useState("");
   const [liderId, setLiderId] = useState("");
   const [modeloId, setModeloId] = useState("");
   const [mostrarModal, setMostrarModal] = useState(false);
@@ -57,8 +55,6 @@ export default function Usuarios() {
           email,
           senha,
           perfil,
-          setor,
-          cargo,
           lider_id: perfil === "Leitor" ? Number(liderId) : null,
           modelo_avaliacao_id: modeloId ? Number(modeloId) : null,
         },
@@ -71,13 +67,11 @@ export default function Usuarios() {
       setEmail("");
       setSenha("");
       setPerfil("Leitor");
-      setSetor("");
-      setCargo("");
       setLiderId("");
       setModeloId("");
       carregarUsuarios();
     } catch (err) {
-      alert("Erro ao criar usuário.");
+      alert(err.response?.data?.error || "Erro ao criar usuário.");
     }
   };
 
@@ -118,32 +112,6 @@ export default function Usuarios() {
             <div className="bg-[var(--bg-card)] border border-[var(--border-color)] rounded-2xl p-6 w-full max-w-md shadow-xl">
               <h3 className="text-xl font-bold mb-4">Cadastrar Novo Usuário</h3>
               <form onSubmit={handleCriar} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1 text-[var(--text-muted)]">
-                    Setor
-                  </label>
-                  <input
-                    required
-                    type="text"
-                    className="w-full p-3 rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)] text-[var(--text-main)]"
-                    value={setor}
-                    onChange={(e) => setSetor(e.target.value)}
-                    placeholder="Ex: Produção"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1 text-[var(--text-muted)]">
-                    Cargo
-                  </label>
-                  <input
-                    required
-                    type="text"
-                    className="w-full p-3 rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)] text-[var(--text-main)]"
-                    value={cargo}
-                    onChange={(e) => setCargo(e.target.value)}
-                    placeholder="Ex: Padeiro"
-                  />
-                </div>
                 <div>
                   <label className="block text-sm font-medium mb-1 text-[var(--text-muted)]">
                     Nome
@@ -225,7 +193,7 @@ export default function Usuarios() {
                 )}
                 <div>
                   <label className="block text-sm font-medium mb-1 text-[var(--text-muted)]">
-                    Setor / modelo de avaliação
+                    Função / modelo de avaliação
                   </label>
                   <select
                     required={perfil !== "Administrador"}
@@ -275,7 +243,7 @@ export default function Usuarios() {
                   Perfil
                 </th>
                 <th className="p-4 font-bold text-[var(--text-muted)] text-sm">
-                  Setor / Cargo
+                  Função / modelo
                 </th>
                 <th className="p-4 font-bold text-[var(--text-muted)] text-sm">
                   Líder
@@ -302,8 +270,7 @@ export default function Usuarios() {
                     </span>
                   </td>
                   <td className="p-4 text-[var(--text-muted)]">
-                    {u.setor || "—"}
-                    {u.cargo ? ` / ${u.cargo}` : ""}
+                    {u.modelo_avaliacao_nome || "—"}
                   </td>
                   <td className="p-4 text-[var(--text-muted)]">
                     {u.lider_nome || "—"}

@@ -104,7 +104,7 @@ export default function Avaliacoes() {
     elaborado_por: user.nome || "",
     aplicado_por: user.nome || "",
   });
-  async function carregar() {
+  async function carregar(forcarConfiguracao = false) {
     try {
       const [u, a, l, m] = await Promise.all([
         axios.get(`${api}/colaboradores`, { headers }),
@@ -118,7 +118,7 @@ export default function Avaliacoes() {
       setModelos(m.data);
       const configId = modeloConfigId || String(m.data[0]?.id || "");
       setModeloConfigId(configId);
-      if (!formAberto && configId) {
+      if ((!formAberto || forcarConfiguracao) && configId) {
         const p = await axios.get(
           `${api}/perguntas-avaliacao?modelo_id=${configId}`,
           { headers },
@@ -133,7 +133,7 @@ export default function Avaliacoes() {
     }
   }
   useEffect(() => {
-    if (user.perfil?.toLowerCase() !== "leitor") carregar();
+    if (user.perfil?.toLowerCase() !== "leitor") carregar(true);
   }, []);
   const historico = useMemo(
       () =>
@@ -156,17 +156,32 @@ export default function Avaliacoes() {
     });
     setPerguntas(p.data);
   }
-  async function iniciar(id = "") {
-    setEditandoId(null);
+  function limparFormulario() {
     setForm({
-      colaborador_id: String(id),
+      colaborador_id: "",
       mes_referencia: mesAtual,
       elaborado_por: user.nome || "",
       aplicado_por: user.nome || "",
     });
     setRespostas({});
-    await carregarPerguntasUsuario(id);
+    setEditandoId(null);
     setErro("");
+  }
+  async function fecharFormulario() {
+    limparFormulario();
+    setFormAberto(false);
+    await carregar(true);
+  }
+  async function iniciar(id = "") {
+    const colaboradorId = String(id || usuarios[0]?.id || "");
+    limparFormulario();
+    setForm({
+      colaborador_id: colaboradorId,
+      mes_referencia: mesAtual,
+      elaborado_por: user.nome || "",
+      aplicado_por: user.nome || "",
+    });
+    await carregarPerguntasUsuario(colaboradorId);
     setFormAberto(true);
     window.scrollTo(0, 0);
   }
@@ -223,11 +238,12 @@ export default function Avaliacoes() {
           payload,
           { headers },
         );
-      await carregar();
+      const token = r.data.token_compartilhamento;
+      limparFormulario();
       setFormAberto(false);
-      setEditandoId(null);
+      await carregar(true);
       window.open(
-        `/avaliacoes/compartilhada/${r.data.token_compartilhamento}`,
+        `/avaliacoes/compartilhada/${token}`,
         "_blank",
       );
     } catch (e) {
@@ -256,7 +272,10 @@ export default function Avaliacoes() {
     if (confirm("Deseja realmente apagar esta avaliação?")) {
       try {
         await axios.delete(`${api}/avaliacoes/${id}`, { headers });
-        await carregar();
+        if (String(editandoId) === String(id)) limparFormulario();
+        setFormAberto(false);
+        setErro("");
+        await carregar(true);
       } catch (e) {
         alert(e.response?.data?.error || "Erro ao excluir avaliação.");
       }
@@ -283,7 +302,7 @@ export default function Avaliacoes() {
         criterios: "",
         obrigatoria: false,
       });
-      await carregar();
+      await carregar(true);
     } catch (e) {
       alert(e.response?.data?.error || "Erro ao adicionar pergunta.");
     }
@@ -292,7 +311,7 @@ export default function Avaliacoes() {
     if (!confirm("Remover esta pergunta das próximas avaliações?")) return;
     try {
       await axios.delete(`${api}/perguntas-avaliacao/${id}`, { headers });
-      await carregar();
+      await carregar(true);
     } catch (e) {
       alert(e.response?.data?.error || "Erro ao remover pergunta.");
     }
@@ -305,7 +324,7 @@ export default function Avaliacoes() {
         <Sidebar />
         <main className="flex-1 p-4 sm:p-8">
           <button
-            onClick={() => setFormAberto(false)}
+            onClick={fecharFormulario}
             className="text-amber-700 font-semibold mb-4"
           >
             ← Voltar às avaliações
@@ -333,13 +352,14 @@ export default function Avaliacoes() {
                 Usuário
                 <select
                   required
+                  disabled={Boolean(editandoId)}
                   value={form.colaborador_id}
                   onChange={(e) => {
                     setForm({ ...form, colaborador_id: e.target.value });
                     setRespostas({});
                     carregarPerguntasUsuario(e.target.value);
                   }}
-                  className="field"
+                  className="field disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <option value="">Selecione</option>
                   {usuarios.map((u) => (
@@ -413,6 +433,7 @@ export default function Avaliacoes() {
                           required
                           type="radio"
                           name={`nota-${c.chave}`}
+                          checked={Number(respostas[c.chave]?.nota) === n}
                           onChange={() =>
                             setRespostas({
                               ...respostas,

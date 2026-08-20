@@ -2,6 +2,13 @@
 
 Portal operacional com MIPs, receitas, usuários e avaliações mensais de colaboradores.
 
+## Versão 1.3.1
+
+- Corrige o salvamento de avaliações editadas.
+- Limpa o formulário após salvar, cancelar ou excluir.
+- Carrega automaticamente as perguntas do modelo da função selecionada.
+- Define setor e função pelo modelo, sem preenchimento manual duplicado.
+
 ## Configuração inicial
 
 Crie o arquivo de ambiente antes de subir os contêineres:
@@ -25,7 +32,7 @@ As novas tabelas são criadas automaticamente pelo backend sem apagar os dados e
 
 ## Avaliações
 
-- As avaliações são vinculadas aos usuários já cadastrados; setor e cargo são preenchidos na aba Usuários.
+- As avaliações são vinculadas aos usuários já cadastrados; a função é definida pelo modelo escolhido na aba Usuários.
 - Cada usuário recebe um modelo de avaliação por função: Embalagem, Forneiro, Líderes, Motorista, Padeiro ou Auxiliar de Padeiro.
 - Os modelos iniciais reproduzem as perguntas das planilhas de 2026 fornecidas.
 - O Administrador gerencia perguntas separadamente em cada modelo, sem alterar avaliações antigas.

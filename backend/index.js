@@ -359,15 +359,20 @@ app.get('/api/usuarios', verificarToken, async (req, res) => {
 
 app.post('/api/usuarios', verificarToken, async (req, res) => {
   if (req.usuarioPerfil !== 'Administrador') return res.status(403).json({ error: 'Acesso negado' });
-  const { nome, email, senha, perfil, setor = '', cargo = '', lider_id = null, modelo_avaliacao_id = null } = req.body;
+  const { nome, email, senha, perfil, lider_id = null, modelo_avaliacao_id = null } = req.body;
   if (String(perfil).toLowerCase() === 'leitor' && !lider_id) return res.status(400).json({ error: 'Selecione o líder responsável pelo funcionário' });
   try {
     const hash = await bcrypt.hash(senha, 10);
     if (lider_id) { const lider=await pool.query("SELECT id FROM usuarios WHERE id=$1 AND LOWER(perfil)='editor'",[Number(lider_id)]); if(!lider.rows.length)return res.status(400).json({error:'O líder selecionado precisa ter perfil Editor'}); }
-    if(modelo_avaliacao_id){const modelo=await pool.query('SELECT id FROM modelos_avaliacao WHERE id=$1 AND ativo=TRUE',[Number(modelo_avaliacao_id)]);if(!modelo.rows.length)return res.status(400).json({error:'Modelo de avaliação inválido'});}
-    const result = await pool.query('INSERT INTO usuarios (nome,email,senha,perfil,setor,cargo,lider_id,modelo_avaliacao_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id', [nome,email,hash,perfil,setor.trim(),cargo.trim(),String(perfil).toLowerCase()==='leitor'?Number(lider_id):null,modelo_avaliacao_id?Number(modelo_avaliacao_id):null]);
+    let nomeModelo = '';
+    if(modelo_avaliacao_id){const modelo=await pool.query('SELECT id,nome FROM modelos_avaliacao WHERE id=$1 AND ativo=TRUE',[Number(modelo_avaliacao_id)]);if(!modelo.rows.length)return res.status(400).json({error:'Modelo de avaliação inválido'});nomeModelo=modelo.rows[0].nome;}
+    if(String(perfil).toLowerCase() !== 'administrador' && !modelo_avaliacao_id) return res.status(400).json({error:'Selecione a função/modelo de avaliação'});
+    const result = await pool.query('INSERT INTO usuarios (nome,email,senha,perfil,setor,cargo,lider_id,modelo_avaliacao_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id', [nome,email,hash,perfil,nomeModelo,nomeModelo,String(perfil).toLowerCase()==='leitor'?Number(lider_id):null,modelo_avaliacao_id?Number(modelo_avaliacao_id):null]);
     res.status(201).json({ id: result.rows[0].id, mensagem: 'Criado!' });
-  } catch (err) { res.status(500).json({ error: 'Erro' }); }
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ error: 'Este usuário de acesso já está cadastrado' });
+    res.status(500).json({ error: 'Erro ao criar usuário' });
+  }
 });
 
 app.delete('/api/usuarios/:id', verificarToken, async (req, res) => {
@@ -591,11 +596,12 @@ app.put('/api/avaliacoes/:id', verificarToken, podeGerenciarAvaliacoes, async (r
   if (!colaborador_id || !/^[0-9]{4}-[0-9]{2}$/.test(String(mes_referencia || ''))) return res.status(400).json({ error: 'Usuário e mês de referência são obrigatórios' });
   if (!String(elaborado_por || '').trim() || !String(aplicado_por || '').trim()) return res.status(400).json({ error: 'Informe quem elaborou e quem aplicou a avaliação' });
   try {
-    const permitido=await pool.query(`SELECT id,modelo_avaliacao_id FROM usuarios WHERE id=$1 AND modelo_avaliacao_id IS NOT NULL ${String(req.usuarioPerfil).toLowerCase()==='editor'?"AND LOWER(perfil)='leitor' AND lider_id=$2":''}`,String(req.usuarioPerfil).toLowerCase()==='editor'?[Number(colaborador_id),req.usuarioId]:[Number(colaborador_id)]);
-    if(!permitido.rows.length)return res.status(403).json({error:'Este funcionário não está vinculado a você'});
-    const perguntas=await pool.query('SELECT * FROM perguntas_avaliacao WHERE ativa=TRUE AND modelo_avaliacao_id=$1 ORDER BY ordem,id',[permitido.rows[0].modelo_avaliacao_id]);
-    const calculo = prepararAvaliacaoDinamica(perguntas.rows,respostas);
-    const result = await pool.query(`UPDATE avaliacoes SET usuario_avaliado_id=$1,mes_referencia=$2,elaborado_por=$3,aplicado_por=$4,pontuacao_total=$5,percentual=$6,classificacao=$7,respostas=$8 WHERE id=$9 ${String(req.usuarioPerfil).toLowerCase()==='editor'?'AND EXISTS (SELECT 1 FROM usuarios alvo WHERE alvo.id=avaliacoes.usuario_avaliado_id AND alvo.lider_id=$10)':''} RETURNING *`, String(req.usuarioPerfil).toLowerCase()==='editor'?[Number(colaborador_id),mes_referencia,elaborado_por.trim(),aplicado_por.trim(),calculo.pontuacaoTotal,calculo.percentual,calculo.classificacao,JSON.stringify(calculo.respostas),req.params.id,req.usuarioId]:[Number(colaborador_id),mes_referencia,elaborado_por.trim(),aplicado_por.trim(),calculo.pontuacaoTotal,calculo.percentual,calculo.classificacao,JSON.stringify(calculo.respostas),req.params.id]);
+    const existente = await pool.query(`SELECT a.usuario_avaliado_id,a.respostas FROM avaliacoes a JOIN usuarios u ON u.id=a.usuario_avaliado_id WHERE a.id=$1 ${String(req.usuarioPerfil).toLowerCase()==='editor'?'AND u.lider_id=$2':''}`,String(req.usuarioPerfil).toLowerCase()==='editor'?[req.params.id,req.usuarioId]:[req.params.id]);
+    if(!existente.rows.length)return res.status(404).json({error:'Avaliação não encontrada'});
+    if(Number(colaborador_id)!==Number(existente.rows[0].usuario_avaliado_id))return res.status(400).json({error:'O usuário de uma avaliação concluída não pode ser alterado'});
+    const perguntasSnapshot=(existente.rows[0].respostas||[]).map((r,index)=>({id:r.pergunta_id||r.competencia,titulo:r.titulo,pergunta:r.pergunta,criterios:r.criterios||[],obrigatoria:Boolean(r.obrigatoria),ordem:index+1}));
+    const calculo = prepararAvaliacaoDinamica(perguntasSnapshot,respostas);
+    const result = await pool.query(`UPDATE avaliacoes SET mes_referencia=$1,elaborado_por=$2,aplicado_por=$3,pontuacao_total=$4,percentual=$5,classificacao=$6,respostas=$7 WHERE id=$8 RETURNING *`, [mes_referencia,elaborado_por.trim(),aplicado_por.trim(),calculo.pontuacaoTotal,calculo.percentual,calculo.classificacao,JSON.stringify(calculo.respostas),req.params.id]);
     if (!result.rows.length) return res.status(404).json({ error: 'Avaliação não encontrada' });
     res.json(result.rows[0]);
   } catch (error) {
