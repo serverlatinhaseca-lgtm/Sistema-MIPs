@@ -4,6 +4,7 @@ import { Bell, Plus, Printer, Share2, Trash2, Pencil } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 import GraficoDesempenho from "../components/GraficoDesempenho";
 import { formatarMes } from "../avaliacoes";
+import LeitorTopbar from "../components/LeitorTopbar";
 
 const mesAtual = new Date().toISOString().slice(0, 7);
 const semPrefixoSecao = (texto = "") => String(texto).replace(/^\s*SEÇÃO\s+\d+\s*:\s*/i, "");
@@ -22,15 +23,16 @@ async function copiarLink(url) {
 
 export function MinhasAvaliacoes({ api = `http://${window.location.hostname}:7001/api`, headers = { Authorization: `Bearer ${localStorage.getItem("token")}` } }) {
   const [itens, setItens] = useState([]);
+  const perfil = JSON.parse(localStorage.getItem("user") || "{}").perfil?.toLowerCase();
   useEffect(() => {
     axios
       .get(`${api}/minhas-avaliacoes`, { headers })
       .then((r) => setItens(r.data));
   }, []);
   return (
-    <div className="min-h-screen bg-[var(--bg-main)] flex">
-      <Sidebar />
-      <main className="flex-1 p-4 sm:p-8">
+    <div className={`min-h-screen bg-[var(--bg-main)] ${perfil === "leitor" ? "" : "flex"}`}>
+      {perfil === "leitor" ? <LeitorTopbar titulo="Meu desempenho" /> : <Sidebar />}
+      <main className="flex-1 p-4 sm:p-8 max-w-7xl w-full mx-auto">
         <h1 className="text-3xl font-bold mb-2">Meu desempenho</h1>
         <p className="text-[var(--text-muted)] mb-6">
           Consulte suas avaliações e sua evolução mensal.

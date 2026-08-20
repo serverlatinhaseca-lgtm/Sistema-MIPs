@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { Calculator, Printer, Plus, Trash, ArrowLeft, Save, Search, BookOpen, LogOut, Sun, Moon, Pencil, History } from 'lucide-react';
+import { Calculator, Printer, Plus, Trash, ArrowLeft, Save, Search, Pencil, History } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
+import LeitorTopbar from '../components/LeitorTopbar';
 
 export default function Receitas() {
   const [receitas, setReceitas] = useState([]);
@@ -16,25 +17,11 @@ export default function Receitas() {
   const [titulo, setTitulo] = useState('');
   const [rendimentoBase, setRendimentoBase] = useState('');
   const [ingredientes, setIngredientes] = useState([{ nome: '', quantidade: '' }]);
-  const [dark, setDark] = useState(document.documentElement.classList.contains('dark'));
   
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const host = window.location.hostname;
   const isLeitor = user.perfil?.toLowerCase() === 'leitor';
-
-  const toggleTheme = () => {
-    const isDark = document.documentElement.classList.toggle('dark');
-    setDark(isDark);
-    localStorage.setItem('theme', isDark ? 'dark' : 'light');
-  };
-
-  useEffect(() => {
-    if (localStorage.getItem('theme') === 'dark') {
-      document.documentElement.classList.add('dark');
-      setDark(true);
-    }
-  }, []);
 
   const carregarReceitas = async () => {
     try {
@@ -95,22 +82,9 @@ export default function Receitas() {
   // ==========================================
   if (isLeitor) {
     return (
-      <div className="min-h-screen bg-[var(--bg-main)] text-[var(--text-main)] p-4 sm:p-10 max-w-5xl mx-auto">
-        <header className="flex justify-between items-center mb-8 bg-[var(--bg-card)] p-4 sm:p-6 rounded-2xl border border-[var(--border-color)] shadow-sm">
-          <h1 className="text-xl sm:text-2xl font-bold">Calculadora de Receitas</h1>
-          <div className="flex items-center gap-3">
-            <button onClick={toggleTheme} className="p-2.5 bg-[var(--bg-main)] border border-[var(--border-color)] text-[var(--text-main)] rounded-xl hover:opacity-80 transition-opacity flex items-center gap-2" title="Mudar Tema">
-              {dark ? <Sun size={18} className="text-amber-400" /> : <Moon size={18} className="text-slate-700" />}
-              <span className="text-sm font-medium hidden sm:inline">{dark ? 'Modo Claro' : 'Modo Escuro'}</span>
-            </button>
-            <button onClick={() => navigate('/mips')} className="flex items-center bg-[var(--sidebar-bg)] text-[var(--sidebar-text)] px-4 py-2.5 rounded-xl text-sm font-medium hover:opacity-90 transition-opacity">
-              <BookOpen size={16} className="mr-2" /> Manuais (MIPs)
-            </button>
-            <button onClick={() => { localStorage.clear(); navigate('/'); }} className="p-2.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-xl transition-colors" title="Sair">
-              <LogOut size={20} />
-            </button>
-          </div>
-        </header>
+      <div className="min-h-screen bg-[var(--bg-main)] text-[var(--text-main)]">
+        <LeitorTopbar titulo="Calculadora de receitas" />
+        <main className="p-4 sm:p-10 max-w-5xl mx-auto">
 
         {receitaAtiva ? (
           <div className="bg-[var(--bg-card)] border border-[var(--border-color)] rounded-2xl p-6 sm:p-10 shadow-sm">
@@ -173,7 +147,7 @@ export default function Receitas() {
               {receitasFiltradas.length === 0 && <p className="col-span-full text-center py-10 text-[var(--text-muted)]">Nenhuma receita encontrada.</p>}
             </div>
           </div>
-        )}
+        )}</main>
       </div>
     );
   }

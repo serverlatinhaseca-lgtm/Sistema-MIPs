@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { KeyRound } from "lucide-react";
 import Sidebar from "../components/Sidebar";
+import LeitorTopbar from "../components/LeitorTopbar";
 
 export default function AlterarSenha() {
   const [senhaAtual, setSenhaAtual] = useState("");
@@ -13,6 +14,7 @@ export default function AlterarSenha() {
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   const obrigatoria = Boolean(user.deve_alterar_senha);
+  const leitor = user.perfil?.toLowerCase() === "leitor";
 
   async function salvar(e) {
     e.preventDefault();
@@ -28,8 +30,8 @@ export default function AlterarSenha() {
     finally { setSalvando(false); }
   }
 
-  return <div className="min-h-screen bg-[var(--bg-main)] flex">
-    {!obrigatoria && <Sidebar />}
+  return <div className={`min-h-screen bg-[var(--bg-main)] ${leitor ? "" : "flex"}`}>
+    {!obrigatoria && (leitor ? <LeitorTopbar titulo="Segurança da conta" /> : <Sidebar />)}
     <main className="flex-1 grid place-items-center p-4">
       <section className="panel-card w-full max-w-md">
         <KeyRound size={36} className="text-amber-600 mb-3" />

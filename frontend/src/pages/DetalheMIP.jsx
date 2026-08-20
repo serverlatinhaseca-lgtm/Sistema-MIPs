@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { ArrowLeft, Clock, User, Trash2, CheckCircle, Pencil, History } from 'lucide-react';
+import LeitorTopbar from '../components/LeitorTopbar';
 
 export default function DetalheMIP() {
   const { id } = useParams();
@@ -56,8 +57,9 @@ export default function DetalheMIP() {
   if (!mip) return <div className="p-8 text-center text-[var(--text-muted)]">Carregando MIP...</div>;
 
   return (
-    <div className="min-h-screen bg-[var(--bg-main)] p-4 sm:p-8">
-      <div className="max-w-4xl mx-auto bg-[var(--bg-card)] border border-[var(--border-color)] p-4 sm:p-8 rounded-xl shadow-sm">
+    <div className="min-h-screen bg-[var(--bg-main)]">
+      {isLeitor && <LeitorTopbar titulo="Consulta de MIP" />}
+      <div className="p-4 sm:p-8"><div className="max-w-4xl mx-auto bg-[var(--bg-card)] border border-[var(--border-color)] p-4 sm:p-8 rounded-xl shadow-sm">
 
         {/* Cabeçalho de Navegação e Ações */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 pb-4 border-b border-[var(--border-color)]">
@@ -110,7 +112,7 @@ export default function DetalheMIP() {
 
         {mostrarVersoes && <div className="fixed inset-0 bg-black/60 z-50 grid place-items-center p-4"><div className="bg-[var(--bg-card)] rounded-2xl p-6 max-w-3xl w-full max-h-[85vh] overflow-auto"><div className="flex justify-between mb-4"><div><h2 className="text-xl font-bold">Histórico de versões</h2><p className="text-sm text-[var(--text-muted)]">Veja exatamente o que mudou em cada edição.</p></div><button onClick={()=>setMostrarVersoes(false)}>Fechar</button></div>{versoes.map(v=><article key={v.id} className="border-t border-[var(--border-color)] py-5"><div className="flex justify-between gap-3"><strong>Alteração da versão {v.numero_versao}</strong><span className="text-xs text-[var(--text-muted)]">{new Date(v.criado_em).toLocaleString('pt-BR')}</span></div><p className="text-sm text-[var(--text-muted)] mb-3">Alterado por {v.alterado_por_nome||'Sistema'}</p><div className="space-y-2">{(v.alteracoes||[]).map((a,i)=><div key={`${a.campo}-${i}`} className="bg-[var(--bg-main)] rounded-xl p-3 text-sm"><strong className="text-[var(--primary)]">{a.campo}</strong><div className="grid sm:grid-cols-2 gap-2 mt-1"><p><span className="text-xs text-[var(--text-muted)] block">Antes</span>{a.de}</p><p><span className="text-xs text-[var(--text-muted)] block">Depois</span>{a.para}</p></div></div>)}{!(v.alteracoes||[]).length&&<p className="text-sm text-[var(--text-muted)]">Nenhuma diferença de conteúdo identificada.</p>}</div></article>)}{!versoes.length&&<p>Nenhuma alteração registrada.</p>}</div></div>}
 
-      </div>
+      </div></div>
     </div>
   );
 }

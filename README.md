@@ -2,7 +2,7 @@
 
 Portal operacional com MIPs, receitas, usuários e avaliações mensais de colaboradores.
 
-## Versão 1.5.1
+## Versão 1.5.2
 
 - Corrige o salvamento de avaliações editadas.
 - Limpa o formulário após salvar, cancelar ou excluir.
@@ -23,6 +23,9 @@ Portal operacional com MIPs, receitas, usuários e avaliações mensais de colab
 - Dá ao Editor acesso às próprias avaliações, enquanto continua avaliando seus Leitores vinculados.
 - Aplica ao relatório de avaliação a identidade Nova Esperança: PT Serif, Montserrat, laranja #ff8d2f, marrom #a65526 e cinza #5e5e5e.
 - Corrige a compatibilidade dos ícones com a versão instalada do `lucide-react`.
+- Restaura o layout exclusivo do Leitor sem barra lateral.
+- Unifica MIPs, Receitas, Avaliações, troca de senha, tema e saída em uma barra superior responsiva.
+- Mantém todas as áreas do Leitor somente para consulta.
 
 ## Configuração inicial
 
