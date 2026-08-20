@@ -2,7 +2,7 @@
 
 Portal operacional com MIPs, receitas, usuários e avaliações mensais de colaboradores.
 
-## Versão 1.5.0
+## Versão 1.5.1
 
 - Corrige o salvamento de avaliações editadas.
 - Limpa o formulário após salvar, cancelar ou excluir.
@@ -22,6 +22,7 @@ Portal operacional com MIPs, receitas, usuários e avaliações mensais de colab
 - Permite gerar, visualizar e copiar uma nova senha temporária, sem expor senhas pessoais.
 - Dá ao Editor acesso às próprias avaliações, enquanto continua avaliando seus Leitores vinculados.
 - Aplica ao relatório de avaliação a identidade Nova Esperança: PT Serif, Montserrat, laranja #ff8d2f, marrom #a65526 e cinza #5e5e5e.
+- Corrige a compatibilidade dos ícones com a versão instalada do `lucide-react`.
 
 ## Configuração inicial
 
