@@ -4,6 +4,7 @@ import axios from "axios";
 import { ArrowLeft, Printer, Share2 } from "lucide-react";
 import GraficoDesempenho from "../components/GraficoDesempenho";
 import { formatarMes } from "../avaliacoes";
+import useBranding from "../useBranding";
 
 export default function AvaliacaoCompartilhada() {
   const { token } = useParams();
@@ -11,6 +12,7 @@ export default function AvaliacaoCompartilhada() {
   const [avaliacao, setAvaliacao] = useState(null);
   const [erro, setErro] = useState("");
   const api = `http://${window.location.hostname}:7001/api`;
+  const branding = useBranding();
 
   useEffect(() => {
     axios
@@ -100,7 +102,8 @@ export default function AvaliacaoCompartilhada() {
       </div>
 
       <article className="evaluation-report max-w-5xl mx-auto bg-white p-5 sm:p-9 shadow-xl print:shadow-none print:p-0">
-        <header className="grid sm:grid-cols-[1fr_1.6fr] border-2 border-stone-700">
+        <header className={`grid ${branding.logo_avaliacao || branding.logo_site ? "sm:grid-cols-[150px_1fr_1.6fr]" : "sm:grid-cols-[1fr_1.6fr]"} border-2 border-stone-700`}>
+          {(branding.logo_avaliacao || branding.logo_site) && <div className="bg-white grid place-items-center p-3 border-b-2 sm:border-b-0 sm:border-r-2 border-stone-700"><img src={branding.logo_avaliacao || branding.logo_site} alt={branding.nome_site} className="max-h-16 max-w-[125px] object-contain" /></div>}
           <div className="bg-slate-600 text-white text-2xl font-black grid place-items-center p-5">
             {avaliacao.setor}
           </div>
@@ -151,9 +154,8 @@ export default function AvaliacaoCompartilhada() {
               className="evaluation-section grid grid-cols-[1fr_80px] sm:grid-cols-[1fr_110px] border-2 border-t-0 border-stone-500"
             >
               <div className="p-3">
-                <h3 className="font-black text-sm">
-                  SEÇÃO {indice + 1}: {item.pergunta}
-                </h3>
+                <h3 className="font-black text-sm">SEÇÃO {indice + 1}: {item.titulo}</h3>
+                <p className="font-semibold text-sm mt-1">{String(item.pergunta || "").replace(/^\s*SEÇÃO\s+\d+\s*:\s*/i, "")}</p>
                 <ol className="list-decimal ml-5 mt-1 text-xs space-y-0.5">
                   {(item.criterios || []).map((criterio) => (
                     <li key={criterio}>{criterio}</li>

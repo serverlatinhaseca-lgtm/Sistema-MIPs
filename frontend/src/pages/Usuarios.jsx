@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { UserPlus, Trash2 } from "lucide-react";
+import { UserPlus, Trash2, KeyRound } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 
 export default function Usuarios() {
@@ -14,6 +14,8 @@ export default function Usuarios() {
   const [liderId, setLiderId] = useState("");
   const [modeloId, setModeloId] = useState("");
   const [mostrarModal, setMostrarModal] = useState(false);
+  const [usuarioSenha, setUsuarioSenha] = useState(null);
+  const [senhaTemporaria, setSenhaTemporaria] = useState("");
 
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem("user") || "{}");
@@ -85,6 +87,15 @@ export default function Usuarios() {
     } catch (err) {
       alert(err.response?.data?.error || "Erro ao excluir usuário.");
     }
+  };
+
+  const redefinirSenha = async (e) => {
+    e.preventDefault();
+    try {
+      await axios.put(`http://${host}:7001/api/usuarios/${usuarioSenha.id}/redefinir-senha`, { senha_temporaria: senhaTemporaria }, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
+      alert("Senha temporária definida. O usuário deverá criar a própria senha no próximo acesso.");
+      setUsuarioSenha(null); setSenhaTemporaria(""); carregarUsuarios();
+    } catch (err) { alert(err.response?.data?.error || "Erro ao redefinir senha."); }
   };
 
   return (
@@ -229,6 +240,8 @@ export default function Usuarios() {
           </div>
         )}
 
+        {usuarioSenha && <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50"><div className="panel-card w-full max-w-md"><h3 className="text-xl font-bold">Redefinir senha de {usuarioSenha.nome}</h3><p className="text-sm text-[var(--text-muted)] mt-1 mb-4">Por segurança, a senha atual não pode ser visualizada. Defina uma senha temporária; no próximo acesso, o usuário será obrigado a criar a própria senha.</p><form onSubmit={redefinirSenha} className="space-y-4"><label className="block text-sm font-semibold">Nova senha temporária<input required minLength="6" type="password" className="field" value={senhaTemporaria} onChange={e=>setSenhaTemporaria(e.target.value)} /></label><div className="flex gap-3"><button type="button" onClick={()=>{setUsuarioSenha(null);setSenhaTemporaria("");}} className="flex-1 border border-[var(--border-color)] p-3 rounded-xl">Cancelar</button><button className="flex-1 bg-amber-600 text-white p-3 rounded-xl font-bold">Redefinir</button></div></form></div></div>}
+
         <div className="bg-[var(--bg-card)] border border-[var(--border-color)] rounded-2xl shadow-sm overflow-hidden">
           <table className="w-full text-left border-collapse">
             <thead>
@@ -263,7 +276,7 @@ export default function Usuarios() {
                   className="border-b border-[var(--border-color)]/50 hover:bg-[var(--bg-main)] transition-colors"
                 >
                   <td className="p-4 font-medium">{u.nome}</td>
-                  <td className="p-4 text-[var(--text-muted)]">{u.email}</td>
+                  <td className="p-4 text-[var(--text-muted)]">{u.email}{u.deve_alterar_senha && <span className="block text-xs text-amber-700 font-bold mt-1">Troca de senha pendente</span>}</td>
                   <td className="p-4">
                     <span className="px-2.5 py-1 bg-[var(--primary)]/10 text-[var(--primary)] rounded-lg text-xs font-semibold">
                       {u.perfil}
@@ -279,6 +292,7 @@ export default function Usuarios() {
                     {u.modelo_avaliacao_nome || "—"}
                   </td>
                   <td className="p-4 text-right">
+                    <button title="Redefinir senha" onClick={() => setUsuarioSenha(u)} className="p-2 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30 rounded-lg transition-colors"><KeyRound size={18} /></button>
                     <button
                       onClick={() => handleExcluir(u.id)}
                       className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg transition-colors"

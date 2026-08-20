@@ -2,12 +2,14 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Lock, User, LogIn } from 'lucide-react';
+import useBranding from '../useBranding';
 
 export default function Login() {
   const [usuario, setUsuario] = useState('');
   const [senha, setSenha] = useState('');
   const [erro, setErro] = useState('');
   const navigate = useNavigate();
+  const branding = useBranding();
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -23,7 +25,7 @@ export default function Login() {
 
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('user', JSON.stringify(response.data.user));
-      navigate('/dashboard');
+      navigate(response.data.deve_alterar_senha ? '/alterar-senha' : (response.data.user.perfil?.toLowerCase() === 'leitor' ? '/avaliacoes' : '/dashboard'));
     } catch (err) {
       setErro(err.response?.data?.error || 'Erro ao fazer login. Verifique suas credenciais.');
     }
@@ -33,7 +35,8 @@ export default function Login() {
     <div className="min-h-screen bg-[var(--bg-main)] flex items-center justify-center p-4">
       <div className="max-w-md w-full bg-[var(--bg-card)] border border-[var(--border-color)] p-8 rounded-2xl shadow-sm">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-[var(--text-main)] mb-2">Portal MIPs</h1>
+          {branding.logo_site && <img src={branding.logo_site} alt={branding.nome_site} className="max-h-24 mx-auto mb-4 object-contain" />}
+          <h1 className="text-3xl font-bold text-[var(--text-main)] mb-2">{branding.nome_site}</h1>
           <p className="text-[var(--text-muted)] text-sm">Faça login para acessar os manuais e receitas</p>
         </div>
 

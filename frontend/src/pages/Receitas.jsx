@@ -63,7 +63,7 @@ export default function Receitas() {
       setModoCriacao(false);
       setTitulo(''); setRendimentoBase(''); setIngredientes([{ nome: '', quantidade: '' }]); setEditandoId(null);
       carregarReceitas();
-    } catch (err) { alert('Erro ao salvar receita.'); }
+    } catch (err) { alert(err.response?.data?.error || 'Erro ao salvar receita.'); }
   };
 
   const iniciarEdicao = () => { setEditandoId(receitaAtiva.id); setTitulo(receitaAtiva.titulo); setRendimentoBase(String(receitaAtiva.rendimento_base)); setIngredientes(receitaAtiva.ingredientes.map(i=>({...i}))); setReceitaAtiva(null); setModoCriacao(true); };
@@ -189,7 +189,7 @@ export default function Receitas() {
         {modoCriacao ? (
           <div className="bg-[var(--bg-card)] border border-[var(--border-color)] rounded-2xl p-6 shadow-sm">
             <div className="flex justify-between items-center mb-6">
-              <button onClick={() => setModoCriacao(false)} className="flex items-center text-[var(--primary)] font-semibold">
+              <button onClick={() => { setModoCriacao(false); setEditandoId(null); setTitulo(''); setRendimentoBase(''); setIngredientes([{ nome: '', quantidade: '' }]); }} className="flex items-center text-[var(--primary)] font-semibold">
                 <ArrowLeft size={20} className="mr-2" /> Voltar
               </button>
               <h2 className="text-2xl font-bold">{editandoId ? 'Editar Receita' : 'Nova Receita Padrão'}</h2>

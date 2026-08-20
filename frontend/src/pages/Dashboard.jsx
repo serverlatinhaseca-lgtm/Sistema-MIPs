@@ -3,16 +3,18 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { BookOpen, Users, PlusCircle, Calculator, ClipboardCheck } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
+import useBranding from '../useBranding';
 
 export default function Dashboard() {
   const [stats, setStats] = useState({ totalMips: 0, totalUsuarios: 0, totalReceitas: 0, avaliacoesPendentes: 0 });
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const host = window.location.hostname;
+  const branding = useBranding();
 
   useEffect(() => {
     if (user.perfil?.toLowerCase() === 'leitor') {
-      navigate('/mips');
+      navigate('/avaliacoes');
       return;
     }
 
@@ -38,7 +40,7 @@ export default function Dashboard() {
         <header className="flex justify-between items-center mb-8">
           <div>
             <h1 className="text-3xl font-bold text-[var(--text-main)]">Olá, {user.nome}! 👋</h1>
-            <p className="text-[var(--text-muted)] text-sm">Bem-vindo ao painel de controle do Portal MIPs.</p>
+            <p className="text-[var(--text-muted)] text-sm">Bem-vindo ao painel de controle do {branding.nome_site}.</p>
           </div>
           {(user.perfil?.toLowerCase() === 'administrador' || user.perfil?.toLowerCase() === 'editor') && (
             <button onClick={() => navigate('/mips/nova')} className="flex items-center bg-amber-600 text-white px-5 py-2.5 rounded-xl hover:bg-amber-700 font-medium transition-colors shadow-md">

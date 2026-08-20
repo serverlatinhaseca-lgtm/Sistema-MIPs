@@ -106,6 +106,15 @@ async function inicializarBancoEAdmin() {
       ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS setor VARCHAR(100) NOT NULL DEFAULT '';
       ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS cargo VARCHAR(100) NOT NULL DEFAULT '';
       ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS lider_id INT REFERENCES usuarios(id) ON DELETE SET NULL;
+      ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS deve_alterar_senha BOOLEAN NOT NULL DEFAULT FALSE;
+      CREATE TABLE IF NOT EXISTS configuracoes_portal (
+        id INT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+        nome_site VARCHAR(150) NOT NULL DEFAULT 'Portal MIPs',
+        logo_site TEXT NOT NULL DEFAULT '',
+        logo_avaliacao TEXT NOT NULL DEFAULT '',
+        atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      INSERT INTO configuracoes_portal (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
       CREATE TABLE IF NOT EXISTS modelos_avaliacao (
         id SERIAL PRIMARY KEY,
         nome VARCHAR(120) UNIQUE NOT NULL,
@@ -166,13 +175,16 @@ async function inicializarBancoEAdmin() {
         ('Gerais','Apresenta bom desempenho geral e postura profissional?','["Segue os procedimentos.","Recebe orientações de forma positiva.","Contribui para o ambiente de trabalho."]'::jsonb,FALSE,7)
       ) AS padrao(titulo,pergunta,criterios,obrigatoria,ordem)
       WHERE NOT EXISTS (SELECT 1 FROM perguntas_avaliacao);
+      UPDATE perguntas_avaliacao
+      SET pergunta = REGEXP_REPLACE(pergunta, '^\\s*SEÇÃO\\s+[0-9]+\\s*:\\s*', '', 'i')
+      WHERE pergunta ~* '^\\s*SEÇÃO\\s+[0-9]+\\s*:';
     `);
     await inicializarModelosAvaliacao();
 
     const check = await pool.query("SELECT * FROM usuarios WHERE email = 'admin'");
     if (check.rows.length === 0) {
       const hash = await bcrypt.hash(ADMIN_INITIAL_PASSWORD, 10);
-      await pool.query("INSERT INTO usuarios (nome, email, senha, perfil) VALUES ($1, $2, $3, $4)", ['Administrador', 'admin', hash, 'Administrador']);
+      await pool.query("INSERT INTO usuarios (nome, email, senha, perfil, deve_alterar_senha) VALUES ($1, $2, $3, $4, FALSE)", ['Administrador', 'admin', hash, 'Administrador']);
       console.log('✅ Usuário admin criado!');
     }
   } catch (err) { console.log('Erro ao inicializar:', err.message); }
@@ -186,7 +198,8 @@ async function inicializarModelosAvaliacao() {
     if (Number(existente.rows[0].count) === 0) {
       for (let i=0;i<modelo.perguntas.length;i++) {
         const p=modelo.perguntas[i];
-        await pool.query('INSERT INTO perguntas_avaliacao (titulo,pergunta,criterios,obrigatoria,ordem,modelo_avaliacao_id) VALUES ($1,$2,$3,$4,$5,$6)',[p.titulo,p.pergunta,JSON.stringify(p.criterios),p.obrigatoria,i+1,modeloId]);
+        const perguntaSemSecao = String(p.pergunta || '').replace(/^\s*SEÇÃO\s+\d+\s*:\s*/i, '');
+        await pool.query('INSERT INTO perguntas_avaliacao (titulo,pergunta,criterios,obrigatoria,ordem,modelo_avaliacao_id) VALUES ($1,$2,$3,$4,$5,$6)',[p.titulo,perguntaSemSecao,JSON.stringify(p.criterios),p.obrigatoria,i+1,modeloId]);
       }
     }
   }
@@ -232,8 +245,50 @@ app.post('/api/auth/login', async (req, res) => {
     const isValid = await bcrypt.compare(senha, user.senha);
     if (!isValid) return res.status(401).json({ error: 'Senha inválida' });
     const token = jwt.sign({ id: user.id, perfil: user.perfil }, JWT_SECRET, { expiresIn: '8h' });
-    res.json({ token, user: { id: user.id, nome: user.nome, perfil: user.perfil, email: user.email } });
+    res.json({ token, deve_alterar_senha: Boolean(user.deve_alterar_senha), user: { id: user.id, nome: user.nome, perfil: user.perfil, email: user.email, deve_alterar_senha: Boolean(user.deve_alterar_senha) } });
   } catch (error) { res.status(500).json({ error: 'Erro interno' }); }
+});
+
+app.put('/api/usuarios/me/senha', verificarToken, async (req, res) => {
+  const { senha_atual, nova_senha } = req.body;
+  if (!String(senha_atual || '')) return res.status(400).json({ error: 'Informe sua senha atual ou temporária' });
+  if (String(nova_senha || '').length < 6) return res.status(400).json({ error: 'A nova senha precisa ter pelo menos 6 caracteres' });
+  try {
+    const result = await pool.query('SELECT senha FROM usuarios WHERE id=$1', [req.usuarioId]);
+    if (!result.rows.length || !(await bcrypt.compare(senha_atual, result.rows[0].senha))) return res.status(400).json({ error: 'A senha atual ou temporária está incorreta' });
+    const hash = await bcrypt.hash(nova_senha, 10);
+    await pool.query('UPDATE usuarios SET senha=$1,deve_alterar_senha=FALSE WHERE id=$2', [hash, req.usuarioId]);
+    res.json({ mensagem: 'Senha alterada com sucesso.' });
+  } catch (error) { res.status(500).json({ error: 'Erro ao alterar senha' }); }
+});
+
+app.put('/api/usuarios/:id/redefinir-senha', verificarToken, async (req, res) => {
+  if (String(req.usuarioPerfil).toLowerCase() !== 'administrador') return res.status(403).json({ error: 'Acesso negado' });
+  const { senha_temporaria } = req.body;
+  if (String(senha_temporaria || '').length < 6) return res.status(400).json({ error: 'A senha temporária precisa ter pelo menos 6 caracteres' });
+  try {
+    const hash = await bcrypt.hash(senha_temporaria, 10);
+    const result = await pool.query('UPDATE usuarios SET senha=$1,deve_alterar_senha=TRUE WHERE id=$2 RETURNING id', [hash, req.params.id]);
+    if (!result.rows.length) return res.status(404).json({ error: 'Usuário não encontrado' });
+    res.json({ mensagem: 'Senha temporária definida. O usuário deverá trocá-la no próximo acesso.' });
+  } catch (error) { res.status(500).json({ error: 'Erro ao redefinir senha' }); }
+});
+
+app.get('/api/configuracoes-portal', async (_req, res) => {
+  try {
+    const result = await pool.query("SELECT nome_site,logo_site,logo_avaliacao FROM configuracoes_portal WHERE id=1");
+    res.json(result.rows[0] || { nome_site: 'Portal MIPs', logo_site: '', logo_avaliacao: '' });
+  } catch (error) { res.status(500).json({ error: 'Erro ao carregar identidade visual' }); }
+});
+
+app.put('/api/configuracoes-portal', verificarToken, async (req, res) => {
+  if (String(req.usuarioPerfil).toLowerCase() !== 'administrador') return res.status(403).json({ error: 'Acesso negado' });
+  const { nome_site, logo_site = '', logo_avaliacao = '' } = req.body;
+  if (!String(nome_site || '').trim()) return res.status(400).json({ error: 'Informe o nome do site' });
+  try {
+    const result = await pool.query(`INSERT INTO configuracoes_portal (id,nome_site,logo_site,logo_avaliacao,atualizado_em) VALUES (1,$1,$2,$3,CURRENT_TIMESTAMP) ON CONFLICT (id) DO UPDATE SET nome_site=EXCLUDED.nome_site,logo_site=EXCLUDED.logo_site,logo_avaliacao=EXCLUDED.logo_avaliacao,atualizado_em=CURRENT_TIMESTAMP RETURNING nome_site,logo_site,logo_avaliacao`, [nome_site.trim(), String(logo_site), String(logo_avaliacao)]);
+    res.json(result.rows[0]);
+  } catch (error) { res.status(500).json({ error: 'Erro ao salvar identidade visual' }); }
 });
 
 // DASHBOARD
@@ -315,7 +370,7 @@ app.post('/api/mips', verificarToken, async (req, res) => {
 app.put('/api/mips/:id', verificarToken, async (req, res) => {
   if (req.usuarioPerfil === 'Leitor') return res.status(403).json({ error: 'Acesso negado' });
   const { codigo, titulo, resumo = '', objetivo = '', conteudo = '', status = 'Em Revisão' } = req.body;
-  const novoStatus = req.usuarioPerfil === 'Editor' && status === 'Publicado' ? 'Em Revisão' : status;
+  const novoStatus = 'Em Revisão';
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -325,7 +380,7 @@ app.put('/api/mips/:id', verificarToken, async (req, res) => {
     await client.query(`INSERT INTO mip_versoes (mip_id,codigo,titulo,resumo,objetivo,conteudo,status,alterado_por) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`, [m.id,m.codigo,m.titulo,m.resumo,m.objetivo,m.conteudo,m.status,req.usuarioId]);
     await client.query(`UPDATE mips SET codigo=$1,titulo=$2,resumo=$3,objetivo=$4,conteudo=$5,status=$6 WHERE id=$7`, [codigo,titulo,resumo,objetivo,conteudo,novoStatus,req.params.id]);
     await client.query('COMMIT');
-    res.json({ mensagem: 'MIP atualizada e versão anterior arquivada.' });
+    res.json({ mensagem: 'MIP atualizada e enviada novamente para aprovação do Administrador.', status: novoStatus });
   } catch (error) { await client.query('ROLLBACK'); res.status(500).json({ error: 'Erro ao atualizar MIP' }); }
   finally { client.release(); }
 });
@@ -352,7 +407,7 @@ app.delete('/api/mips/:id', verificarToken, async (req, res) => {
 app.get('/api/usuarios', verificarToken, async (req, res) => {
   if (req.usuarioPerfil !== 'Administrador') return res.status(403).json({ error: 'Acesso negado' });
   try {
-    const result = await pool.query(`SELECT u.id,u.nome,u.email,u.perfil,u.setor,u.cargo,u.lider_id,l.nome AS lider_nome,u.modelo_avaliacao_id,m.nome AS modelo_avaliacao_nome,u.criado_em FROM usuarios u LEFT JOIN usuarios l ON l.id=u.lider_id LEFT JOIN modelos_avaliacao m ON m.id=u.modelo_avaliacao_id ORDER BY u.nome`);
+    const result = await pool.query(`SELECT u.id,u.nome,u.email,u.perfil,u.setor,u.cargo,u.lider_id,l.nome AS lider_nome,u.modelo_avaliacao_id,m.nome AS modelo_avaliacao_nome,u.deve_alterar_senha,u.criado_em FROM usuarios u LEFT JOIN usuarios l ON l.id=u.lider_id LEFT JOIN modelos_avaliacao m ON m.id=u.modelo_avaliacao_id ORDER BY u.nome`);
     res.json(result.rows);
   } catch (error) { res.status(500).json({ error: 'Erro' }); }
 });
@@ -367,7 +422,7 @@ app.post('/api/usuarios', verificarToken, async (req, res) => {
     let nomeModelo = '';
     if(modelo_avaliacao_id){const modelo=await pool.query('SELECT id,nome FROM modelos_avaliacao WHERE id=$1 AND ativo=TRUE',[Number(modelo_avaliacao_id)]);if(!modelo.rows.length)return res.status(400).json({error:'Modelo de avaliação inválido'});nomeModelo=modelo.rows[0].nome;}
     if(String(perfil).toLowerCase() !== 'administrador' && !modelo_avaliacao_id) return res.status(400).json({error:'Selecione a função/modelo de avaliação'});
-    const result = await pool.query('INSERT INTO usuarios (nome,email,senha,perfil,setor,cargo,lider_id,modelo_avaliacao_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id', [nome,email,hash,perfil,nomeModelo,nomeModelo,String(perfil).toLowerCase()==='leitor'?Number(lider_id):null,modelo_avaliacao_id?Number(modelo_avaliacao_id):null]);
+    const result = await pool.query('INSERT INTO usuarios (nome,email,senha,perfil,setor,cargo,lider_id,modelo_avaliacao_id,deve_alterar_senha) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,TRUE) RETURNING id', [nome,email,hash,perfil,nomeModelo,nomeModelo,String(perfil).toLowerCase()==='leitor'?Number(lider_id):null,modelo_avaliacao_id?Number(modelo_avaliacao_id):null]);
     res.status(201).json({ id: result.rows[0].id, mensagem: 'Criado!' });
   } catch (err) {
     if (err.code === '23505') return res.status(409).json({ error: 'Este usuário de acesso já está cadastrado' });
@@ -413,11 +468,11 @@ app.put('/api/receitas/:id', verificarToken, async (req, res) => {
     const atual = await client.query('SELECT * FROM receitas WHERE id=$1 FOR UPDATE', [req.params.id]);
     if (!atual.rows.length) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Receita não encontrada' }); }
     const r = atual.rows[0];
-    await client.query('INSERT INTO receita_versoes (receita_id,titulo,rendimento_base,ingredientes,alterado_por) VALUES ($1,$2,$3,$4,$5)', [r.id,r.titulo,r.rendimento_base,r.ingredientes,req.usuarioId]);
-    await client.query('UPDATE receitas SET titulo=$1,rendimento_base=$2,ingredientes=$3 WHERE id=$4', [titulo,Number(rendimento_base),JSON.stringify(ingredientes),req.params.id]);
+    await client.query('INSERT INTO receita_versoes (receita_id,titulo,rendimento_base,ingredientes,alterado_por) VALUES ($1,$2,$3,$4::jsonb,$5)', [r.id,r.titulo,r.rendimento_base,JSON.stringify(r.ingredientes),req.usuarioId]);
+    await client.query('UPDATE receitas SET titulo=$1,rendimento_base=$2,ingredientes=$3::jsonb WHERE id=$4', [titulo,Number(rendimento_base),JSON.stringify(ingredientes),req.params.id]);
     await client.query('COMMIT');
     res.json({ mensagem: 'Receita atualizada e versão anterior arquivada.' });
-  } catch (error) { await client.query('ROLLBACK'); res.status(500).json({ error: 'Erro ao atualizar receita' }); }
+  } catch (error) { await client.query('ROLLBACK'); console.error('Erro ao atualizar receita:', error.message); res.status(500).json({ error: 'Erro ao atualizar receita. Verifique os dados dos ingredientes.' }); }
   finally { client.release(); }
 });
 
@@ -462,8 +517,23 @@ app.post('/api/perguntas-avaliacao', verificarToken, async (req, res) => {
   if (!String(titulo||'').trim() || !String(pergunta||'').trim()) return res.status(400).json({ error: 'Título e pergunta são obrigatórios' });
   if(!modelo_avaliacao_id)return res.status(400).json({error:'Selecione o setor/modelo'});
   const ordem = await pool.query('SELECT COALESCE(MAX(ordem),0)+1 AS proxima FROM perguntas_avaliacao WHERE modelo_avaliacao_id=$1',[Number(modelo_avaliacao_id)]);
-  const result = await pool.query('INSERT INTO perguntas_avaliacao (titulo,pergunta,criterios,obrigatoria,ordem,modelo_avaliacao_id) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',[titulo.trim(),pergunta.trim(),JSON.stringify(criterios.filter(Boolean)),Boolean(obrigatoria),ordem.rows[0].proxima,Number(modelo_avaliacao_id)]);
+  const perguntaLimpa = pergunta.replace(/^\s*SEÇÃO\s+\d+\s*:\s*/i, '').trim();
+  const result = await pool.query('INSERT INTO perguntas_avaliacao (titulo,pergunta,criterios,obrigatoria,ordem,modelo_avaliacao_id) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',[titulo.trim(),perguntaLimpa,JSON.stringify(criterios.filter(Boolean)),Boolean(obrigatoria),ordem.rows[0].proxima,Number(modelo_avaliacao_id)]);
   res.status(201).json(result.rows[0]);
+});
+
+app.put('/api/perguntas-avaliacao/:id', verificarToken, async (req, res) => {
+  if (String(req.usuarioPerfil).toLowerCase() !== 'administrador') return res.status(403).json({ error: 'Somente o Administrador pode editar perguntas' });
+  const { titulo, pergunta, criterios = [], obrigatoria = false } = req.body;
+  const tituloLimpo = String(titulo || '').trim();
+  const perguntaLimpa = String(pergunta || '').replace(/^\s*SEÇÃO\s+\d+\s*:\s*/i, '').trim();
+  if (!tituloLimpo || !perguntaLimpa) return res.status(400).json({ error: 'Título e pergunta são obrigatórios' });
+  if (!Array.isArray(criterios)) return res.status(400).json({ error: 'Os critérios precisam ser enviados em formato de lista' });
+  try {
+    const result = await pool.query(`UPDATE perguntas_avaliacao SET titulo=$1,pergunta=$2,criterios=$3::jsonb,obrigatoria=$4 WHERE id=$5 AND ativa=TRUE RETURNING *`, [tituloLimpo,perguntaLimpa,JSON.stringify(criterios.map(x=>String(x).trim()).filter(Boolean)),Boolean(obrigatoria),req.params.id]);
+    if (!result.rows.length) return res.status(404).json({ error: 'Pergunta não encontrada' });
+    res.json(result.rows[0]);
+  } catch (error) { res.status(500).json({ error: 'Erro ao editar pergunta' }); }
 });
 
 app.delete('/api/perguntas-avaliacao/:id', verificarToken, async (req, res) => {

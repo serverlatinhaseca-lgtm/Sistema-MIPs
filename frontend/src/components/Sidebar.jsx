@@ -1,12 +1,14 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, BookOpen, Calculator, Users, ClipboardCheck, Sun, Moon, LogOut } from 'lucide-react';
+import { LayoutDashboard, BookOpen, Calculator, Users, ClipboardCheck, Sun, Moon, LogOut, KeyRound, Settings } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import useBranding from '../useBranding';
 
 export default function Sidebar() {
   const navigate = useNavigate();
   const location = useLocation();
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const [dark, setDark] = useState(document.documentElement.classList.contains('dark'));
+  const branding = useBranding();
 
   const toggleTheme = () => {
     const isDark = document.documentElement.classList.toggle('dark');
@@ -27,8 +29,8 @@ export default function Sidebar() {
     <aside className="w-64 bg-[var(--sidebar-bg)] border-r border-[var(--border-color)] p-6 hidden md:flex flex-col justify-between shrink-0">
       <div>
         <div className="flex items-center space-x-3 mb-10">
-          <div className="w-10 h-10 bg-[var(--primary)] rounded-xl flex items-center justify-center text-white font-bold text-xl">M</div>
-          <span className="font-bold text-lg text-[var(--sidebar-text)]">Portal MIPs</span>
+          {branding.logo_site ? <img src={branding.logo_site} alt="Logo" className="w-10 h-10 object-contain bg-white rounded-xl p-1" /> : <div className="w-10 h-10 bg-[var(--primary)] rounded-xl flex items-center justify-center text-white font-bold text-xl">M</div>}
+          <span className="font-bold text-lg text-[var(--sidebar-text)]">{branding.nome_site}</span>
         </div>
 
         <nav className="space-y-2">
@@ -47,14 +49,13 @@ export default function Sidebar() {
             <ClipboardCheck size={20} className="mr-3" /> {user.perfil?.toLowerCase() === 'leitor' ? 'Meu desempenho' : 'Avaliações'}
           </div>
           {user.perfil?.toLowerCase() === 'administrador' && (
-            <div onClick={() => navigate('/usuarios')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/usuarios') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}>
-              <Users size={20} className="mr-3" /> Usuários
-            </div>
+            <><div onClick={() => navigate('/usuarios')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/usuarios') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}><Users size={20} className="mr-3" /> Usuários</div><div onClick={() => navigate('/configuracoes')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/configuracoes') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}><Settings size={20} className="mr-3" /> Personalização</div></>
           )}
         </nav>
       </div>
 
       <div>
+        <div onClick={() => navigate('/alterar-senha')} className="mb-2 p-3 text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5 rounded-lg cursor-pointer flex items-center"><KeyRound size={20} className="mr-3" /> Minha senha</div>
         <div onClick={toggleTheme} className="mb-3 p-3 text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5 rounded-lg cursor-pointer flex items-center transition-colors">
           {dark ? <Sun size={20} className="mr-3 text-amber-400" /> : <Moon size={20} className="mr-3" />}
           <span>{dark ? 'Modo Claro' : 'Modo Escuro'}</span>

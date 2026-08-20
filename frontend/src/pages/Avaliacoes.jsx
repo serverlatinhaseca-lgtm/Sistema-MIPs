@@ -6,6 +6,7 @@ import GraficoDesempenho from "../components/GraficoDesempenho";
 import { formatarMes } from "../avaliacoes";
 
 const mesAtual = new Date().toISOString().slice(0, 7);
+const semPrefixoSecao = (texto = "") => String(texto).replace(/^\s*SEÇÃO\s+\d+\s*:\s*/i, "");
 async function copiarLink(url) {
   if (navigator.clipboard && window.isSecureContext)
     return navigator.clipboard.writeText(url);
@@ -87,6 +88,7 @@ export default function Avaliacoes() {
     [erro, setErro] = useState(""),
     [salvando, setSalvando] = useState(false),
     [respostas, setRespostas] = useState({});
+  const [editandoPerguntaId, setEditandoPerguntaId] = useState(null);
   const [novaPergunta, setNovaPergunta] = useState({
     titulo: "",
     pergunta: "",
@@ -95,6 +97,7 @@ export default function Avaliacoes() {
   });
   const competencias = perguntas.map((p) => ({
     ...p,
+    pergunta: semPrefixoSecao(p.pergunta),
     chave: String(p.id),
     criterios: Array.isArray(p.criterios) ? p.criterios : [],
   }));
@@ -284,8 +287,8 @@ export default function Avaliacoes() {
   async function adicionarPergunta(e) {
     e.preventDefault();
     try {
-      await axios.post(
-        `${api}/perguntas-avaliacao`,
+      await axios[editandoPerguntaId ? "put" : "post"](
+        `${api}/perguntas-avaliacao${editandoPerguntaId ? `/${editandoPerguntaId}` : ""}`,
         {
           ...novaPergunta,
           modelo_avaliacao_id: Number(modeloConfigId),
@@ -302,10 +305,24 @@ export default function Avaliacoes() {
         criterios: "",
         obrigatoria: false,
       });
+      setEditandoPerguntaId(null);
       await carregar(true);
     } catch (e) {
-      alert(e.response?.data?.error || "Erro ao adicionar pergunta.");
+      alert(e.response?.data?.error || "Erro ao salvar pergunta.");
     }
+  }
+  function iniciarEdicaoPergunta(p) {
+    setEditandoPerguntaId(p.id);
+    setNovaPergunta({
+      titulo: p.titulo || "",
+      pergunta: semPrefixoSecao(p.pergunta),
+      criterios: (p.criterios || []).join("\n"),
+      obrigatoria: Boolean(p.obrigatoria),
+    });
+  }
+  function cancelarEdicaoPergunta() {
+    setEditandoPerguntaId(null);
+    setNovaPergunta({ titulo: "", pergunta: "", criterios: "", obrigatoria: false });
   }
   async function removerPergunta(id) {
     if (!confirm("Remover esta pergunta das próximas avaliações?")) return;
@@ -566,7 +583,7 @@ export default function Avaliacoes() {
           <section className="panel-card mb-5">
             <h2 className="section-title mb-1">Perguntas da avaliação</h2>
             <p className="text-sm text-[var(--text-muted)] mb-4">
-              Somente o Administrador pode adicionar ou remover perguntas.
+              Somente o Administrador pode adicionar, editar ou remover perguntas.
             </p>
             <label className="font-semibold text-sm">
               Setor / modelo
@@ -576,6 +593,7 @@ export default function Avaliacoes() {
                 onChange={async (e) => {
                   const id = e.target.value;
                   setModeloConfigId(id);
+                  cancelarEdicaoPergunta();
                   const r = await axios.get(
                     `${api}/perguntas-avaliacao?modelo_id=${id}`,
                     { headers },
@@ -602,12 +620,10 @@ export default function Avaliacoes() {
                       {p.pergunta}
                     </p>
                   </div>
-                  <button
-                    onClick={() => removerPergunta(p.id)}
-                    className="text-red-600 font-bold"
-                  >
-                    <Trash2 size={18} />
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <button onClick={() => iniciarEdicaoPergunta(p)} className="text-amber-700 font-bold" title="Editar pergunta"><Pencil size={18} /></button>
+                    <button onClick={() => removerPergunta(p.id)} className="text-red-600 font-bold" title="Remover pergunta"><Trash2 size={18} /></button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -658,9 +674,10 @@ export default function Avaliacoes() {
                 />{" "}
                 Exigir observação
               </label>
-              <button className="bg-amber-600 text-white rounded-xl px-5 py-3 font-bold">
-                Adicionar pergunta
-              </button>
+              <div className="flex gap-2">
+                {editandoPerguntaId && <button type="button" onClick={cancelarEdicaoPergunta} className="flex-1 border border-[var(--border-color)] rounded-xl px-5 py-3 font-bold">Cancelar</button>}
+                <button className="flex-1 bg-amber-600 text-white rounded-xl px-5 py-3 font-bold">{editandoPerguntaId ? "Salvar alterações" : "Adicionar pergunta"}</button>
+              </div>
             </form>
           </section>
         )}

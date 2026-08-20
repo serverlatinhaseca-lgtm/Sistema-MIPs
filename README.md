@@ -2,12 +2,20 @@
 
 Portal operacional com MIPs, receitas, usuários e avaliações mensais de colaboradores.
 
-## Versão 1.3.1
+## Versão 1.4.1
 
 - Corrige o salvamento de avaliações editadas.
 - Limpa o formulário após salvar, cancelar ou excluir.
 - Carrega automaticamente as perguntas do modelo da função selecionada.
 - Define setor e função pelo modelo, sem preenchimento manual duplicado.
+- Corrige a edição de receitas e preserva o histórico de versões.
+- Obriga novos usuários a trocar a senha temporária no primeiro acesso.
+- Permite que cada usuário altere a própria senha e que o Administrador a redefina.
+- Publica avaliações automaticamente em **Meu desempenho** do Leitor avaliado.
+- Permite personalizar o nome do site, o logo do portal e o logo do relatório de avaliação.
+- Toda MIP editada retorna para **Em Revisão** e exige nova aprovação do Administrador.
+- Remove o prefixo “SEÇÃO” da pergunta principal e o mantém somente no título da competência.
+- Permite ao Administrador editar título, pergunta, critérios e obrigatoriedade de cada pergunta de avaliação.
 
 ## Configuração inicial
 
@@ -41,6 +49,7 @@ As novas tabelas são criadas automaticamente pelo backend sem apagar os dados e
 - Cada funcionário acessa o próprio histórico em **Meu desempenho**.
 - O sistema lembra mensalmente quem ainda não foi avaliado.
 - Cada avaliação recebe um link exclusivo para o funcionário.
+- A avaliação concluída pelo líder aparece imediatamente no perfil do Leitor correspondente.
 - O link mostra o relatório, o gráfico histórico e oferece impressão em A4.
 
 ## Edição e histórico

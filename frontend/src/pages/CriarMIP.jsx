@@ -118,11 +118,12 @@ export default function CriarMIP() {
             </div>
             <div>
               <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Status Inicial</label>
-              <select className="w-full rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)] text-[var(--text-main)] p-3 outline-none" value={formData.status} onChange={(e) => setFormData({...formData, status: e.target.value})}>
+              <select disabled={Boolean(id)} className="w-full rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)] text-[var(--text-main)] p-3 outline-none disabled:opacity-60" value={id ? 'Em Revisão' : formData.status} onChange={(e) => setFormData({...formData, status: e.target.value})}>
                 <option value="Em Revisão">Em Revisão (Aguardando Aprovação)</option>
                 <option value="Rascunho">Rascunho</option>
                 {user.perfil === 'Administrador' && <option value="Publicado">Publicado Diretamente</option>}
               </select>
+              {id && <p className="text-xs text-amber-700 mt-1 font-semibold">Ao salvar uma edição, a MIP volta para aprovação do Administrador.</p>}
             </div>
           </div>
 
