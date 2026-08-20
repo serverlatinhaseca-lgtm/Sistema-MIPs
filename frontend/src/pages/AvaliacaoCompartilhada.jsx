@@ -69,8 +69,9 @@ export default function AvaliacaoCompartilhada() {
     );
 
   const respostas = avaliacao.respostas || [];
+  const logoRelatorio = branding.logo_avaliacao || branding.logo_site || "/nova-esperanca-logo.png";
   return (
-    <main className="min-h-screen bg-stone-100 py-5 sm:py-8 px-3 print:bg-white print:p-0">
+    <main className="min-h-screen bg-[#eeeae6] py-5 sm:py-8 px-3 print:bg-white print:p-0">
       <div className="max-w-5xl mx-auto flex items-center justify-between mb-4 no-print">
         <button
           onClick={() =>
@@ -101,89 +102,57 @@ export default function AvaliacaoCompartilhada() {
         </div>
       </div>
 
-      <article className="evaluation-report max-w-5xl mx-auto bg-white p-5 sm:p-9 shadow-xl print:shadow-none print:p-0">
-        <header className={`grid ${branding.logo_avaliacao || branding.logo_site ? "sm:grid-cols-[150px_1fr_1.6fr]" : "sm:grid-cols-[1fr_1.6fr]"} border-2 border-stone-700`}>
-          {(branding.logo_avaliacao || branding.logo_site) && <div className="bg-white grid place-items-center p-3 border-b-2 sm:border-b-0 sm:border-r-2 border-stone-700"><img src={branding.logo_avaliacao || branding.logo_site} alt={branding.nome_site} className="max-h-16 max-w-[125px] object-contain" /></div>}
-          <div className="bg-slate-600 text-white text-2xl font-black grid place-items-center p-5">
-            {avaliacao.setor}
-          </div>
-          <div className="text-xl font-black grid place-items-center p-5">
-            Nome: {avaliacao.colaborador_nome}
-          </div>
+      <article className="evaluation-report brand-report max-w-5xl mx-auto bg-white shadow-2xl print:shadow-none overflow-hidden">
+        <div className="h-3 bg-[#ff8d2f]" />
+        <header className="brand-report-header grid md:grid-cols-[190px_1fr_150px] items-center gap-6 px-7 py-6 border-b border-[#ead8cc]">
+          <div className="brand-logo-wrap"><img src={logoRelatorio} alt={branding.nome_site || "Nova Esperança"} className="max-h-28 max-w-[170px] object-contain" /></div>
+          <div><p className="brand-kicker">Avaliação mensal de competências</p><h1 className="brand-serif text-3xl text-[#a65526] font-bold mt-1">Relatório de desempenho</h1><p className="text-[#5e5e5e] mt-2"><strong>{avaliacao.colaborador_nome}</strong> · {avaliacao.setor || avaliacao.cargo}</p></div>
+          <div className="brand-score"><span>Nota final</span><strong>{avaliacao.percentual}%</strong><small>{avaliacao.classificacao}</small></div>
         </header>
 
-        <section className="grid sm:grid-cols-[1fr_1.7fr] border-2 border-t-0 border-stone-700">
-          <div className="p-4 sm:border-r-2 border-stone-700 text-sm space-y-2">
-            <p>
-              <strong>Elaborado por:</strong>
-              <br />
-              {avaliacao.elaborado_por}
-            </p>
-            <p>
-              <strong>Aplicado por:</strong>
-              <br />
-              {avaliacao.aplicado_por}
-            </p>
-            <p>
-              <strong>Mês:</strong> {formatarMes(avaliacao.mes_referencia)}
-            </p>
-          </div>
-          <div className="text-center">
-            <h2 className="bg-stone-200 font-black py-2">NOTA FINAL</h2>
-            <p className="text-xs font-bold py-2">
-              0–49 RUIM · 50–79 REGULAR · 80–90 BOM · 91–100 ÓTIMO
-            </p>
-            <strong className="block bg-amber-400 text-5xl py-2">
-              {avaliacao.percentual}%
-            </strong>
-            <p className="font-bold py-2">
-              {avaliacao.classificacao} · {avaliacao.pontuacao_total} de{" "}
-              {respostas.length * 10}
-              pontos
-            </p>
-          </div>
+        <section className="grid sm:grid-cols-3 gap-px bg-[#ead8cc] border-b border-[#ead8cc]">
+          <div className="brand-meta"><span>Elaborado por</span><strong>{avaliacao.elaborado_por}</strong></div>
+          <div className="brand-meta"><span>Aplicado por</span><strong>{avaliacao.aplicado_por}</strong></div>
+          <div className="brand-meta"><span>Período avaliado</span><strong>{formatarMes(avaliacao.mes_referencia)}</strong></div>
         </section>
 
-        <h2 className="border-2 border-stone-700 text-center font-black py-3 mt-4">
-          AVALIAÇÃO MENSAL DE COMPETÊNCIA DOS COLABORADORES
-        </h2>
+        <section className="px-7 pt-6 pb-3"><div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2"><div><p className="brand-kicker">Competências avaliadas</p><h2 className="brand-serif text-2xl text-[#a65526] font-bold">Detalhamento da avaliação</h2></div><p className="text-xs text-[#5e5e5e]">0-49 Ruim · 50-79 Regular · 80-90 Bom · 91-100 Ótimo</p></div></section>
+        <div className="px-7 pb-7 space-y-4">
         {respostas.map((item, indice) => {
           return (
             <section
               key={item.pergunta_id || item.competencia || indice}
-              className="evaluation-section grid grid-cols-[1fr_80px] sm:grid-cols-[1fr_110px] border-2 border-t-0 border-stone-500"
+              className="evaluation-section brand-competency grid grid-cols-[1fr_76px] sm:grid-cols-[1fr_96px]"
             >
-              <div className="p-3">
-                <h3 className="font-black text-sm">SEÇÃO {indice + 1}: {item.titulo}</h3>
-                <p className="font-semibold text-sm mt-1">{String(item.pergunta || "").replace(/^\s*SEÇÃO\s+\d+\s*:\s*/i, "")}</p>
-                <ol className="list-decimal ml-5 mt-1 text-xs space-y-0.5">
+              <div className="p-4 sm:p-5">
+                <div className="flex items-center gap-3"><span className="brand-section-number">{String(indice + 1).padStart(2,"0")}</span><div><p className="text-[10px] uppercase tracking-[0.18em] text-[#ff8d2f] font-extrabold">Competência</p><h3 className="brand-serif text-lg font-bold text-[#a65526]">{item.titulo}</h3></div></div>
+                <p className="font-semibold text-sm mt-3 text-[#454545]">{String(item.pergunta || "").replace(/^\s*SEÇÃO\s+\d+\s*:\s*/i, "")}</p>
+                <ol className="list-decimal ml-5 mt-2 text-xs text-[#5e5e5e] space-y-1">
                   {(item.criterios || []).map((criterio) => (
                     <li key={criterio}>{criterio}</li>
                   ))}
                 </ol>
-                <div className="bg-orange-50 text-red-700 font-bold text-xs p-2 mt-2 min-h-8">
-                  {item.observacao || "Sem observações registradas."}
-                </div>
+                <div className="brand-observation"><span>Observação</span><p>{item.observacao || "Sem observações registradas."}</p></div>
               </div>
-              <div className="bg-slate-100 border-l-2 border-stone-500 grid place-items-center text-center">
+              <div className="brand-note grid place-items-center text-center">
                 <span>
-                  <small className="block">Nota</small>
+                  <small className="block uppercase tracking-wider">Nota</small>
                   <strong className="text-3xl">{item.nota ?? "—"}</strong>
                 </span>
               </div>
             </section>
           );
         })}
+        </div>
 
-        <section className="mt-6 performance-print">
-          <div className="mb-2">
-            <p className="text-xs uppercase tracking-widest font-bold text-amber-700">
-              Histórico
-            </p>
-            <h2 className="text-xl font-black">Evolução do desempenho</h2>
+        <section className="performance-print bg-[#faf6f2] border-t border-[#ead8cc] px-7 py-7">
+          <div className="mb-4">
+            <p className="brand-kicker">Histórico individual</p>
+            <h2 className="brand-serif text-2xl font-bold text-[#a65526]">Evolução do desempenho</h2>
           </div>
           <GraficoDesempenho historico={avaliacao.historico} />
         </section>
+        <footer className="bg-[#5e5e5e] text-white px-7 py-3 flex justify-between text-[10px] uppercase tracking-widest"><span>{branding.nome_site || "Nova Esperança"}</span><span>Tecnologia e tradição em produção de pães</span></footer>
       </article>
     </main>
   );

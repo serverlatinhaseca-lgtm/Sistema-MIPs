@@ -20,7 +20,7 @@ async function copiarLink(url) {
   c.remove();
 }
 
-function MinhasAvaliacoes({ api, headers }) {
+export function MinhasAvaliacoes({ api = `http://${window.location.hostname}:7001/api`, headers = { Authorization: `Bearer ${localStorage.getItem("token")}` } }) {
   const [itens, setItens] = useState([]);
   useEffect(() => {
     axios

@@ -65,6 +65,13 @@ body {
   .evaluation-section h3 { font-size: 9pt !important; }
   .evaluation-section ol, .evaluation-section div { font-size: 7.5pt; }
   .performance-print { break-before: page; }
+  .brand-report { font-size: 9pt; }
+  .brand-report-header { padding: 12px 18px !important; }
+  .brand-logo-wrap { min-height: 76px !important; }
+  .brand-logo-wrap img { max-height: 70px !important; }
+  .brand-score { width: 92px !important; height: 92px !important; }
+  .brand-score strong { font-size: 24pt !important; }
+  .brand-competency { box-shadow: none !important; }
 }
 
 .evaluation-report {
@@ -74,6 +81,26 @@ body {
   --primary: #d97706;
   color: #292524;
 }
+
+.brand-report { font-family: Montserrat, Arial, sans-serif; color: #3f3f3f; }
+.brand-report img { margin: 0 auto !important; border-radius: 0 !important; cursor: default !important; }
+.brand-serif { font-family: "PT Serif", Georgia, serif; }
+.brand-kicker { color: #ff8d2f; font-size: .68rem; line-height: 1; letter-spacing: .18em; text-transform: uppercase; font-weight: 800; }
+.brand-logo-wrap { min-height: 112px; display: grid; place-items: center; padding: 10px; }
+.brand-score { width: 132px; height: 132px; justify-self: end; border-radius: 999px; background: #a65526; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 10px 24px rgba(166,85,38,.2); }
+.brand-score span, .brand-score small { font-size: .62rem; text-transform: uppercase; letter-spacing: .12em; font-weight: 700; }
+.brand-score strong { font-family: "PT Serif", Georgia, serif; font-size: 2.35rem; line-height: 1.05; }
+.brand-meta { background: #faf6f2; padding: 15px 20px; }
+.brand-meta span { display: block; color: #8a817b; font-size: .62rem; text-transform: uppercase; letter-spacing: .12em; font-weight: 700; }
+.brand-meta strong { display: block; color: #5e5e5e; margin-top: 3px; font-size: .86rem; }
+.brand-competency { border: 1px solid #ead8cc; border-radius: 16px; overflow: hidden; box-shadow: 0 5px 16px rgba(94,94,94,.06); }
+.brand-section-number { flex: 0 0 auto; width: 38px; height: 38px; border-radius: 12px; background: #fff1e6; color: #ff8d2f; display: grid; place-items: center; font-weight: 900; }
+.brand-observation { background: #faf6f2; border-left: 3px solid #ff8d2f; padding: 9px 11px; margin-top: 12px; border-radius: 0 8px 8px 0; }
+.brand-observation span { display: block; color: #a65526; text-transform: uppercase; letter-spacing: .12em; font-size: .55rem; font-weight: 900; }
+.brand-observation p { font-size: .72rem; color: #5e5e5e; margin-top: 2px; }
+.brand-note { background: #a65526; color: #fff; }
+.brand-note small { font-size: .55rem; opacity: .8; }
+.brand-note strong { font-family: "PT Serif", Georgia, serif; }
 
 /* =========================================
    AJUSTES RESPONSIVOS PARA CELULAR (MIPS)

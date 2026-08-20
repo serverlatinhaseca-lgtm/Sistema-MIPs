@@ -25,6 +25,7 @@ export default function Login() {
 
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('user', JSON.stringify(response.data.user));
+      if (['leitor','editor'].includes(response.data.user.perfil?.toLowerCase())) sessionStorage.setItem('mostrar_avaliacoes_modal', '1');
       navigate(response.data.deve_alterar_senha ? '/alterar-senha' : (response.data.user.perfil?.toLowerCase() === 'leitor' ? '/avaliacoes' : '/dashboard'));
     } catch (err) {
       setErro(err.response?.data?.error || 'Erro ao fazer login. Verifique suas credenciais.');

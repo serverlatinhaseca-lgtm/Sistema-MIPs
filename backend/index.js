@@ -235,6 +235,32 @@ function prepararAvaliacaoDinamica(perguntas, respostas = []) {
   return { respostas: normalizadas, pontuacaoTotal, percentual, classificacao };
 }
 
+function textoSimples(valor) {
+  return String(valor || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function alteracoesMip(anterior, posterior) {
+  const campos = [['codigo','Código'],['titulo','Título'],['resumo','Resumo'],['objetivo','Objetivo'],['status','Status']];
+  const alteracoes = campos.filter(([chave]) => String(anterior[chave] || '') !== String(posterior[chave] || '')).map(([chave,rotulo]) => ({ campo: rotulo, de: String(anterior[chave] || 'Vazio'), para: String(posterior[chave] || 'Vazio') }));
+  if (String(anterior.conteudo || '') !== String(posterior.conteudo || '')) alteracoes.push({ campo: 'Conteúdo operacional', de: textoSimples(anterior.conteudo).slice(0,180) || 'Vazio', para: textoSimples(posterior.conteudo).slice(0,180) || 'Vazio' });
+  return alteracoes;
+}
+
+function alteracoesReceita(anterior, posterior) {
+  const alteracoes = [];
+  if (String(anterior.titulo || '') !== String(posterior.titulo || '')) alteracoes.push({ campo: 'Nome da receita', de: anterior.titulo || 'Vazio', para: posterior.titulo || 'Vazio' });
+  if (Number(anterior.rendimento_base) !== Number(posterior.rendimento_base)) alteracoes.push({ campo: 'Rendimento base', de: String(anterior.rendimento_base), para: String(posterior.rendimento_base) });
+  const lista = valor => Array.isArray(valor) ? valor : [];
+  const antes = new Map(lista(anterior.ingredientes).map(i => [String(i.nome || '').trim().toLowerCase(), i]));
+  const depois = new Map(lista(posterior.ingredientes).map(i => [String(i.nome || '').trim().toLowerCase(), i]));
+  for (const [chave, item] of depois) {
+    if (!antes.has(chave)) alteracoes.push({ campo: 'Ingrediente adicionado', de: '-', para: `${item.nome}: ${item.quantidade}` });
+    else if (String(antes.get(chave).quantidade) !== String(item.quantidade)) alteracoes.push({ campo: `Quantidade de ${item.nome}`, de: String(antes.get(chave).quantidade), para: String(item.quantidade) });
+  }
+  for (const [chave, item] of antes) if (!depois.has(chave)) alteracoes.push({ campo: 'Ingrediente removido', de: `${item.nome}: ${item.quantidade}`, para: '-' });
+  return alteracoes;
+}
+
 // AUTH
 app.post('/api/auth/login', async (req, res) => {
   const { usuario, senha } = req.body;
@@ -387,8 +413,13 @@ app.put('/api/mips/:id', verificarToken, async (req, res) => {
 
 app.get('/api/mips/:id/versoes', verificarToken, async (req, res) => {
   if (req.usuarioPerfil === 'Leitor') return res.status(403).json({ error: 'Acesso negado' });
-  const result = await pool.query(`SELECT v.*,u.nome AS alterado_por_nome FROM mip_versoes v LEFT JOIN usuarios u ON u.id=v.alterado_por WHERE v.mip_id=$1 ORDER BY v.criado_em DESC`, [req.params.id]);
-  res.json(result.rows);
+  const [historico, atual] = await Promise.all([
+    pool.query(`SELECT v.*,u.nome AS alterado_por_nome FROM mip_versoes v LEFT JOIN usuarios u ON u.id=v.alterado_por WHERE v.mip_id=$1 ORDER BY v.criado_em ASC`, [req.params.id]),
+    pool.query('SELECT * FROM mips WHERE id=$1', [req.params.id]),
+  ]);
+  if (!atual.rows.length) return res.status(404).json({ error: 'MIP não encontrada' });
+  const linhas = historico.rows.map((v, indice) => ({ ...v, numero_versao: indice + 1, alteracoes: alteracoesMip(v, historico.rows[indice + 1] || atual.rows[0]) })).reverse();
+  res.json(linhas);
 });
 
 app.patch('/api/mips/:id/aprovar', verificarToken, async (req, res) => {
@@ -415,19 +446,37 @@ app.get('/api/usuarios', verificarToken, async (req, res) => {
 app.post('/api/usuarios', verificarToken, async (req, res) => {
   if (req.usuarioPerfil !== 'Administrador') return res.status(403).json({ error: 'Acesso negado' });
   const { nome, email, senha, perfil, lider_id = null, modelo_avaliacao_id = null } = req.body;
-  if (String(perfil).toLowerCase() === 'leitor' && !lider_id) return res.status(400).json({ error: 'Selecione o líder responsável pelo funcionário' });
+  if (['leitor','editor'].includes(String(perfil).toLowerCase()) && !lider_id) return res.status(400).json({ error: 'Selecione o responsável pela avaliação deste usuário' });
   try {
     const hash = await bcrypt.hash(senha, 10);
-    if (lider_id) { const lider=await pool.query("SELECT id FROM usuarios WHERE id=$1 AND LOWER(perfil)='editor'",[Number(lider_id)]); if(!lider.rows.length)return res.status(400).json({error:'O líder selecionado precisa ter perfil Editor'}); }
+    if (lider_id) { const perfilResponsavel=String(perfil).toLowerCase()==='leitor'?'editor':'administrador';const lider=await pool.query('SELECT id FROM usuarios WHERE id=$1 AND LOWER(perfil)=$2',[Number(lider_id),perfilResponsavel]);if(!lider.rows.length)return res.status(400).json({error:`O responsável selecionado precisa ter perfil ${perfilResponsavel==='editor'?'Editor':'Administrador'}`}); }
     let nomeModelo = '';
     if(modelo_avaliacao_id){const modelo=await pool.query('SELECT id,nome FROM modelos_avaliacao WHERE id=$1 AND ativo=TRUE',[Number(modelo_avaliacao_id)]);if(!modelo.rows.length)return res.status(400).json({error:'Modelo de avaliação inválido'});nomeModelo=modelo.rows[0].nome;}
     if(String(perfil).toLowerCase() !== 'administrador' && !modelo_avaliacao_id) return res.status(400).json({error:'Selecione a função/modelo de avaliação'});
-    const result = await pool.query('INSERT INTO usuarios (nome,email,senha,perfil,setor,cargo,lider_id,modelo_avaliacao_id,deve_alterar_senha) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,TRUE) RETURNING id', [nome,email,hash,perfil,nomeModelo,nomeModelo,String(perfil).toLowerCase()==='leitor'?Number(lider_id):null,modelo_avaliacao_id?Number(modelo_avaliacao_id):null]);
+    const result = await pool.query('INSERT INTO usuarios (nome,email,senha,perfil,setor,cargo,lider_id,modelo_avaliacao_id,deve_alterar_senha) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,TRUE) RETURNING id', [nome,email,hash,perfil,nomeModelo,nomeModelo,['leitor','editor'].includes(String(perfil).toLowerCase())?Number(lider_id):null,modelo_avaliacao_id?Number(modelo_avaliacao_id):null]);
     res.status(201).json({ id: result.rows[0].id, mensagem: 'Criado!' });
   } catch (err) {
     if (err.code === '23505') return res.status(409).json({ error: 'Este usuário de acesso já está cadastrado' });
     res.status(500).json({ error: 'Erro ao criar usuário' });
   }
+});
+
+app.put('/api/usuarios/:id', verificarToken, async (req, res) => {
+  if (String(req.usuarioPerfil).toLowerCase() !== 'administrador') return res.status(403).json({ error: 'Acesso negado' });
+  const { nome, email, perfil, lider_id = null, modelo_avaliacao_id = null } = req.body;
+  const perfilNormalizado = String(perfil || '').toLowerCase();
+  if (String(req.params.id) === String(req.usuarioId) && perfilNormalizado !== 'administrador') return res.status(400).json({ error: 'O Administrador não pode remover o próprio acesso administrativo' });
+  if (!String(nome || '').trim() || !String(email || '').trim() || !['leitor','editor','administrador'].includes(perfilNormalizado)) return res.status(400).json({ error: 'Preencha nome, login e perfil corretamente' });
+  if (['leitor','editor'].includes(perfilNormalizado) && !lider_id) return res.status(400).json({ error: 'Selecione o responsável pela avaliação deste usuário' });
+  try {
+    let nomeModelo = '';
+    if (modelo_avaliacao_id) { const m=await pool.query('SELECT nome FROM modelos_avaliacao WHERE id=$1 AND ativo=TRUE',[Number(modelo_avaliacao_id)]);if(!m.rows.length)return res.status(400).json({error:'Modelo de avaliação inválido'});nomeModelo=m.rows[0].nome; }
+    if (perfilNormalizado !== 'administrador' && !modelo_avaliacao_id) return res.status(400).json({ error: 'Selecione a função/modelo de avaliação' });
+    if (lider_id) { const esperado=perfilNormalizado==='leitor'?'editor':'administrador';const r=await pool.query('SELECT id FROM usuarios WHERE id=$1 AND LOWER(perfil)=$2',[Number(lider_id),esperado]);if(!r.rows.length)return res.status(400).json({error:`O responsável precisa ter perfil ${esperado==='editor'?'Editor':'Administrador'}`}); }
+    const result=await pool.query('UPDATE usuarios SET nome=$1,email=$2,perfil=$3,setor=$4,cargo=$4,lider_id=$5,modelo_avaliacao_id=$6 WHERE id=$7 RETURNING id',[nome.trim(),email.trim(),perfil,nomeModelo,['leitor','editor'].includes(perfilNormalizado)?Number(lider_id):null,modelo_avaliacao_id?Number(modelo_avaliacao_id):null,req.params.id]);
+    if(!result.rows.length)return res.status(404).json({error:'Usuário não encontrado'});
+    res.json({mensagem:'Perfil atualizado com sucesso.'});
+  } catch (error) { if(error.code==='23505')return res.status(409).json({error:'Este login já está sendo utilizado'});res.status(500).json({error:'Erro ao atualizar usuário'}); }
 });
 
 app.delete('/api/usuarios/:id', verificarToken, async (req, res) => {
@@ -478,8 +527,13 @@ app.put('/api/receitas/:id', verificarToken, async (req, res) => {
 
 app.get('/api/receitas/:id/versoes', verificarToken, async (req, res) => {
   if (req.usuarioPerfil === 'Leitor') return res.status(403).json({ error: 'Acesso negado' });
-  const result = await pool.query(`SELECT v.*,u.nome AS alterado_por_nome FROM receita_versoes v LEFT JOIN usuarios u ON u.id=v.alterado_por WHERE v.receita_id=$1 ORDER BY v.criado_em DESC`, [req.params.id]);
-  res.json(result.rows);
+  const [historico, atual] = await Promise.all([
+    pool.query(`SELECT v.*,u.nome AS alterado_por_nome FROM receita_versoes v LEFT JOIN usuarios u ON u.id=v.alterado_por WHERE v.receita_id=$1 ORDER BY v.criado_em ASC`, [req.params.id]),
+    pool.query('SELECT * FROM receitas WHERE id=$1', [req.params.id]),
+  ]);
+  if (!atual.rows.length) return res.status(404).json({ error: 'Receita não encontrada' });
+  const linhas = historico.rows.map((v, indice) => ({ ...v, numero_versao: indice + 1, alteracoes: alteracoesReceita(v, historico.rows[indice + 1] || atual.rows[0]) })).reverse();
+  res.json(linhas);
 });
 
 app.delete('/api/receitas/:id', verificarToken, async (req, res) => {

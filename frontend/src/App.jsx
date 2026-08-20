@@ -10,13 +10,15 @@ import Avaliacoes from './pages/Avaliacoes';
 import AvaliacaoCompartilhada from './pages/AvaliacaoCompartilhada';
 import AlterarSenha from './pages/AlterarSenha';
 import Configuracoes from './pages/Configuracoes';
+import MeuDesempenho from './pages/MeuDesempenho';
+import AvaliacaoLoginModal from './components/AvaliacaoLoginModal';
 
 function RotaPrivada({ children }) {
   const token = localStorage.getItem('token');
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   if (!token) return <Navigate to="/" />;
   if (user.deve_alterar_senha && window.location.pathname !== '/alterar-senha') return <Navigate to="/alterar-senha" />;
-  return children;
+  return <><AvaliacaoLoginModal />{children}</>;
 }
 
 export default function App() {
@@ -35,6 +37,7 @@ export default function App() {
         <Route path="/avaliacoes" element={<RotaPrivada><Avaliacoes /></RotaPrivada>} />
         <Route path="/alterar-senha" element={<RotaPrivada><AlterarSenha /></RotaPrivada>} />
         <Route path="/configuracoes" element={<RotaPrivada><Configuracoes /></RotaPrivada>} />
+        <Route path="/meu-desempenho" element={<RotaPrivada><MeuDesempenho /></RotaPrivada>} />
       </Routes>
     </BrowserRouter>
   );
