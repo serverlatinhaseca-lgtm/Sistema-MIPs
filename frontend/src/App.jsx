@@ -12,6 +12,7 @@ import AlterarSenha from './pages/AlterarSenha';
 import Configuracoes from './pages/Configuracoes';
 import MeuDesempenho from './pages/MeuDesempenho';
 import AvaliacaoLoginModal from './components/AvaliacaoLoginModal';
+import FerramentasAdmin from './pages/FerramentasAdmin';
 
 function RotaPrivada({ children }) {
   const token = localStorage.getItem('token');
@@ -38,6 +39,8 @@ export default function App() {
         <Route path="/alterar-senha" element={<RotaPrivada><AlterarSenha /></RotaPrivada>} />
         <Route path="/configuracoes" element={<RotaPrivada><Configuracoes /></RotaPrivada>} />
         <Route path="/meu-desempenho" element={<RotaPrivada><MeuDesempenho /></RotaPrivada>} />
+        <Route path="/ferramentas/etiquetas" element={<RotaPrivada><FerramentasAdmin /></RotaPrivada>} />
+        <Route path="/ferramentas/caixas" element={<RotaPrivada><FerramentasAdmin /></RotaPrivada>} />
       </Routes>
     </BrowserRouter>
   );

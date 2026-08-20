@@ -115,6 +115,12 @@ async function inicializarBancoEAdmin() {
         atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
       INSERT INTO configuracoes_portal (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
+      CREATE TABLE IF NOT EXISTS ferramentas_admin_estado (
+        chave VARCHAR(60) PRIMARY KEY,
+        dados JSONB NOT NULL DEFAULT '{}'::jsonb,
+        atualizado_por INT REFERENCES usuarios(id) ON DELETE SET NULL,
+        atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
       CREATE TABLE IF NOT EXISTS modelos_avaliacao (
         id SERIAL PRIMARY KEY,
         nome VARCHAR(120) UNIQUE NOT NULL,
@@ -219,6 +225,48 @@ const verificarToken = (req, res, next) => {
     next();
   } catch (err) { return res.status(401).json({ error: 'Token inválido' }); }
 };
+
+const somenteAdministrador = (req, res, next) => {
+  if (String(req.usuarioPerfil || '').toLowerCase() !== 'administrador') {
+    return res.status(403).json({ error: 'Acesso exclusivo do Administrador' });
+  }
+  next();
+};
+
+const CHAVES_FERRAMENTAS_ADMIN = new Set(['etiquetas', 'caixas']);
+
+app.get('/api/ferramentas-admin/:chave', verificarToken, somenteAdministrador, async (req, res) => {
+  if (!CHAVES_FERRAMENTAS_ADMIN.has(req.params.chave)) return res.status(404).json({ error: 'Ferramenta não encontrada' });
+  try {
+    const resultado = await pool.query(
+      `SELECT dados, atualizado_em FROM ferramentas_admin_estado WHERE chave=$1`,
+      [req.params.chave]
+    );
+    if (!resultado.rows.length) return res.status(404).json({ error: 'Ainda não existem dados salvos' });
+    res.json(resultado.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao carregar os dados da ferramenta' });
+  }
+});
+
+app.put('/api/ferramentas-admin/:chave', verificarToken, somenteAdministrador, async (req, res) => {
+  if (!CHAVES_FERRAMENTAS_ADMIN.has(req.params.chave)) return res.status(404).json({ error: 'Ferramenta não encontrada' });
+  if (!req.body || typeof req.body.dados !== 'object' || Array.isArray(req.body.dados)) {
+    return res.status(400).json({ error: 'Dados inválidos' });
+  }
+  try {
+    const resultado = await pool.query(
+      `INSERT INTO ferramentas_admin_estado (chave,dados,atualizado_por,atualizado_em)
+       VALUES ($1,$2,$3,CURRENT_TIMESTAMP)
+       ON CONFLICT (chave) DO UPDATE SET dados=EXCLUDED.dados, atualizado_por=EXCLUDED.atualizado_por, atualizado_em=CURRENT_TIMESTAMP
+       RETURNING atualizado_em`,
+      [req.params.chave, JSON.stringify(req.body.dados), req.usuarioId]
+    );
+    res.json({ mensagem: 'Dados salvos no banco', atualizado_em: resultado.rows[0].atualizado_em });
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao salvar os dados da ferramenta' });
+  }
+});
 
 function prepararAvaliacaoDinamica(perguntas, respostas = []) {
   const normalizadas = perguntas.map((p) => {

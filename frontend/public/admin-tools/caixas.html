@@ -1,0 +1,2660 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Calculadora de Pacotes e Caixa - Nova Esperança</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=PT+Serif:wght@400;700&family=Montserrat:wght@800;800italic&display=swap"
+      rel="stylesheet"
+    />
+    <!-- Adicionando jsPDF via CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    <style>
+      /* Estilos anteriores mantidos */
+      :root {
+        --primary: #ff8d2f;
+        --primary-dark: #a75526;
+        --secondary: #5e5e5e;
+        --light: #f8f9fa;
+        --gray: #6c757d;
+        --white: #ffffff;
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        font-family: "PT Serif", serif;
+      }
+
+      body {
+        background-color: #f5f5f5;
+        color: #333;
+        line-height: 1.6;
+        background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z' fill='%23ff8d2f' fill-opacity='0.05' fill-rule='evenodd'/%3E%3C/svg%3E");
+      }
+
+      .container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+
+      header {
+        background: linear-gradient(
+          135deg,
+          var(--primary),
+          var(--primary-dark)
+        );
+        color: white;
+        padding: 30px 0;
+        text-align: center;
+        border-radius: 0 0 20px 20px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        margin-bottom: 30px;
+        position: relative;
+        overflow: hidden;
+      }
+
+      header::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+        opacity: 0.1;
+      }
+
+      .logo-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin-bottom: 15px;
+      }
+
+      .company-name {
+        font-family: "Montserrat", sans-serif;
+        font-weight: 800;
+        font-size: 2.8rem;
+        margin-bottom: 5px;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+      }
+
+      .company-slogan {
+        font-family: "PT Serif", serif;
+        font-size: 1.3rem;
+        font-weight: 400;
+        opacity: 0.9;
+        max-width: 500px;
+        margin: 0 auto;
+      }
+
+      .developer-credit {
+        margin-top: 10px;
+        font-size: 0.9rem;
+        opacity: 0.8;
+      }
+
+      h1 {
+        font-size: 2.5rem;
+        margin-bottom: 10px;
+        font-family: "Montserrat", sans-serif;
+        font-weight: 800;
+      }
+
+      .subtitle {
+        font-size: 1.2rem;
+        opacity: 0.9;
+      }
+
+      .tabs {
+        display: flex;
+        margin-bottom: 20px;
+        background: white;
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      }
+
+      .tab {
+        padding: 15px 25px;
+        cursor: pointer;
+        flex: 1;
+        text-align: center;
+        font-weight: bold;
+        transition: background 0.3s;
+        font-family: "Montserrat", sans-serif;
+        font-weight: 800;
+      }
+
+      .tab.active {
+        background: var(--primary);
+        color: white;
+      }
+
+      .tab-content {
+        display: none;
+      }
+
+      .tab-content.active {
+        display: block;
+      }
+
+      .client-section {
+        background-color: var(--white);
+        border-radius: 10px;
+        padding: 25px;
+        margin-bottom: 30px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
+        border-left: 5px solid var(--primary);
+      }
+
+      .client-title {
+        color: var(--primary);
+        margin-bottom: 20px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid #eee;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-family: "Montserrat", sans-serif;
+        font-weight: 800;
+      }
+
+      .info-badge {
+        background: var(--primary);
+        color: white;
+        padding: 8px 15px;
+        border-radius: 20px;
+        font-size: 0.9rem;
+      }
+
+      .product-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 20px;
+      }
+
+      .product-card {
+        background-color: #fff;
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+        border: 1px solid #eee;
+        transition: transform 0.3s, box-shadow 0.3s;
+        position: relative;
+      }
+
+      .product-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+      }
+
+      .product-name {
+        font-weight: bold;
+        margin-bottom: 15px;
+        color: var(--secondary);
+        font-size: 1.2rem;
+        font-family: "Montserrat", sans-serif;
+        font-weight: 800;
+        text-align: center;
+      }
+
+      .input-group {
+        margin-bottom: 15px;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 0.95rem;
+        color: var(--gray);
+        font-weight: bold;
+      }
+
+      input {
+        width: 100%;
+        padding: 10px 12px;
+        border: 2px solid #ddd;
+        border-radius: 6px;
+        font-size: 1rem;
+        transition: border 0.3s;
+      }
+
+      input:focus {
+        border-color: var(--primary);
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(255, 141, 47, 0.2);
+      }
+
+      .amostra-info {
+        background: #fff9f2;
+        border: 1px solid var(--primary);
+        border-radius: 6px;
+        padding: 10px;
+        margin: 15px 0;
+        text-align: center;
+        font-size: 0.9rem;
+        color: var(--primary-dark);
+        font-weight: bold;
+      }
+
+      .result-group {
+        margin-top: 20px;
+        padding-top: 15px;
+        border-top: 2px dashed #eee;
+      }
+
+      .result-item {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 10px;
+        padding: 8px 0;
+        font-size: 1.05rem;
+      }
+
+      .result-label {
+        font-weight: bold;
+        color: var(--secondary);
+      }
+
+      .result-value {
+        font-weight: bold;
+        color: var(--primary);
+        font-size: 1.1rem;
+      }
+
+      .btn-calculate {
+        background-color: var(--primary);
+        color: white;
+        border: none;
+        padding: 12px 25px;
+        border-radius: 5px;
+        font-size: 1rem;
+        cursor: pointer;
+        transition: background-color 0.3s;
+        display: block;
+        margin: 30px auto;
+        font-weight: bold;
+        font-family: "Montserrat", sans-serif;
+        font-weight: 800;
+      }
+
+      .btn-calculate:hover {
+        background-color: var(--primary-dark);
+      }
+
+      .summary-section {
+        background-color: var(--white);
+        border-radius: 10px;
+        padding: 25px;
+        margin-bottom: 30px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
+      }
+
+      .summary-title {
+        color: var(--primary);
+        margin-bottom: 20px;
+        padding-bottom: 10px;
+        border-bottom: 2px solid var(--primary);
+        font-family: "Montserrat", sans-serif;
+        font-weight: 800;
+        font-size: 1.5rem;
+      }
+
+      .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 20px;
+        margin-bottom: 25px;
+      }
+
+      .summary-client {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 20px;
+        border-left: 4px solid var(--primary);
+      }
+
+      .summary-client-title {
+        font-family: "Montserrat", sans-serif;
+        font-weight: 800;
+        color: var(--primary);
+        margin-bottom: 15px;
+        font-size: 1.2rem;
+      }
+
+      .summary-product {
+        margin-bottom: 15px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid #eee;
+      }
+
+      .summary-product:last-child {
+        border-bottom: none;
+        margin-bottom: 0;
+      }
+
+      .summary-product-name {
+        font-weight: bold;
+        color: var(--secondary);
+        margin-bottom: 8px;
+        font-size: 1.1rem;
+      }
+
+      .summary-details {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        font-size: 0.95rem;
+      }
+
+      .summary-detail {
+        display: flex;
+        justify-content: space-between;
+      }
+
+      .summary-detail-label {
+        color: var(--gray);
+      }
+
+      .summary-detail-value {
+        font-weight: bold;
+        color: var(--primary);
+      }
+
+      .config-section {
+        background-color: var(--white);
+        border-radius: 10px;
+        padding: 25px;
+        margin-bottom: 30px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
+      }
+
+      .config-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        gap: 20px;
+      }
+
+      .config-item {
+        margin-bottom: 15px;
+      }
+
+      .config-label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: bold;
+        color: var(--secondary);
+        font-size: 0.95rem;
+      }
+
+      footer {
+        text-align: center;
+        margin-top: 50px;
+        padding: 20px;
+        color: var(--gray);
+        font-size: 0.9rem;
+        border-top: 1px solid #eee;
+      }
+
+      .footer-logo {
+        font-family: "Montserrat", sans-serif;
+        font-weight: 800;
+        font-size: 1.5rem;
+        color: var(--primary);
+        margin-bottom: 10px;
+      }
+
+      /* Botão para gerar PDF */
+      .btn-pdf {
+        background-color: #dc3545;
+        color: white;
+        border: none;
+        padding: 12px 25px;
+        border-radius: 5px;
+        font-size: 1rem;
+        cursor: pointer;
+        transition: background-color 0.3s;
+        display: block;
+        margin: 20px auto;
+        font-weight: bold;
+        font-family: "Montserrat", sans-serif;
+        font-weight: 800;
+      }
+
+      .btn-pdf:hover {
+        background-color: #c82333;
+      }
+
+      .pdf-section {
+        text-align: center;
+        margin-top: 20px;
+      }
+
+      @media (max-width: 768px) {
+        .product-grid,
+        .config-grid,
+        .summary-grid {
+          grid-template-columns: 1fr;
+        }
+
+        h1 {
+          font-size: 2rem;
+        }
+
+        .tabs {
+          flex-direction: column;
+        }
+
+        .company-name {
+          font-size: 2rem;
+        }
+
+        .company-slogan {
+          font-size: 1.1rem;
+        }
+
+        .summary-details {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="container">
+        <div class="logo-container">
+          <div class="company-name">NOVA ESPERANÇA</div>
+          <div class="company-slogan">
+            Tecnologia e tradição em produção de pães
+          </div>
+        </div>
+        <h1>Calculadora de Pacotes e Caixa</h1>
+        <p class="subtitle">Para Merenda Escolar - Bisnaguinha e Hot Dog</p>
+        <div class="developer-credit">Site criado por Yerardo Vasquez</div>
+      </div>
+    </header>
+
+    <div class="container">
+      <div class="tabs">
+        <div class="tab active" data-tab="calculadora">Calculadora</div>
+        <div class="tab" data-tab="config">Configurações</div>
+      </div>
+
+      <div class="tab-content active" id="calculadora">
+        <!-- Seções dos clientes (mantidas iguais) -->
+        <div class="client-section">
+          <h2 class="client-title">
+            MERENDA SJC
+            <span class="info-badge" id="info-badge-sjc"
+              >Amostra Fixa: 1 Pacote de cada produto</span
+            >
+          </h2>
+          <div class="product-grid">
+            <div class="product-card">
+              <div class="product-name">BISNAGUINHA</div>
+              <div class="input-group">
+                <label for="sjc-bisnaguinha">Quantidade (Unidades)</label>
+                <input type="number" id="sjc-bisnaguinha" min="0" value="0" />
+              </div>
+              <div class="amostra-info" id="amostra-bisnaguinha">
+                ✅ Amostra Fixa Incluída: 1 pacote (15 unidades)
+              </div>
+              <div class="result-group">
+                <div class="result-item">
+                  <span class="result-label">Caixas:</span>
+                  <span class="result-value" id="sjc-bisnaguinha-cx">0</span>
+                </div>
+                <div class="result-item">
+                  <span class="result-label">Pacotes para Envio:</span>
+                  <span class="result-value" id="sjc-bisnaguinha-pct">0</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="product-card">
+              <div class="product-name">BISNAGUINHA INTEGRAL</div>
+              <div class="input-group">
+                <label for="sjc-bisnaguinha-integral"
+                  >Quantidade (Unidades)</label
+                >
+                <input
+                  type="number"
+                  id="sjc-bisnaguinha-integral"
+                  min="0"
+                  value="0"
+                />
+              </div>
+              <div class="amostra-info" id="amostra-bisnaguinha-integral">
+                ✅ Amostra Fixa Incluída: 1 pacote (15 unidades)
+              </div>
+              <div class="result-group">
+                <div class="result-item">
+                  <span class="result-label">Caixas:</span>
+                  <span class="result-value" id="sjc-bisnaguinha-integral-cx"
+                    >0</span
+                  >
+                </div>
+                <div class="result-item">
+                  <span class="result-label">Pacotes para Envio:</span>
+                  <span class="result-value" id="sjc-bisnaguinha-integral-pct"
+                    >0</span
+                  >
+                </div>
+              </div>
+            </div>
+
+            <div class="product-card">
+              <div class="product-name">HOT DOG</div>
+              <div class="input-group">
+                <label for="sjc-hotdog">Quantidade (Unidades)</label>
+                <input type="number" id="sjc-hotdog" min="0" value="0" />
+              </div>
+              <div class="amostra-info" id="amostra-hotdog">
+                ✅ Amostra Fixa Incluída: 1 pacote (4 unidades)
+              </div>
+              <div class="result-group">
+                <div class="result-item">
+                  <span class="result-label">Caixas:</span>
+                  <span class="result-value" id="sjc-hotdog-cx">0</span>
+                </div>
+                <div class="result-item">
+                  <span class="result-label">Pacotes para Envio:</span>
+                  <span class="result-value" id="sjc-hotdog-pct">0</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="product-card">
+              <div class="product-name">HOT DOG INTEGRAL</div>
+              <div class="input-group">
+                <label for="sjc-hotdog-integral">Quantidade (Unidades)</label>
+                <input
+                  type="number"
+                  id="sjc-hotdog-integral"
+                  min="0"
+                  value="0"
+                />
+              </div>
+              <div class="amostra-info" id="amostra-hotdog-integral">
+                ✅ Amostra Fixa Incluída: 1 pacote (4 unidades)
+              </div>
+              <div class="result-group">
+                <div class="result-item">
+                  <span class="result-label">Caixas:</span>
+                  <span class="result-value" id="sjc-hotdog-integral-cx"
+                    >0</span
+                  >
+                </div>
+                <div class="result-item">
+                  <span class="result-label">Pacotes para Envio:</span>
+                  <span class="result-value" id="sjc-hotdog-integral-pct"
+                    >0</span
+                  >
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="client-section">
+          <h2 class="client-title">JARINU</h2>
+          <div class="product-grid">
+            <!-- Conteúdo de JARINU mantido igual -->
+            <div class="product-card">
+              <div class="product-name">BISNAGUINHA</div>
+              <div class="input-group">
+                <label for="jarinu-bisnaguinha">Quantidade (Unidades)</label>
+                <input
+                  type="number"
+                  id="jarinu-bisnaguinha"
+                  min="0"
+                  value="0"
+                />
+              </div>
+              <div class="result-group">
+                <div class="result-item">
+                  <span class="result-label">Caixas:</span>
+                  <span class="result-value" id="jarinu-bisnaguinha-cx">0</span>
+                </div>
+                <div class="result-item">
+                  <span class="result-label">Pacotes para Envio:</span>
+                  <span class="result-value" id="jarinu-bisnaguinha-pct"
+                    >0</span
+                  >
+                </div>
+              </div>
+            </div>
+
+            <div class="product-card">
+              <div class="product-name">BISNAGUINHA INTEGRAL</div>
+              <div class="input-group">
+                <label for="jarinu-bisnaguinha-integral"
+                  >Quantidade (Unidades)</label
+                >
+                <input
+                  type="number"
+                  id="jarinu-bisnaguinha-integral"
+                  min="0"
+                  value="0"
+                />
+              </div>
+              <div class="result-group">
+                <div class="result-item">
+                  <span class="result-label">Caixas:</span>
+                  <span class="result-value" id="jarinu-bisnaguinha-integral-cx"
+                    >0</span
+                  >
+                </div>
+                <div class="result-item">
+                  <span class="result-label">Pacotes para Envio:</span>
+                  <span
+                    class="result-value"
+                    id="jarinu-bisnaguinha-integral-pct"
+                    >0</span
+                  >
+                </div>
+              </div>
+            </div>
+
+            <div class="product-card">
+              <div class="product-name">HOT DOG</div>
+              <div class="input-group">
+                <label for="jarinu-hotdog">Quantidade (Unidades)</label>
+                <input type="number" id="jarinu-hotdog" min="0" value="0" />
+              </div>
+              <div class="result-group">
+                <div class="result-item">
+                  <span class="result-label">Caixas:</span>
+                  <span class="result-value" id="jarinu-hotdog-cx">0</span>
+                </div>
+                <div class="result-item">
+                  <span class="result-label">Pacotes para Envio:</span>
+                  <span class="result-value" id="jarinu-hotdog-pct">0</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="product-card">
+              <div class="product-name">HOT DOG INTEGRAL</div>
+              <div class="input-group">
+                <label for="jarinu-hotdog-integral"
+                  >Quantidade (Unidades)</label
+                >
+                <input
+                  type="number"
+                  id="jarinu-hotdog-integral"
+                  min="0"
+                  value="0"
+                />
+              </div>
+              <div class="result-group">
+                <div class="result-item">
+                  <span class="result-label">Caixas:</span>
+                  <span class="result-value" id="jarinu-hotdog-integral-cx"
+                    >0</span
+                  >
+                </div>
+                <div class="result-item">
+                  <span class="result-label">Pacotes para Envio:</span>
+                  <span class="result-value" id="jarinu-hotdog-integral-pct"
+                    >0</span
+                  >
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="client-section">
+          <h2 class="client-title">JAGUARIUNA</h2>
+          <div class="product-grid">
+            <!-- Conteúdo de JAGUARIUNA mantido igual -->
+            <div class="product-card">
+              <div class="product-name">BISNAGUINHA</div>
+              <div class="input-group">
+                <label for="jaguariuna-bisnaguinha"
+                  >Quantidade (Unidades)</label
+                >
+                <input
+                  type="number"
+                  id="jaguariuna-bisnaguinha"
+                  min="0"
+                  value="0"
+                />
+              </div>
+              <div class="result-group">
+                <div class="result-item">
+                  <span class="result-label">Caixas:</span>
+                  <span class="result-value" id="jaguariuna-bisnaguinha-cx"
+                    >0</span
+                  >
+                </div>
+                <div class="result-item">
+                  <span class="result-label">Pacotes para Envio:</span>
+                  <span class="result-value" id="jaguariuna-bisnaguinha-pct"
+                    >0</span
+                  >
+                </div>
+              </div>
+            </div>
+
+            <div class="product-card">
+              <div class="product-name">BISNAGUINHA INTEGRAL</div>
+              <div class="input-group">
+                <label for="jaguariuna-bisnaguinha-integral"
+                  >Quantidade (Unidades)</label
+                >
+                <input
+                  type="number"
+                  id="jaguariuna-bisnaguinha-integral"
+                  min="0"
+                  value="0"
+                />
+              </div>
+              <div class="result-group">
+                <div class="result-item">
+                  <span class="result-label">Caixas:</span>
+                  <span
+                    class="result-value"
+                    id="jaguariuna-bisnaguinha-integral-cx"
+                    >0</span
+                  >
+                </div>
+                <div class="result-item">
+                  <span class="result-label">Pacotes para Envio:</span>
+                  <span
+                    class="result-value"
+                    id="jaguariuna-bisnaguinha-integral-pct"
+                    >0</span
+                  >
+                </div>
+              </div>
+            </div>
+
+            <div class="product-card">
+              <div class="product-name">HOT DOG</div>
+              <div class="input-group">
+                <label for="jaguariuna-hotdog">Quantidade (Unidades)</label>
+                <input type="number" id="jaguariuna-hotdog" min="0" value="0" />
+              </div>
+              <div class="result-group">
+                <div class="result-item">
+                  <span class="result-label">Caixas:</span>
+                  <span class="result-value" id="jaguariuna-hotdog-cx">0</span>
+                </div>
+                <div class="result-item">
+                  <span class="result-label">Pacotes para Envio:</span>
+                  <span class="result-value" id="jaguariuna-hotdog-pct">0</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="product-card">
+              <div class="product-name">HOT DOG INTEGRAL</div>
+              <div class="input-group">
+                <label for="jaguariuna-hotdog-integral"
+                  >Quantidade (Unidades)</label
+                >
+                <input
+                  type="number"
+                  id="jaguariuna-hotdog-integral"
+                  min="0"
+                  value="0"
+                />
+              </div>
+              <div class="result-group">
+                <div class="result-item">
+                  <span class="result-label">Caixas:</span>
+                  <span class="result-value" id="jaguariuna-hotdog-integral-cx"
+                    >0</span
+                  >
+                </div>
+                <div class="result-item">
+                  <span class="result-label">Pacotes para Envio:</span>
+                  <span class="result-value" id="jaguariuna-hotdog-integral-pct"
+                    >0</span
+                  >
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="client-section">
+          <h2 class="client-title">OUTROS</h2>
+          <div class="product-grid">
+            <!-- Conteúdo de OUTROS mantido igual -->
+            <div class="product-card">
+              <div class="product-name">BISNAGUINHA</div>
+              <div class="input-group">
+                <label for="outros-bisnaguinha">Quantidade (Unidades)</label>
+                <input
+                  type="number"
+                  id="outros-bisnaguinha"
+                  min="0"
+                  value="0"
+                />
+              </div>
+              <div class="result-group">
+                <div class="result-item">
+                  <span class="result-label">Caixas:</span>
+                  <span class="result-value" id="outros-bisnaguinha-cx">0</span>
+                </div>
+                <div class="result-item">
+                  <span class="result-label">Pacotes para Envio:</span>
+                  <span class="result-value" id="outros-bisnaguinha-pct"
+                    >0</span
+                  >
+                </div>
+              </div>
+            </div>
+
+            <div class="product-card">
+              <div class="product-name">BISNAGUINHA INTEGRAL</div>
+              <div class="input-group">
+                <label for="outros-bisnaguinha-integral"
+                  >Quantidade (Unidades)</label
+                >
+                <input
+                  type="number"
+                  id="outros-bisnaguinha-integral"
+                  min="0"
+                  value="0"
+                />
+              </div>
+              <div class="result-group">
+                <div class="result-item">
+                  <span class="result-label">Caixas:</span>
+                  <span class="result-value" id="outros-bisnaguinha-integral-cx"
+                    >0</span
+                  >
+                </div>
+                <div class="result-item">
+                  <span class="result-label">Pacotes para Envio:</span>
+                  <span
+                    class="result-value"
+                    id="outros-bisnaguinha-integral-pct"
+                    >0</span
+                  >
+                </div>
+              </div>
+            </div>
+
+            <div class="product-card">
+              <div class="product-name">HOT DOG</div>
+              <div class="input-group">
+                <label for="outros-hotdog">Quantidade (Unidades)</label>
+                <input type="number" id="outros-hotdog" min="0" value="0" />
+              </div>
+              <div class="result-group">
+                <div class="result-item">
+                  <span class="result-label">Caixas:</span>
+                  <span class="result-value" id="outros-hotdog-cx">0</span>
+                </div>
+                <div class="result-item">
+                  <span class="result-label">Pacotes para Envio:</span>
+                  <span class="result-value" id="outros-hotdog-pct">0</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="product-card">
+              <div class="product-name">HOT DOG INTEGRAL</div>
+              <div class="input-group">
+                <label for="outros-hotdog-integral"
+                  >Quantidade (Unidades)</label
+                >
+                <input
+                  type="number"
+                  id="outros-hotdog-integral"
+                  min="0"
+                  value="0"
+                />
+              </div>
+              <div class="result-group">
+                <div class="result-item">
+                  <span class="result-label">Caixas:</span>
+                  <span class="result-value" id="outros-hotdog-integral-cx"
+                    >0</span
+                  >
+                </div>
+                <div class="result-item">
+                  <span class="result-label">Pacotes para Envio:</span>
+                  <span class="result-value" id="outros-hotdog-integral-pct"
+                    >0</span
+                  >
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <button class="btn-calculate" id="calculate-btn">
+          Calcular Pacotes e Caixas
+        </button>
+
+        <!-- NOVO RESUMO TOTAL REFORMULADO -->
+        <div class="summary-section">
+          <h2 class="summary-title">RESUMO TOTAL - MERENDA SJC</h2>
+          <div class="summary-grid">
+            <div class="summary-client">
+              <div class="summary-client-title">MERENDA SJC</div>
+              <div class="summary-product">
+                <div class="summary-product-name">BISNAGUINHA</div>
+                <div class="summary-details">
+                  <div class="summary-detail">
+                    <span class="summary-detail-label">Unidades Total:</span>
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-sjc-bisnaguinha-und"
+                      >0</span
+                    >
+                  </div>
+                  <div class="summary-detail">
+                    <span class="summary-detail-label">Caixas:</span>
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-sjc-bisnaguinha-cx"
+                      >0</span
+                    >
+                  </div>
+                  <div class="summary-detail">
+                    <span class="summary-detail-label"
+                      >Pacotes para Envio:</span
+                    >
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-sjc-bisnaguinha-pct"
+                      >0</span
+                    >
+                  </div>
+                </div>
+              </div>
+              <div class="summary-product">
+                <div class="summary-product-name">BISNAGUINHA INTEGRAL</div>
+                <div class="summary-details">
+                  <div class="summary-detail">
+                    <span class="summary-detail-label">Unidades Total:</span>
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-sjc-bisnaguinha-integral-und"
+                      >0</span
+                    >
+                  </div>
+                  <div class="summary-detail">
+                    <span class="summary-detail-label">Caixas:</span>
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-sjc-bisnaguinha-integral-cx"
+                      >0</span
+                    >
+                  </div>
+                  <div class="summary-detail">
+                    <span class="summary-detail-label"
+                      >Pacotes para Envio:</span
+                    >
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-sjc-bisnaguinha-integral-pct"
+                      >0</span
+                    >
+                  </div>
+                </div>
+              </div>
+              <div class="summary-product">
+                <div class="summary-product-name">HOT DOG</div>
+                <div class="summary-details">
+                  <div class="summary-detail">
+                    <span class="summary-detail-label">Unidades Total:</span>
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-sjc-hotdog-und"
+                      >0</span
+                    >
+                  </div>
+                  <div class="summary-detail">
+                    <span class="summary-detail-label">Caixas:</span>
+                    <span class="summary-detail-value" id="resumo-sjc-hotdog-cx"
+                      >0</span
+                    >
+                  </div>
+                  <div class="summary-detail">
+                    <span class="summary-detail-label"
+                      >Pacotes para Envio:</span
+                    >
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-sjc-hotdog-pct"
+                      >0</span
+                    >
+                  </div>
+                </div>
+              </div>
+              <div class="summary-product">
+                <div class="summary-product-name">HOT DOG INTEGRAL</div>
+                <div class="summary-details">
+                  <div class="summary-detail">
+                    <span class="summary-detail-label">Unidades Total:</span>
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-sjc-hotdog-integral-und"
+                      >0</span
+                    >
+                  </div>
+                  <div class="summary-detail">
+                    <span class="summary-detail-label">Caixas:</span>
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-sjc-hotdog-integral-cx"
+                      >0</span
+                    >
+                  </div>
+                  <div class="summary-detail">
+                    <span class="summary-detail-label"
+                      >Pacotes para Envio:</span
+                    >
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-sjc-hotdog-integral-pct"
+                      >0</span
+                    >
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="summary-section">
+          <h2 class="summary-title">RESUMO TOTAL - OUTROS CLIENTES</h2>
+          <div class="summary-grid">
+            <div class="summary-client">
+              <div class="summary-client-title">JARINU</div>
+              <div class="summary-product">
+                <div class="summary-product-name">BISNAGUINHA</div>
+                <div class="summary-details">
+                  <div class="summary-detail">
+                    <span class="summary-detail-label">Unidades Total:</span>
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-jarinu-bisnaguinha-und"
+                      >0</span
+                    >
+                  </div>
+                  <div class="summary-detail">
+                    <span class="summary-detail-label">Caixas:</span>
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-jarinu-bisnaguinha-cx"
+                      >0</span
+                    >
+                  </div>
+                  <div class="summary-detail">
+                    <span class="summary-detail-label"
+                      >Pacotes para Envio:</span
+                    >
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-jarinu-bisnaguinha-pct"
+                      >0</span
+                    >
+                  </div>
+                </div>
+              </div>
+              <div class="summary-product">
+                <div class="summary-product-name">BISNAGUINHA INTEGRAL</div>
+                <div class="summary-details">
+                  <div class="summary-detail">
+                    <span class="summary-detail-label">Unidades Total:</span>
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-jarinu-bisnaguinha-integral-und"
+                      >0</span
+                    >
+                  </div>
+                  <div class="summary-detail">
+                    <span class="summary-detail-label">Caixas:</span>
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-jarinu-bisnaguinha-integral-cx"
+                      >0</span
+                    >
+                  </div>
+                  <div class="summary-detail">
+                    <span class="summary-detail-label"
+                      >Pacotes para Envio:</span
+                    >
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-jarinu-bisnaguinha-integral-pct"
+                      >0</span
+                    >
+                  </div>
+                </div>
+              </div>
+              <div class="summary-product">
+                <div class="summary-product-name">HOT DOG</div>
+                <div class="summary-details">
+                  <div class="summary-detail">
+                    <span class="summary-detail-label">Unidades Total:</span>
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-jarinu-hotdog-und"
+                      >0</span
+                    >
+                  </div>
+                  <div class="summary-detail">
+                    <span class="summary-detail-label">Caixas:</span>
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-jarinu-hotdog-cx"
+                      >0</span
+                    >
+                  </div>
+                  <div class="summary-detail">
+                    <span class="summary-detail-label"
+                      >Pacotes para Envio:</span
+                    >
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-jarinu-hotdog-pct"
+                      >0</span
+                    >
+                  </div>
+                </div>
+              </div>
+              <div class="summary-product">
+                <div class="summary-product-name">HOT DOG INTEGRAL</div>
+                <div class="summary-details">
+                  <div class="summary-detail">
+                    <span class="summary-detail-label">Unidades Total:</span>
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-jarinu-hotdog-integral-und"
+                      >0</span
+                    >
+                  </div>
+                  <div class="summary-detail">
+                    <span class="summary-detail-label">Caixas:</span>
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-jarinu-hotdog-integral-cx"
+                      >0</span
+                    >
+                  </div>
+                  <div class="summary-detail">
+                    <span class="summary-detail-label"
+                      >Pacotes para Envio:</span
+                    >
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-jarinu-hotdog-integral-pct"
+                      >0</span
+                    >
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="summary-client">
+              <div class="summary-client-title">JAGUARIUNA</div>
+              <div class="summary-product">
+                <div class="summary-product-name">BISNAGUINHA</div>
+                <div class="summary-details">
+                  <div class="summary-detail">
+                    <span class="summary-detail-label">Unidades Total:</span>
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-jaguariuna-bisnaguinha-und"
+                      >0</span
+                    >
+                  </div>
+                  <div class="summary-detail">
+                    <span class="summary-detail-label">Caixas:</span>
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-jaguariuna-bisnaguinha-cx"
+                      >0</span
+                    >
+                  </div>
+                  <div class="summary-detail">
+                    <span class="summary-detail-label"
+                      >Pacotes para Envio:</span
+                    >
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-jaguariuna-bisnaguinha-pct"
+                      >0</span
+                    >
+                  </div>
+                </div>
+              </div>
+              <div class="summary-product">
+                <div class="summary-product-name">BISNAGUINHA INTEGRAL</div>
+                <div class="summary-details">
+                  <div class="summary-detail">
+                    <span class="summary-detail-label">Unidades Total:</span>
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-jaguariuna-bisnaguinha-integral-und"
+                      >0</span
+                    >
+                  </div>
+                  <div class="summary-detail">
+                    <span class="summary-detail-label">Caixas:</span>
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-jaguariuna-bisnaguinha-integral-cx"
+                      >0</span
+                    >
+                  </div>
+                  <div class="summary-detail">
+                    <span class="summary-detail-label"
+                      >Pacotes para Envio:</span
+                    >
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-jaguariuna-bisnaguinha-integral-pct"
+                      >0</span
+                    >
+                  </div>
+                </div>
+              </div>
+              <div class="summary-product">
+                <div class="summary-product-name">HOT DOG</div>
+                <div class="summary-details">
+                  <div class="summary-detail">
+                    <span class="summary-detail-label">Unidades Total:</span>
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-jaguariuna-hotdog-und"
+                      >0</span
+                    >
+                  </div>
+                  <div class="summary-detail">
+                    <span class="summary-detail-label">Caixas:</span>
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-jaguariuna-hotdog-cx"
+                      >0</span
+                    >
+                  </div>
+                  <div class="summary-detail">
+                    <span class="summary-detail-label"
+                      >Pacotes para Envio:</span
+                    >
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-jaguariuna-hotdog-pct"
+                      >0</span
+                    >
+                  </div>
+                </div>
+              </div>
+              <div class="summary-product">
+                <div class="summary-product-name">HOT DOG INTEGRAL</div>
+                <div class="summary-details">
+                  <div class="summary-detail">
+                    <span class="summary-detail-label">Unidades Total:</span>
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-jaguariuna-hotdog-integral-und"
+                      >0</span
+                    >
+                  </div>
+                  <div class="summary-detail">
+                    <span class="summary-detail-label">Caixas:</span>
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-jaguariuna-hotdog-integral-cx"
+                      >0</span
+                    >
+                  </div>
+                  <div class="summary-detail">
+                    <span class="summary-detail-label"
+                      >Pacotes para Envio:</span
+                    >
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-jaguariuna-hotdog-integral-pct"
+                      >0</span
+                    >
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="summary-client">
+              <div class="summary-client-title">OUTROS</div>
+              <div class="summary-product">
+                <div class="summary-product-name">BISNAGUINHA</div>
+                <div class="summary-details">
+                  <div class="summary-detail">
+                    <span class="summary-detail-label">Unidades Total:</span>
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-outros-bisnaguinha-und"
+                      >0</span
+                    >
+                  </div>
+                  <div class="summary-detail">
+                    <span class="summary-detail-label">Caixas:</span>
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-outros-bisnaguinha-cx"
+                      >0</span
+                    >
+                  </div>
+                  <div class="summary-detail">
+                    <span class="summary-detail-label"
+                      >Pacotes para Envio:</span
+                    >
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-outros-bisnaguinha-pct"
+                      >0</span
+                    >
+                  </div>
+                </div>
+              </div>
+              <div class="summary-product">
+                <div class="summary-product-name">BISNAGUINHA INTEGRAL</div>
+                <div class="summary-details">
+                  <div class="summary-detail">
+                    <span class="summary-detail-label">Unidades Total:</span>
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-outros-bisnaguinha-integral-und"
+                      >0</span
+                    >
+                  </div>
+                  <div class="summary-detail">
+                    <span class="summary-detail-label">Caixas:</span>
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-outros-bisnaguinha-integral-cx"
+                      >0</span
+                    >
+                  </div>
+                  <div class="summary-detail">
+                    <span class="summary-detail-label"
+                      >Pacotes para Envio:</span
+                    >
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-outros-bisnaguinha-integral-pct"
+                      >0</span
+                    >
+                  </div>
+                </div>
+              </div>
+              <div class="summary-product">
+                <div class="summary-product-name">HOT DOG</div>
+                <div class="summary-details">
+                  <div class="summary-detail">
+                    <span class="summary-detail-label">Unidades Total:</span>
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-outros-hotdog-und"
+                      >0</span
+                    >
+                  </div>
+                  <div class="summary-detail">
+                    <span class="summary-detail-label">Caixas:</span>
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-outros-hotdog-cx"
+                      >0</span
+                    >
+                  </div>
+                  <div class="summary-detail">
+                    <span class="summary-detail-label"
+                      >Pacotes para Envio:</span
+                    >
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-outros-hotdog-pct"
+                      >0</span
+                    >
+                  </div>
+                </div>
+              </div>
+              <div class="summary-product">
+                <div class="summary-product-name">HOT DOG INTEGRAL</div>
+                <div class="summary-details">
+                  <div class="summary-detail">
+                    <span class="summary-detail-label">Unidades Total:</span>
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-outros-hotdog-integral-und"
+                      >0</span
+                    >
+                  </div>
+                  <div class="summary-detail">
+                    <span class="summary-detail-label">Caixas:</span>
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-outros-hotdog-integral-cx"
+                      >0</span
+                    >
+                  </div>
+                  <div class="summary-detail">
+                    <span class="summary-detail-label"
+                      >Pacotes para Envio:</span
+                    >
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-outros-hotdog-integral-pct"
+                      >0</span
+                    >
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="summary-section">
+          <h2 class="summary-title">TOTAL GERAL - TODOS OS CLIENTES</h2>
+          <div class="summary-grid">
+            <div class="summary-client">
+              <div class="summary-client-title">TOTAL GERAL</div>
+              <div class="summary-product">
+                <div class="summary-product-name">BISNAGUINHA</div>
+                <div class="summary-details">
+                  <div class="summary-detail">
+                    <span class="summary-detail-label">Unidades Total:</span>
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-total-bisnaguinha-und"
+                      >0</span
+                    >
+                  </div>
+                  <div class="summary-detail">
+                    <span class="summary-detail-label">Caixas:</span>
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-total-bisnaguinha-cx"
+                      >0</span
+                    >
+                  </div>
+                  <div class="summary-detail">
+                    <span class="summary-detail-label"
+                      >Pacotes para Envio:</span
+                    >
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-total-bisnaguinha-pct"
+                      >0</span
+                    >
+                  </div>
+                </div>
+              </div>
+              <div class="summary-product">
+                <div class="summary-product-name">BISNAGUINHA INTEGRAL</div>
+                <div class="summary-details">
+                  <div class="summary-detail">
+                    <span class="summary-detail-label">Unidades Total:</span>
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-total-bisnaguinha-integral-und"
+                      >0</span
+                    >
+                  </div>
+                  <div class="summary-detail">
+                    <span class="summary-detail-label">Caixas:</span>
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-total-bisnaguinha-integral-cx"
+                      >0</span
+                    >
+                  </div>
+                  <div class="summary-detail">
+                    <span class="summary-detail-label"
+                      >Pacotes para Envio:</span
+                    >
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-total-bisnaguinha-integral-pct"
+                      >0</span
+                    >
+                  </div>
+                </div>
+              </div>
+              <div class="summary-product">
+                <div class="summary-product-name">HOT DOG</div>
+                <div class="summary-details">
+                  <div class="summary-detail">
+                    <span class="summary-detail-label">Unidades Total:</span>
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-total-hotdog-und"
+                      >0</span
+                    >
+                  </div>
+                  <div class="summary-detail">
+                    <span class="summary-detail-label">Caixas:</span>
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-total-hotdog-cx"
+                      >0</span
+                    >
+                  </div>
+                  <div class="summary-detail">
+                    <span class="summary-detail-label"
+                      >Pacotes para Envio:</span
+                    >
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-total-hotdog-pct"
+                      >0</span
+                    >
+                  </div>
+                </div>
+              </div>
+              <div class="summary-product">
+                <div class="summary-product-name">HOT DOG INTEGRAL</div>
+                <div class="summary-details">
+                  <div class="summary-detail">
+                    <span class="summary-detail-label">Unidades Total:</span>
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-total-hotdog-integral-und"
+                      >0</span
+                    >
+                  </div>
+                  <div class="summary-detail">
+                    <span class="summary-detail-label">Caixas:</span>
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-total-hotdog-integral-cx"
+                      >0</span
+                    >
+                  </div>
+                  <div class="summary-detail">
+                    <span class="summary-detail-label"
+                      >Pacotes para Envio:</span
+                    >
+                    <span
+                      class="summary-detail-value"
+                      id="resumo-total-hotdog-integral-pct"
+                      >0</span
+                    >
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Seção para gerar PDF -->
+        <div class="pdf-section">
+          <button class="btn-pdf" id="generate-pdf">Gerar PDF do Resumo</button>
+        </div>
+      </div>
+
+      <div class="tab-content" id="config">
+        <div class="config-section">
+          <h2 class="client-title">Configurações dos Produtos</h2>
+          <div class="config-grid">
+            <div class="config-item">
+              <label class="config-label" for="config-bisnaguinha-pct"
+                >Unidades por Pacote (Bisnaguinha)</label
+              >
+              <input
+                type="number"
+                id="config-bisnaguinha-pct"
+                min="1"
+                value="15"
+              />
+            </div>
+            <div class="config-item">
+              <label class="config-label" for="config-bisnaguinha-cx"
+                >Pacotes por Caixa (Bisnaguinha)</label
+              >
+              <input
+                type="number"
+                id="config-bisnaguinha-cx"
+                min="1"
+                value="15"
+              />
+            </div>
+            <div class="config-item">
+              <label class="config-label" for="config-bisnaguinha-units"
+                >Unidades por Caixa (Bisnaguinha)</label
+              >
+              <input
+                type="number"
+                id="config-bisnaguinha-units"
+                min="1"
+                value="225"
+              />
+            </div>
+            <div class="config-item">
+              <label class="config-label" for="config-hotdog-pct"
+                >Unidades por Pacote (Hot Dog)</label
+              >
+              <input type="number" id="config-hotdog-pct" min="1" value="4" />
+            </div>
+            <div class="config-item">
+              <label class="config-label" for="config-hotdog-cx"
+                >Pacotes por Caixa (Hot Dog)</label
+              >
+              <input type="number" id="config-hotdog-cx" min="1" value="20" />
+            </div>
+            <div class="config-item">
+              <label class="config-label" for="config-hotdog-units"
+                >Unidades por Caixa (Hot Dog)</label
+              >
+              <input
+                type="number"
+                id="config-hotdog-units"
+                min="1"
+                value="80"
+              />
+            </div>
+            <div class="config-item">
+              <label class="config-label" for="config-amostra-sjc"
+                >Amostra Fixa SJC (Pacotes)</label
+              >
+              <input type="number" id="config-amostra-sjc" min="0" value="1" />
+            </div>
+          </div>
+          <button class="btn-calculate" id="save-config">
+            Salvar Configurações
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      <div class="container">
+        <div class="footer-logo">NOVA ESPERANÇA</div>
+        <p>Tecnologia e tradição em produção de pães</p>
+        <p>
+          Calculadora de Pacotes e Caixa para Merenda Escolar - Desenvolvido
+          para facilitar o controle de estoque
+        </p>
+        <p>Site criado por Yerardo Vasquez</p>
+      </div>
+    </footer>
+
+    <script>
+      const portalUser = JSON.parse(localStorage.getItem("user") || "{}");
+      const portalToken = localStorage.getItem("token");
+      if (!portalToken || String(portalUser.perfil || "").toLowerCase() !== "administrador") {
+        window.top.location.href = "/mips";
+      }
+      const adminApi = `http://${window.location.hostname}:7001/api/ferramentas-admin/caixas`;
+
+      // Configurações padrão
+      let config = {
+        bisnaguinha: {
+          pct: 15, // Unidades por pacote
+          cxPct: 15, // Pacotes por caixa
+          cxUnits: 225, // Unidades por caixa
+        },
+        hotdog: {
+          pct: 4, // Unidades por pacote
+          cxPct: 20, // Pacotes por caixa
+          cxUnits: 80, // Unidades por caixa
+        },
+        amostraSJC: 1, // Pacotes de amostra fixa para SJC
+      };
+
+      document.addEventListener("DOMContentLoaded", function () {
+        // Carregar configurações salvas
+        loadConfig();
+
+        // Inicializar abas
+        initTabs();
+
+        // Atualizar mensagens de amostra
+        updateAmostraMessages();
+
+        // Calcular automaticamente ao carregar a página
+        calculateAll();
+        loadDatabaseConfig();
+
+        // Adicionar evento de clique ao botão de calcular
+        document
+          .getElementById("calculate-btn")
+          .addEventListener("click", calculateAll);
+
+        // Adicionar evento de salvar configurações
+        document
+          .getElementById("save-config")
+          .addEventListener("click", saveConfig);
+
+        // Adicionar evento para gerar PDF
+        document
+          .getElementById("generate-pdf")
+          .addEventListener("click", generatePDF);
+
+        // Adicionar eventos de input para calcular automaticamente quando os valores mudam
+        const inputs = document.querySelectorAll(
+          '#calculadora input[type="number"]'
+        );
+        inputs.forEach((input) => {
+          input.addEventListener("input", calculateAll);
+        });
+
+        // Adicionar eventos para atualizar mensagens quando configurações mudam
+        const configInputs = document.querySelectorAll(
+          '#config input[type="number"]'
+        );
+        configInputs.forEach((input) => {
+          input.addEventListener("input", updateAmostraMessages);
+        });
+      });
+
+      function initTabs() {
+        const tabs = document.querySelectorAll(".tab");
+        tabs.forEach((tab) => {
+          tab.addEventListener("click", function () {
+            // Remover classe active de todas as abas
+            tabs.forEach((t) => t.classList.remove("active"));
+            // Adicionar classe active à aba clicada
+            this.classList.add("active");
+
+            // Esconder todos os conteúdos
+            document.querySelectorAll(".tab-content").forEach((content) => {
+              content.classList.remove("active");
+            });
+
+            // Mostrar o conteúdo da aba clicada
+            const tabId = this.getAttribute("data-tab");
+            document.getElementById(tabId).classList.add("active");
+          });
+        });
+      }
+
+      function loadConfig() {
+        // Carregar do localStorage se existir
+        const savedConfig = localStorage.getItem("merendaConfig");
+        if (savedConfig) {
+          config = JSON.parse(savedConfig);
+        }
+
+        // Preencher campos de configuração
+        document.getElementById("config-bisnaguinha-pct").value =
+          config.bisnaguinha.pct;
+        document.getElementById("config-bisnaguinha-cx").value =
+          config.bisnaguinha.cxPct;
+        document.getElementById("config-bisnaguinha-units").value =
+          config.bisnaguinha.cxUnits;
+        document.getElementById("config-hotdog-pct").value = config.hotdog.pct;
+        document.getElementById("config-hotdog-cx").value = config.hotdog.cxPct;
+        document.getElementById("config-hotdog-units").value =
+          config.hotdog.cxUnits;
+        document.getElementById("config-amostra-sjc").value = config.amostraSJC;
+      }
+
+      async function loadDatabaseConfig() {
+        try {
+          const resposta = await fetch(adminApi, { headers: { Authorization: `Bearer ${portalToken}` } });
+          if (resposta.status === 404) { await saveDatabaseConfig(); return; }
+          if (!resposta.ok) throw new Error();
+          const { dados } = await resposta.json();
+          if (dados?.config) {
+            config = dados.config;
+            localStorage.setItem("merendaConfig", JSON.stringify(config));
+            loadConfig();
+            updateAmostraMessages();
+            calculateAll();
+          }
+        } catch {
+          alert("Não foi possível carregar as configurações do banco. Verifique a conexão com o portal.");
+        }
+      }
+
+      async function saveDatabaseConfig() {
+        const resposta = await fetch(adminApi, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${portalToken}` },
+          body: JSON.stringify({ dados: { config } })
+        });
+        if (!resposta.ok) throw new Error("Falha ao salvar no banco");
+      }
+
+      function updateAmostraMessages() {
+        // Atualizar badge do título
+        const amostraText =
+          config.amostraSJC === 1 ? "1 Pacote" : `${config.amostraSJC} Pacotes`;
+        document.getElementById(
+          "info-badge-sjc"
+        ).textContent = `Amostra Fixa: ${amostraText} de cada produto`;
+
+        // Atualizar mensagens de amostra para Bisnaguinha
+        const unidadesBisnaguinha = config.bisnaguinha.pct * config.amostraSJC;
+        const textoBisnaguinha =
+          config.amostraSJC === 1
+            ? `✅ Amostra Fixa Incluída: 1 pacote (${config.bisnaguinha.pct} unidades)`
+            : `✅ Amostra Fixa Incluída: ${config.amostraSJC} pacotes (${unidadesBisnaguinha} unidades)`;
+
+        document.getElementById("amostra-bisnaguinha").textContent =
+          textoBisnaguinha;
+        document.getElementById("amostra-bisnaguinha-integral").textContent =
+          textoBisnaguinha;
+
+        // Atualizar mensagens de amostra para Hot Dog
+        const unidadesHotdog = config.hotdog.pct * config.amostraSJC;
+        const textoHotdog =
+          config.amostraSJC === 1
+            ? `✅ Amostra Fixa Incluída: 1 pacote (${config.hotdog.pct} unidades)`
+            : `✅ Amostra Fixa Incluída: ${config.amostraSJC} pacotes (${unidadesHotdog} unidades)`;
+
+        document.getElementById("amostra-hotdog").textContent = textoHotdog;
+        document.getElementById("amostra-hotdog-integral").textContent =
+          textoHotdog;
+      }
+
+      async function saveConfig() {
+        // Salvar configurações
+        config.bisnaguinha.pct = parseInt(
+          document.getElementById("config-bisnaguinha-pct").value
+        );
+        config.bisnaguinha.cxPct = parseInt(
+          document.getElementById("config-bisnaguinha-cx").value
+        );
+        config.bisnaguinha.cxUnits = parseInt(
+          document.getElementById("config-bisnaguinha-units").value
+        );
+        config.hotdog.pct = parseInt(
+          document.getElementById("config-hotdog-pct").value
+        );
+        config.hotdog.cxPct = parseInt(
+          document.getElementById("config-hotdog-cx").value
+        );
+        config.hotdog.cxUnits = parseInt(
+          document.getElementById("config-hotdog-units").value
+        );
+        config.amostraSJC = parseInt(
+          document.getElementById("config-amostra-sjc").value
+        );
+
+        // Salvar no localStorage
+        localStorage.setItem("merendaConfig", JSON.stringify(config));
+
+        try {
+          await saveDatabaseConfig();
+        } catch {
+          alert("Não foi possível salvar as configurações no banco.");
+          return;
+        }
+
+        // Atualizar mensagens
+        updateAmostraMessages();
+
+        // Recalcular
+        calculateAll();
+
+        // Voltar para a aba da calculadora
+        document.querySelector('[data-tab="calculadora"]').click();
+
+        alert("Configurações salvas no banco com sucesso!");
+      }
+
+      function calculateAll() {
+        // Calcular para cada cliente
+        calculateClient("sjc", true); // SJC tem amostra fixa
+        calculateClient("jarinu", false);
+        calculateClient("jaguariuna", false);
+        calculateClient("outros", false);
+
+        // Calcular totais
+        calculateTotals();
+      }
+
+      function calculateClient(client, hasAmostra) {
+        // Bisnaguinha
+        const bisnaguinhaQty =
+          parseInt(document.getElementById(`${client}-bisnaguinha`).value) || 0;
+        calculateProduct(client, "bisnaguinha", bisnaguinhaQty, hasAmostra);
+
+        // Bisnaguinha Integral
+        const bisnaguinhaIntQty =
+          parseInt(
+            document.getElementById(`${client}-bisnaguinha-integral`).value
+          ) || 0;
+        calculateProduct(
+          client,
+          "bisnaguinha-integral",
+          bisnaguinhaIntQty,
+          hasAmostra
+        );
+
+        // Hot Dog
+        const hotdogQty =
+          parseInt(document.getElementById(`${client}-hotdog`).value) || 0;
+        calculateProduct(client, "hotdog", hotdogQty, hasAmostra);
+
+        // Hot Dog Integral
+        const hotdogIntQty =
+          parseInt(
+            document.getElementById(`${client}-hotdog-integral`).value
+          ) || 0;
+        calculateProduct(client, "hotdog-integral", hotdogIntQty, hasAmostra);
+      }
+
+      function calculateProduct(client, product, quantity, hasAmostra) {
+        const isBisnaguinha = product.includes("bisnaguinha");
+        const productConfig = isBisnaguinha
+          ? config.bisnaguinha
+          : config.hotdog;
+
+        // PASSO 1: Calcular quantidade de pacotes (sem amostra)
+        const qtdPctSemAmostra = Math.trunc(quantity / productConfig.pct);
+
+        // PASSO 2: Calcular quantidade de caixas (apenas parte inteira)
+        const qtdCx = Math.trunc(qtdPctSemAmostra / productConfig.cxPct);
+
+        // PASSO 3: Calcular quantidade que temos (caixas * unidades por caixa)
+        const qtdQueTemos = qtdCx * productConfig.cxUnits;
+
+        // PASSO 4: Calcular quantidade que falta
+        const qtdQueFalta = Math.max(0, quantity - qtdQueTemos);
+
+        // PASSO 5: Calcular pacotes para envio
+        let pctParaEnvio = Math.trunc(qtdQueFalta / productConfig.pct);
+
+        // PASSO 6: Adicionar amostra fixa APENAS para MERENDA SJC nos pacotes para envio
+        if (hasAmostra) {
+          pctParaEnvio += config.amostraSJC;
+        }
+
+        // Atualizar os resultados na interface
+        document.getElementById(`${client}-${product}-cx`).textContent = qtdCx;
+        document.getElementById(`${client}-${product}-pct`).textContent =
+          pctParaEnvio;
+      }
+
+      function calculateTotals() {
+        // Objetos para armazenar totais
+        const totais = {
+          sjc: {
+            bisnaguinha: { und: 0, cx: 0, pct: 0 },
+            bisnaguinhaIntegral: { und: 0, cx: 0, pct: 0 },
+            hotdog: { und: 0, cx: 0, pct: 0 },
+            hotdogIntegral: { und: 0, cx: 0, pct: 0 },
+          },
+          jarinu: {
+            bisnaguinha: { und: 0, cx: 0, pct: 0 },
+            bisnaguinhaIntegral: { und: 0, cx: 0, pct: 0 },
+            hotdog: { und: 0, cx: 0, pct: 0 },
+            hotdogIntegral: { und: 0, cx: 0, pct: 0 },
+          },
+          jaguariuna: {
+            bisnaguinha: { und: 0, cx: 0, pct: 0 },
+            bisnaguinhaIntegral: { und: 0, cx: 0, pct: 0 },
+            hotdog: { und: 0, cx: 0, pct: 0 },
+            hotdogIntegral: { und: 0, cx: 0, pct: 0 },
+          },
+          outros: {
+            bisnaguinha: { und: 0, cx: 0, pct: 0 },
+            bisnaguinhaIntegral: { und: 0, cx: 0, pct: 0 },
+            hotdog: { und: 0, cx: 0, pct: 0 },
+            hotdogIntegral: { und: 0, cx: 0, pct: 0 },
+          },
+          total: {
+            bisnaguinha: { und: 0, cx: 0, pct: 0 },
+            bisnaguinhaIntegral: { und: 0, cx: 0, pct: 0 },
+            hotdog: { und: 0, cx: 0, pct: 0 },
+            hotdogIntegral: { und: 0, cx: 0, pct: 0 },
+          },
+        };
+
+        // Calcular totais para cada cliente
+        const clients = ["sjc", "jarinu", "jaguariuna", "outros"];
+
+        clients.forEach((client) => {
+          // Bisnaguinha
+          const bisnaguinhaQty =
+            parseInt(document.getElementById(`${client}-bisnaguinha`).value) ||
+            0;
+          totais[client].bisnaguinha.und = bisnaguinhaQty;
+          totais[client].bisnaguinha.cx =
+            parseInt(
+              document.getElementById(`${client}-bisnaguinha-cx`).textContent
+            ) || 0;
+          totais[client].bisnaguinha.pct =
+            parseInt(
+              document.getElementById(`${client}-bisnaguinha-pct`).textContent
+            ) || 0;
+
+          // Bisnaguinha Integral
+          const bisnaguinhaIntQty =
+            parseInt(
+              document.getElementById(`${client}-bisnaguinha-integral`).value
+            ) || 0;
+          totais[client].bisnaguinhaIntegral.und = bisnaguinhaIntQty;
+          totais[client].bisnaguinhaIntegral.cx =
+            parseInt(
+              document.getElementById(`${client}-bisnaguinha-integral-cx`)
+                .textContent
+            ) || 0;
+          totais[client].bisnaguinhaIntegral.pct =
+            parseInt(
+              document.getElementById(`${client}-bisnaguinha-integral-pct`)
+                .textContent
+            ) || 0;
+
+          // Hot Dog
+          const hotdogQty =
+            parseInt(document.getElementById(`${client}-hotdog`).value) || 0;
+          totais[client].hotdog.und = hotdogQty;
+          totais[client].hotdog.cx =
+            parseInt(
+              document.getElementById(`${client}-hotdog-cx`).textContent
+            ) || 0;
+          totais[client].hotdog.pct =
+            parseInt(
+              document.getElementById(`${client}-hotdog-pct`).textContent
+            ) || 0;
+
+          // Hot Dog Integral
+          const hotdogIntQty =
+            parseInt(
+              document.getElementById(`${client}-hotdog-integral`).value
+            ) || 0;
+          totais[client].hotdogIntegral.und = hotdogIntQty;
+          totais[client].hotdogIntegral.cx =
+            parseInt(
+              document.getElementById(`${client}-hotdog-integral-cx`)
+                .textContent
+            ) || 0;
+          totais[client].hotdogIntegral.pct =
+            parseInt(
+              document.getElementById(`${client}-hotdog-integral-pct`)
+                .textContent
+            ) || 0;
+        });
+
+        // CALCULAR UNIDADES TOTAL PARA MERENDA SJC (INCLUINDO AMOSTRA FIXA)
+        // Para MERENDA SJC, adicionar unidades da amostra fixa
+        totais.sjc.bisnaguinha.und +=
+          config.amostraSJC * config.bisnaguinha.pct;
+        totais.sjc.bisnaguinhaIntegral.und +=
+          config.amostraSJC * config.bisnaguinha.pct;
+        totais.sjc.hotdog.und += config.amostraSJC * config.hotdog.pct;
+        totais.sjc.hotdogIntegral.und += config.amostraSJC * config.hotdog.pct;
+
+        // Calcular totais gerais (incluindo MERENDA SJC com amostra)
+        clients.forEach((client) => {
+          totais.total.bisnaguinha.und += totais[client].bisnaguinha.und;
+          totais.total.bisnaguinha.cx += totais[client].bisnaguinha.cx;
+          totais.total.bisnaguinha.pct += totais[client].bisnaguinha.pct;
+
+          totais.total.bisnaguinhaIntegral.und +=
+            totais[client].bisnaguinhaIntegral.und;
+          totais.total.bisnaguinhaIntegral.cx +=
+            totais[client].bisnaguinhaIntegral.cx;
+          totais.total.bisnaguinhaIntegral.pct +=
+            totais[client].bisnaguinhaIntegral.pct;
+
+          totais.total.hotdog.und += totais[client].hotdog.und;
+          totais.total.hotdog.cx += totais[client].hotdog.cx;
+          totais.total.hotdog.pct += totais[client].hotdog.pct;
+
+          totais.total.hotdogIntegral.und += totais[client].hotdogIntegral.und;
+          totais.total.hotdogIntegral.cx += totais[client].hotdogIntegral.cx;
+          totais.total.hotdogIntegral.pct += totais[client].hotdogIntegral.pct;
+        });
+
+        // Atualizar resumo MERENDA SJC (COM AMOSTRA INCLUÍDA)
+        document.getElementById("resumo-sjc-bisnaguinha-und").textContent =
+          totais.sjc.bisnaguinha.und.toLocaleString();
+        document.getElementById("resumo-sjc-bisnaguinha-cx").textContent =
+          totais.sjc.bisnaguinha.cx;
+        document.getElementById("resumo-sjc-bisnaguinha-pct").textContent =
+          totais.sjc.bisnaguinha.pct;
+
+        document.getElementById(
+          "resumo-sjc-bisnaguinha-integral-und"
+        ).textContent = totais.sjc.bisnaguinhaIntegral.und.toLocaleString();
+        document.getElementById(
+          "resumo-sjc-bisnaguinha-integral-cx"
+        ).textContent = totais.sjc.bisnaguinhaIntegral.cx;
+        document.getElementById(
+          "resumo-sjc-bisnaguinha-integral-pct"
+        ).textContent = totais.sjc.bisnaguinhaIntegral.pct;
+
+        document.getElementById("resumo-sjc-hotdog-und").textContent =
+          totais.sjc.hotdog.und.toLocaleString();
+        document.getElementById("resumo-sjc-hotdog-cx").textContent =
+          totais.sjc.hotdog.cx;
+        document.getElementById("resumo-sjc-hotdog-pct").textContent =
+          totais.sjc.hotdog.pct;
+
+        document.getElementById("resumo-sjc-hotdog-integral-und").textContent =
+          totais.sjc.hotdogIntegral.und.toLocaleString();
+        document.getElementById("resumo-sjc-hotdog-integral-cx").textContent =
+          totais.sjc.hotdogIntegral.cx;
+        document.getElementById("resumo-sjc-hotdog-integral-pct").textContent =
+          totais.sjc.hotdogIntegral.pct;
+
+        // Atualizar resumo JARINU (SEM AMOSTRA)
+        document.getElementById("resumo-jarinu-bisnaguinha-und").textContent =
+          totais.jarinu.bisnaguinha.und.toLocaleString();
+        document.getElementById("resumo-jarinu-bisnaguinha-cx").textContent =
+          totais.jarinu.bisnaguinha.cx;
+        document.getElementById("resumo-jarinu-bisnaguinha-pct").textContent =
+          totais.jarinu.bisnaguinha.pct;
+
+        document.getElementById(
+          "resumo-jarinu-bisnaguinha-integral-und"
+        ).textContent = totais.jarinu.bisnaguinhaIntegral.und.toLocaleString();
+        document.getElementById(
+          "resumo-jarinu-bisnaguinha-integral-cx"
+        ).textContent = totais.jarinu.bisnaguinhaIntegral.cx;
+        document.getElementById(
+          "resumo-jarinu-bisnaguinha-integral-pct"
+        ).textContent = totais.jarinu.bisnaguinhaIntegral.pct;
+
+        document.getElementById("resumo-jarinu-hotdog-und").textContent =
+          totais.jarinu.hotdog.und.toLocaleString();
+        document.getElementById("resumo-jarinu-hotdog-cx").textContent =
+          totais.jarinu.hotdog.cx;
+        document.getElementById("resumo-jarinu-hotdog-pct").textContent =
+          totais.jarinu.hotdog.pct;
+
+        document.getElementById(
+          "resumo-jarinu-hotdog-integral-und"
+        ).textContent = totais.jarinu.hotdogIntegral.und.toLocaleString();
+        document.getElementById(
+          "resumo-jarinu-hotdog-integral-cx"
+        ).textContent = totais.jarinu.hotdogIntegral.cx;
+        document.getElementById(
+          "resumo-jarinu-hotdog-integral-pct"
+        ).textContent = totais.jarinu.hotdogIntegral.pct;
+
+        // Atualizar resumo JAGUARIUNA (SEM AMOSTRA)
+        document.getElementById(
+          "resumo-jaguariuna-bisnaguinha-und"
+        ).textContent = totais.jaguariuna.bisnaguinha.und.toLocaleString();
+        document.getElementById(
+          "resumo-jaguariuna-bisnaguinha-cx"
+        ).textContent = totais.jaguariuna.bisnaguinha.cx;
+        document.getElementById(
+          "resumo-jaguariuna-bisnaguinha-pct"
+        ).textContent = totais.jaguariuna.bisnaguinha.pct;
+
+        document.getElementById(
+          "resumo-jaguariuna-bisnaguinha-integral-und"
+        ).textContent =
+          totais.jaguariuna.bisnaguinhaIntegral.und.toLocaleString();
+        document.getElementById(
+          "resumo-jaguariuna-bisnaguinha-integral-cx"
+        ).textContent = totais.jaguariuna.bisnaguinhaIntegral.cx;
+        document.getElementById(
+          "resumo-jaguariuna-bisnaguinha-integral-pct"
+        ).textContent = totais.jaguariuna.bisnaguinhaIntegral.pct;
+
+        document.getElementById("resumo-jaguariuna-hotdog-und").textContent =
+          totais.jaguariuna.hotdog.und.toLocaleString();
+        document.getElementById("resumo-jaguariuna-hotdog-cx").textContent =
+          totais.jaguariuna.hotdog.cx;
+        document.getElementById("resumo-jaguariuna-hotdog-pct").textContent =
+          totais.jaguariuna.hotdog.pct;
+
+        document.getElementById(
+          "resumo-jaguariuna-hotdog-integral-und"
+        ).textContent = totais.jaguariuna.hotdogIntegral.und.toLocaleString();
+        document.getElementById(
+          "resumo-jaguariuna-hotdog-integral-cx"
+        ).textContent = totais.jaguariuna.hotdogIntegral.cx;
+        document.getElementById(
+          "resumo-jaguariuna-hotdog-integral-pct"
+        ).textContent = totais.jaguariuna.hotdogIntegral.pct;
+
+        // Atualizar resumo OUTROS (SEM AMOSTRA)
+        document.getElementById("resumo-outros-bisnaguinha-und").textContent =
+          totais.outros.bisnaguinha.und.toLocaleString();
+        document.getElementById("resumo-outros-bisnaguinha-cx").textContent =
+          totais.outros.bisnaguinha.cx;
+        document.getElementById("resumo-outros-bisnaguinha-pct").textContent =
+          totais.outros.bisnaguinha.pct;
+
+        document.getElementById(
+          "resumo-outros-bisnaguinha-integral-und"
+        ).textContent = totais.outros.bisnaguinhaIntegral.und.toLocaleString();
+        document.getElementById(
+          "resumo-outros-bisnaguinha-integral-cx"
+        ).textContent = totais.outros.bisnaguinhaIntegral.cx;
+        document.getElementById(
+          "resumo-outros-bisnaguinha-integral-pct"
+        ).textContent = totais.outros.bisnaguinhaIntegral.pct;
+
+        document.getElementById("resumo-outros-hotdog-und").textContent =
+          totais.outros.hotdog.und.toLocaleString();
+        document.getElementById("resumo-outros-hotdog-cx").textContent =
+          totais.outros.hotdog.cx;
+        document.getElementById("resumo-outros-hotdog-pct").textContent =
+          totais.outros.hotdog.pct;
+
+        document.getElementById(
+          "resumo-outros-hotdog-integral-und"
+        ).textContent = totais.outros.hotdogIntegral.und.toLocaleString();
+        document.getElementById(
+          "resumo-outros-hotdog-integral-cx"
+        ).textContent = totais.outros.hotdogIntegral.cx;
+        document.getElementById(
+          "resumo-outros-hotdog-integral-pct"
+        ).textContent = totais.outros.hotdogIntegral.pct;
+
+        // Atualizar resumo TOTAL GERAL (INCLUINDO MERENDA SJC COM AMOSTRA)
+        document.getElementById("resumo-total-bisnaguinha-und").textContent =
+          totais.total.bisnaguinha.und.toLocaleString();
+        document.getElementById("resumo-total-bisnaguinha-cx").textContent =
+          totais.total.bisnaguinha.cx;
+        document.getElementById("resumo-total-bisnaguinha-pct").textContent =
+          totais.total.bisnaguinha.pct;
+
+        document.getElementById(
+          "resumo-total-bisnaguinha-integral-und"
+        ).textContent = totais.total.bisnaguinhaIntegral.und.toLocaleString();
+        document.getElementById(
+          "resumo-total-bisnaguinha-integral-cx"
+        ).textContent = totais.total.bisnaguinhaIntegral.cx;
+        document.getElementById(
+          "resumo-total-bisnaguinha-integral-pct"
+        ).textContent = totais.total.bisnaguinhaIntegral.pct;
+
+        document.getElementById("resumo-total-hotdog-und").textContent =
+          totais.total.hotdog.und.toLocaleString();
+        document.getElementById("resumo-total-hotdog-cx").textContent =
+          totais.total.hotdog.cx;
+        document.getElementById("resumo-total-hotdog-pct").textContent =
+          totais.total.hotdog.pct;
+
+        document.getElementById(
+          "resumo-total-hotdog-integral-und"
+        ).textContent = totais.total.hotdogIntegral.und.toLocaleString();
+        document.getElementById("resumo-total-hotdog-integral-cx").textContent =
+          totais.total.hotdogIntegral.cx;
+        document.getElementById(
+          "resumo-total-hotdog-integral-pct"
+        ).textContent = totais.total.hotdogIntegral.pct;
+      }
+
+      // Função para gerar PDF - CORRIGIDA
+      function generatePDF() {
+        // Verificar se jsPDF está disponível
+        if (typeof window.jspdf === "undefined") {
+          alert(
+            "Erro: Biblioteca jsPDF não carregada. Verifique sua conexão com a internet."
+          );
+          return;
+        }
+
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+
+        // Configurações do PDF
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const margin = 15;
+        const lineHeight = 7;
+        let yPosition = margin;
+
+        // Título
+        doc.setFontSize(16);
+        doc.setFont("helvetica", "bold");
+        doc.text("RESUMO TOTAL - NOVA ESPERANÇA", pageWidth / 2, yPosition, {
+          align: "center",
+        });
+        yPosition += lineHeight * 2;
+
+        // Data
+        const now = new Date();
+        const dateStr = now.toLocaleDateString("pt-BR");
+        const timeStr = now.toLocaleTimeString("pt-BR");
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "normal");
+        doc.text(
+          `Gerado em: ${dateStr} às ${timeStr}`,
+          pageWidth / 2,
+          yPosition,
+          { align: "center" }
+        );
+        yPosition += lineHeight * 2;
+
+        // Configurações atuais
+        doc.setFontSize(12);
+        doc.setFont("helvetica", "bold");
+        doc.text("CONFIGURAÇÕES ATUAIS:", margin, yPosition);
+        yPosition += lineHeight;
+
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "normal");
+        doc.text(
+          `Bisnaguinha: ${config.bisnaguinha.pct} unidades/pacote, ${config.bisnaguinha.cxPct} pacotes/caixa`,
+          margin,
+          yPosition
+        );
+        yPosition += lineHeight;
+        doc.text(
+          `Hot Dog: ${config.hotdog.pct} unidades/pacote, ${config.hotdog.cxPct} pacotes/caixa`,
+          margin,
+          yPosition
+        );
+        yPosition += lineHeight;
+        doc.text(
+          `Amostra Fixa SJC: ${config.amostraSJC} pacote(s)`,
+          margin,
+          yPosition
+        );
+        yPosition += lineHeight * 2;
+
+        // Resumo MERENDA SJC
+        if (yPosition > 250) {
+          doc.addPage();
+          yPosition = margin;
+        }
+
+        doc.setFontSize(12);
+        doc.setFont("helvetica", "bold");
+        doc.text("MERENDA SJC:", margin, yPosition);
+        yPosition += lineHeight;
+
+        const sjcData = [
+          ["Produto", "Unidades", "Caixas", "Pacotes"],
+          [
+            "Bisnaguinha",
+            document.getElementById("resumo-sjc-bisnaguinha-und").textContent,
+            document.getElementById("resumo-sjc-bisnaguinha-cx").textContent,
+            document.getElementById("resumo-sjc-bisnaguinha-pct").textContent,
+          ],
+          [
+            "Bisnaguinha Integral",
+            document.getElementById("resumo-sjc-bisnaguinha-integral-und")
+              .textContent,
+            document.getElementById("resumo-sjc-bisnaguinha-integral-cx")
+              .textContent,
+            document.getElementById("resumo-sjc-bisnaguinha-integral-pct")
+              .textContent,
+          ],
+          [
+            "Hot Dog",
+            document.getElementById("resumo-sjc-hotdog-und").textContent,
+            document.getElementById("resumo-sjc-hotdog-cx").textContent,
+            document.getElementById("resumo-sjc-hotdog-pct").textContent,
+          ],
+          [
+            "Hot Dog Integral",
+            document.getElementById("resumo-sjc-hotdog-integral-und")
+              .textContent,
+            document.getElementById("resumo-sjc-hotdog-integral-cx")
+              .textContent,
+            document.getElementById("resumo-sjc-hotdog-integral-pct")
+              .textContent,
+          ],
+        ];
+
+        doc.autoTable({
+          startY: yPosition,
+          head: [sjcData[0]],
+          body: sjcData.slice(1),
+          margin: { left: margin, right: margin },
+          styles: { fontSize: 9 },
+          headStyles: { fillColor: [255, 141, 47] },
+        });
+
+        yPosition = doc.lastAutoTable.finalY + 10;
+
+        // Resumo JARINU (CLIENTE SEPARADO)
+        if (yPosition > 250) {
+          doc.addPage();
+          yPosition = margin;
+        }
+
+        doc.setFontSize(12);
+        doc.setFont("helvetica", "bold");
+        doc.text("JARINU:", margin, yPosition);
+        yPosition += lineHeight;
+
+        const jarinuData = [
+          ["Produto", "Unidades", "Caixas", "Pacotes"],
+          [
+            "Bisnaguinha",
+            document.getElementById("resumo-jarinu-bisnaguinha-und")
+              .textContent,
+            document.getElementById("resumo-jarinu-bisnaguinha-cx").textContent,
+            document.getElementById("resumo-jarinu-bisnaguinha-pct")
+              .textContent,
+          ],
+          [
+            "Bisnaguinha Integral",
+            document.getElementById("resumo-jarinu-bisnaguinha-integral-und")
+              .textContent,
+            document.getElementById("resumo-jarinu-bisnaguinha-integral-cx")
+              .textContent,
+            document.getElementById("resumo-jarinu-bisnaguinha-integral-pct")
+              .textContent,
+          ],
+          [
+            "Hot Dog",
+            document.getElementById("resumo-jarinu-hotdog-und").textContent,
+            document.getElementById("resumo-jarinu-hotdog-cx").textContent,
+            document.getElementById("resumo-jarinu-hotdog-pct").textContent,
+          ],
+          [
+            "Hot Dog Integral",
+            document.getElementById("resumo-jarinu-hotdog-integral-und")
+              .textContent,
+            document.getElementById("resumo-jarinu-hotdog-integral-cx")
+              .textContent,
+            document.getElementById("resumo-jarinu-hotdog-integral-pct")
+              .textContent,
+          ],
+        ];
+
+        doc.autoTable({
+          startY: yPosition,
+          head: [jarinuData[0]],
+          body: jarinuData.slice(1),
+          margin: { left: margin, right: margin },
+          styles: { fontSize: 9 },
+          headStyles: { fillColor: [70, 130, 180] },
+        });
+
+        yPosition = doc.lastAutoTable.finalY + 10;
+
+        // Resumo JAGUARIUNA (CLIENTE SEPARADO)
+        if (yPosition > 250) {
+          doc.addPage();
+          yPosition = margin;
+        }
+
+        doc.setFontSize(12);
+        doc.setFont("helvetica", "bold");
+        doc.text("JAGUARIUNA:", margin, yPosition);
+        yPosition += lineHeight;
+
+        const jaguariunaData = [
+          ["Produto", "Unidades", "Caixas", "Pacotes"],
+          [
+            "Bisnaguinha",
+            document.getElementById("resumo-jaguariuna-bisnaguinha-und")
+              .textContent,
+            document.getElementById("resumo-jaguariuna-bisnaguinha-cx")
+              .textContent,
+            document.getElementById("resumo-jaguariuna-bisnaguinha-pct")
+              .textContent,
+          ],
+          [
+            "Bisnaguinha Integral",
+            document.getElementById(
+              "resumo-jaguariuna-bisnaguinha-integral-und"
+            ).textContent,
+            document.getElementById("resumo-jaguariuna-bisnaguinha-integral-cx")
+              .textContent,
+            document.getElementById(
+              "resumo-jaguariuna-bisnaguinha-integral-pct"
+            ).textContent,
+          ],
+          [
+            "Hot Dog",
+            document.getElementById("resumo-jaguariuna-hotdog-und").textContent,
+            document.getElementById("resumo-jaguariuna-hotdog-cx").textContent,
+            document.getElementById("resumo-jaguariuna-hotdog-pct").textContent,
+          ],
+          [
+            "Hot Dog Integral",
+            document.getElementById("resumo-jaguariuna-hotdog-integral-und")
+              .textContent,
+            document.getElementById("resumo-jaguariuna-hotdog-integral-cx")
+              .textContent,
+            document.getElementById("resumo-jaguariuna-hotdog-integral-pct")
+              .textContent,
+          ],
+        ];
+
+        doc.autoTable({
+          startY: yPosition,
+          head: [jaguariunaData[0]],
+          body: jaguariunaData.slice(1),
+          margin: { left: margin, right: margin },
+          styles: { fontSize: 9 },
+          headStyles: { fillColor: [60, 179, 113] },
+        });
+
+        yPosition = doc.lastAutoTable.finalY + 10;
+
+        // Resumo OUTROS (CLIENTE SEPARADO)
+        if (yPosition > 250) {
+          doc.addPage();
+          yPosition = margin;
+        }
+
+        doc.setFontSize(12);
+        doc.setFont("helvetica", "bold");
+        doc.text("OUTROS:", margin, yPosition);
+        yPosition += lineHeight;
+
+        const outrosData = [
+          ["Produto", "Unidades", "Caixas", "Pacotes"],
+          [
+            "Bisnaguinha",
+            document.getElementById("resumo-outros-bisnaguinha-und")
+              .textContent,
+            document.getElementById("resumo-outros-bisnaguinha-cx").textContent,
+            document.getElementById("resumo-outros-bisnaguinha-pct")
+              .textContent,
+          ],
+          [
+            "Bisnaguinha Integral",
+            document.getElementById("resumo-outros-bisnaguinha-integral-und")
+              .textContent,
+            document.getElementById("resumo-outros-bisnaguinha-integral-cx")
+              .textContent,
+            document.getElementById("resumo-outros-bisnaguinha-integral-pct")
+              .textContent,
+          ],
+          [
+            "Hot Dog",
+            document.getElementById("resumo-outros-hotdog-und").textContent,
+            document.getElementById("resumo-outros-hotdog-cx").textContent,
+            document.getElementById("resumo-outros-hotdog-pct").textContent,
+          ],
+          [
+            "Hot Dog Integral",
+            document.getElementById("resumo-outros-hotdog-integral-und")
+              .textContent,
+            document.getElementById("resumo-outros-hotdog-integral-cx")
+              .textContent,
+            document.getElementById("resumo-outros-hotdog-integral-pct")
+              .textContent,
+          ],
+        ];
+
+        doc.autoTable({
+          startY: yPosition,
+          head: [outrosData[0]],
+          body: outrosData.slice(1),
+          margin: { left: margin, right: margin },
+          styles: { fontSize: 9 },
+          headStyles: { fillColor: [128, 128, 128] },
+        });
+
+        yPosition = doc.lastAutoTable.finalY + 10;
+
+        // TOTAL GERAL
+        if (yPosition > 250) {
+          doc.addPage();
+          yPosition = margin;
+        }
+
+        doc.setFontSize(12);
+        doc.setFont("helvetica", "bold");
+        doc.text("TOTAL GERAL - TODOS OS CLIENTES:", margin, yPosition);
+        yPosition += lineHeight;
+
+        const totalData = [
+          ["Produto", "Unidades Total", "Caixas Total", "Pacotes Total"],
+          [
+            "Bisnaguinha",
+            document.getElementById("resumo-total-bisnaguinha-und").textContent,
+            document.getElementById("resumo-total-bisnaguinha-cx").textContent,
+            document.getElementById("resumo-total-bisnaguinha-pct").textContent,
+          ],
+          [
+            "Bisnaguinha Integral",
+            document.getElementById("resumo-total-bisnaguinha-integral-und")
+              .textContent,
+            document.getElementById("resumo-total-bisnaguinha-integral-cx")
+              .textContent,
+            document.getElementById("resumo-total-bisnaguinha-integral-pct")
+              .textContent,
+          ],
+          [
+            "Hot Dog",
+            document.getElementById("resumo-total-hotdog-und").textContent,
+            document.getElementById("resumo-total-hotdog-cx").textContent,
+            document.getElementById("resumo-total-hotdog-pct").textContent,
+          ],
+          [
+            "Hot Dog Integral",
+            document.getElementById("resumo-total-hotdog-integral-und")
+              .textContent,
+            document.getElementById("resumo-total-hotdog-integral-cx")
+              .textContent,
+            document.getElementById("resumo-total-hotdog-integral-pct")
+              .textContent,
+          ],
+        ];
+
+        doc.autoTable({
+          startY: yPosition,
+          head: [totalData[0]],
+          body: totalData.slice(1),
+          margin: { left: margin, right: margin },
+          styles: { fontSize: 10 },
+          headStyles: { fillColor: [40, 167, 69] },
+        });
+
+        // Rodapé
+        const pageCount = doc.internal.getNumberOfPages();
+        for (let i = 1; i <= pageCount; i++) {
+          doc.setPage(i);
+          doc.setFontSize(8);
+          doc.setFont("helvetica", "italic");
+          doc.text(
+            `Página ${i} de ${pageCount} - Calculadora de Pacotes e Caixa - Nova Esperança`,
+            pageWidth / 2,
+            doc.internal.pageSize.getHeight() - 10,
+            { align: "center" }
+          );
+        }
+
+        // Salvar o PDF
+        doc.save(`Resumo_Nova_Esperanca_${dateStr.replace(/\//g, "-")}.pdf`);
+      }
+    </script>
+  </body>
+</html>
