@@ -464,6 +464,44 @@
         }
       }
     </style>
+    <style>
+      /* Integração visual com o Portal MIPs */
+      :root { --primary: #ff8d2f; --primary-dark: #a65526; --secondary: #5e5e5e; }
+      html, body { min-height: 100%; }
+      body { background: transparent; background-image: none; font-family: Inter, "Segoe UI", Arial, sans-serif; }
+      body > header, body > footer { display: none; }
+      body > .container { width: 100%; max-width: none; margin: 0; padding: 0 2px 32px; }
+      .tabs {
+        gap: 6px;
+        padding: 6px;
+        border: 1px solid #eadfd6;
+        border-radius: 16px;
+        box-shadow: 0 6px 24px rgba(71, 43, 22, .05);
+      }
+      .tab { border-radius: 11px; padding: 12px 18px; font-family: Inter, "Segoe UI", Arial, sans-serif; }
+      .tab.active { background: linear-gradient(135deg, #ff9b48, #e87523); }
+      .client-section, .config-section, .summary-section {
+        border: 1px solid #eadfd6;
+        border-left: 1px solid #eadfd6;
+        border-radius: 16px;
+        box-shadow: 0 8px 28px rgba(71, 43, 22, .06);
+      }
+      .client-title { color: #a65526; border-bottom-color: #f0e7e0; }
+      .info-badge { background: #fff0e2; color: #8f461f; }
+      input[type="number"] { border-radius: 10px !important; border-color: #ded4cd !important; }
+      input[type="number"]:focus { border-color: var(--primary) !important; box-shadow: 0 0 0 3px rgba(255, 141, 47, .14); outline: none; }
+      .btn-calculate, .btn-pdf { border-radius: 11px; background: linear-gradient(135deg, #ff9b48, #e87523) !important; box-shadow: 0 8px 18px rgba(166, 85, 38, .18); }
+      html[data-theme="dark"] body { color: #f5eee8; }
+      html[data-theme="dark"] .tabs,
+      html[data-theme="dark"] .client-section,
+      html[data-theme="dark"] .config-section,
+      html[data-theme="dark"] .summary-section,
+      html[data-theme="dark"] .product-card { background: #1f2937 !important; border-color: #374151 !important; color: #f5eee8; }
+      html[data-theme="dark"] input { color: #f5eee8; background: #111827; border-color: #4b5563 !important; }
+      html[data-theme="dark"] .tabs { background: #1f2937; }
+      html[data-theme="dark"] .tab { color: #e5e7eb; }
+      @media (max-width: 760px) { body > .container { padding-inline: 0; } }
+    </style>
   </head>
   <body>
     <header>
@@ -1688,6 +1726,8 @@
     <script>
       const portalUser = JSON.parse(localStorage.getItem("user") || "{}");
       const portalToken = localStorage.getItem("token");
+      document.documentElement.dataset.theme = localStorage.getItem("theme") || "light";
+      window.addEventListener("storage", (event) => { if (event.key === "theme") document.documentElement.dataset.theme = event.newValue || "light"; });
       if (!portalToken || String(portalUser.perfil || "").toLowerCase() !== "administrador") {
         window.top.location.href = "/mips";
       }

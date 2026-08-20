@@ -893,6 +893,48 @@
         }
       }
     </style>
+    <style>
+      /* Integração visual com o Portal MIPs */
+      :root {
+        --ink: #2d2926;
+        --muted: #6b625c;
+        --line: #eadfd6;
+        --paper: #ffffff;
+        --cream: #fff8f1;
+        --orange: #ff8d2f;
+        --orange-dark: #a65526;
+      }
+      html, body { min-height: 100%; }
+      body { background: transparent; font-family: Inter, "Segoe UI", Arial, sans-serif; }
+      .app-shell { width: 100%; margin: 0; padding: 0 2px 32px; }
+      .app-header { display: none; }
+      .delivery-tabs {
+        padding: 6px;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: #fff;
+        box-shadow: 0 6px 24px rgba(71, 43, 22, .05);
+      }
+      .delivery-tab { min-height: 58px; border: 0; background: transparent; border-radius: 11px; }
+      .delivery-tab.active { background: linear-gradient(135deg, #ff9b48, #e87523); box-shadow: 0 8px 18px rgba(166, 85, 38, .2); }
+      .delivery-intro { padding: 14px 4px 4px; }
+      .eyebrow { color: var(--orange-dark); }
+      .panel { border-color: var(--line); border-radius: 16px; box-shadow: 0 8px 28px rgba(71, 43, 22, .06); }
+      input, select { border-color: #ded4cd !important; border-radius: 10px !important; }
+      input:focus, select:focus { border-color: var(--orange) !important; box-shadow: 0 0 0 3px rgba(255, 141, 47, .14); outline: none; }
+      .primary-button, .save-pdf-button { background: linear-gradient(135deg, #ff9b48, #e87523) !important; border-color: transparent !important; }
+      .print-button { background: #a65526 !important; border-color: #a65526 !important; }
+      .pending-badge { border-color: #ffd0aa; background: #fff3e8; color: #8f461f; }
+      html[data-theme="dark"] body { color: #f5eee8; }
+      html[data-theme="dark"] .delivery-tabs,
+      html[data-theme="dark"] .panel { background: #1f2937; border-color: #374151; }
+      html[data-theme="dark"] .delivery-tab { color: #f5eee8; }
+      html[data-theme="dark"] input,
+      html[data-theme="dark"] select { color: #f5eee8; background: #111827; border-color: #4b5563 !important; }
+      html[data-theme="dark"] .subtitle,
+      html[data-theme="dark"] .delivery-intro p:last-child { color: #c9c0b8; }
+      @media (max-width: 760px) { .app-shell { padding-inline: 0; } }
+    </style>
   </head>
   <body>
     <main>
@@ -1178,6 +1220,8 @@
     <script>
       const portalUser = JSON.parse(localStorage.getItem("user") || "{}");
       const portalToken = localStorage.getItem("token");
+      document.documentElement.dataset.theme = localStorage.getItem("theme") || "light";
+      window.addEventListener("storage", (event) => { if (event.key === "theme") document.documentElement.dataset.theme = event.newValue || "light"; });
       if (!portalToken || String(portalUser.perfil || "").toLowerCase() !== "administrador") {
         window.top.location.href = "/mips";
       }

@@ -2,7 +2,7 @@
 
 Portal operacional com MIPs, receitas, usuários e avaliações mensais de colaboradores.
 
-## Versão 1.6.0
+## Versão 1.6.1
 
 - Corrige o salvamento de avaliações editadas.
 - Limpa o formulário após salvar, cancelar ou excluir.
@@ -29,6 +29,8 @@ Portal operacional com MIPs, receitas, usuários e avaliações mensais de colab
 - Exibe o modal de avaliações apenas uma vez por usuário no navegador, preservando essa preferência após sair e entrar novamente.
 - Integra as ferramentas de Etiquetas e Pacotes/Caixas ao portal, exclusivamente para Administradores.
 - Compartilha pelo PostgreSQL pedidos, regras, setores, produtos e configurações dessas ferramentas.
+- Unifica o visual das duas ferramentas com o restante do portal, preservando toda a lógica original.
+- Permite ocultar e restaurar a barra lateral para aproveitar toda a largura das ferramentas.
 
 ## Configuração inicial
 

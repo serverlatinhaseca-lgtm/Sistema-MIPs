@@ -1,32 +1,49 @@
+import { useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 
 const FERRAMENTAS = {
-  '/ferramentas/etiquetas': { titulo: 'Gerador de Etiquetas', arquivo: '/admin-tools/etiquetas.html' },
-  '/ferramentas/caixas': { titulo: 'Calculadora de Pacotes e Caixas', arquivo: '/admin-tools/caixas.html' }
+  '/ferramentas/etiquetas': { titulo: 'Etiquetas', descricao: 'Emissão, configuração de rotas e impressão em folha Pimaco 6187.', arquivo: '/admin-tools/etiquetas.html' },
+  '/ferramentas/caixas': { titulo: 'Pacotes e Caixas', descricao: 'Cálculo de produção para bisnaguinhas e pães hot dog.', arquivo: '/admin-tools/caixas.html' }
 };
 
 export default function FerramentasAdmin() {
   const location = useLocation();
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const ferramenta = FERRAMENTAS[location.pathname];
+  const [menuOculto, setMenuOculto] = useState(() => localStorage.getItem('ferramentas_menu_oculto') === '1');
+
+  const alternarMenu = () => {
+    const proximo = !menuOculto;
+    setMenuOculto(proximo);
+    localStorage.setItem('ferramentas_menu_oculto', proximo ? '1' : '0');
+  };
 
   if (String(user.perfil || '').toLowerCase() !== 'administrador') return <Navigate to="/mips" replace />;
   if (!ferramenta) return <Navigate to="/dashboard" replace />;
 
   return (
     <div className="flex min-h-screen bg-[var(--background)]">
-      <Sidebar />
-      <main className="flex-1 min-w-0 p-4 md:p-6">
-        <div className="mb-4">
-          <h1 className="text-2xl font-bold text-[var(--text-primary)]">{ferramenta.titulo}</h1>
-          <p className="text-sm text-[var(--text-secondary)]">Dados compartilhados e protegidos no banco do portal.</p>
+      {!menuOculto && <Sidebar />}
+      <main className="flex-1 min-w-0 p-4 md:p-8 overflow-hidden">
+        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="mb-1 text-xs font-bold uppercase tracking-[0.18em] text-[var(--primary)]">Ferramenta administrativa</p>
+            <h1 className="text-3xl font-bold text-[var(--text-primary)]">{ferramenta.titulo}</h1>
+            <p className="mt-1 text-sm text-[var(--text-secondary)]">{ferramenta.descricao}</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="w-fit rounded-full border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-semibold text-[#a65526] dark:border-orange-900/50 dark:bg-orange-950/30 dark:text-orange-300">Salvamento automático no banco</span>
+            <button type="button" onClick={alternarMenu} className="rounded-lg border border-[var(--border-color)] bg-[var(--card-bg)] px-3 py-1.5 text-xs font-semibold text-[var(--text-primary)] transition hover:border-[var(--primary)] hover:text-[var(--primary)]">
+              {menuOculto ? 'Mostrar menu' : 'Ocultar barra lateral'}
+            </button>
+          </div>
         </div>
         <iframe
           title={ferramenta.titulo}
           src={ferramenta.arquivo}
-          className="w-full rounded-2xl border border-[var(--border-color)] bg-white shadow-sm"
-          style={{ height: 'calc(100vh - 120px)', minHeight: 720 }}
+          className="w-full border-0 bg-transparent"
+          style={{ height: 'calc(100vh - 145px)', minHeight: 720 }}
         />
       </main>
     </div>
