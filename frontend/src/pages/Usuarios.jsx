@@ -65,7 +65,7 @@ export default function Usuarios() {
           email,
           ...(editandoUsuarioId ? {} : { senha }),
           perfil,
-          lider_id: ["Leitor", "Editor"].includes(perfil) ? Number(liderId) : null,
+          lider_id: ["Leitor", "Editor", "Gerente"].includes(perfil) ? Number(liderId) : null,
           modelo_avaliacao_id: modeloId ? Number(modeloId) : null,
           categoria_acesso_id: categoriaId ? Number(categoriaId) : null,
         },

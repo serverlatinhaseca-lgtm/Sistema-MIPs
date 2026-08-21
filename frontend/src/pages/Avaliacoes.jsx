@@ -111,6 +111,7 @@ export default function Avaliacoes() {
     [salvando, setSalvando] = useState(false),
     [respostas, setRespostas] = useState({});
   const [liderFiltro,setLiderFiltro]=useState("");
+  const [funcionarioFiltro,setFuncionarioFiltro]=useState("");
   const [editandoPerguntaId, setEditandoPerguntaId] = useState(null);
   const [novaPergunta, setNovaPergunta] = useState({
     titulo: "",
@@ -173,7 +174,8 @@ export default function Avaliacoes() {
       0,
     );
   const lideresFiltro=useMemo(()=>Array.from(new Map(usuarios.filter(u=>u.lider_id&&u.lider_nome).map(u=>[String(u.lider_id),u.lider_nome])).entries()),[usuarios]);
-  const avaliacoesFiltradas=useMemo(()=>liderFiltro?avaliacoes.filter(a=>String(a.lider_id)===String(liderFiltro)):avaliacoes,[avaliacoes,liderFiltro]);
+  const usuariosFiltrados=useMemo(()=>liderFiltro?usuarios.filter(u=>String(u.lider_id)===String(liderFiltro)):usuarios,[usuarios,liderFiltro]);
+  const avaliacoesFiltradas=useMemo(()=>avaliacoes.filter(a=>(!liderFiltro||String(a.lider_id)===String(liderFiltro))&&(!funcionarioFiltro||String(a.colaborador_id)===String(funcionarioFiltro))),[avaliacoes,liderFiltro,funcionarioFiltro]);
   async function carregarPerguntasUsuario(id) {
     if (!id) {
       setPerguntas([]);
@@ -548,6 +550,10 @@ export default function Avaliacoes() {
             Nova avaliação
           </button>
         </header>
+        <section className="panel-card mb-5 grid md:grid-cols-2 gap-4">
+          <label className="text-sm font-semibold">Responsável / Líder<select className="field" value={liderFiltro} onChange={e=>{setLiderFiltro(e.target.value);setFuncionarioFiltro("");const lista=e.target.value?usuarios.filter(u=>String(u.lider_id)===String(e.target.value)):usuarios;setSelecionado(String(lista[0]?.id||""));}}><option value="">Todos os responsáveis</option>{lideresFiltro.map(([id,nome])=><option key={id} value={id}>{nome}</option>)}</select></label>
+          <label className="text-sm font-semibold">Funcionário avaliado<select className="field" value={funcionarioFiltro} onChange={e=>{setFuncionarioFiltro(e.target.value);if(e.target.value)setSelecionado(e.target.value);}}><option value="">Todos os funcionários</option>{usuariosFiltrados.map(u=><option key={u.id} value={u.id}>{u.nome}</option>)}</select></label>
+        </section>
         {lembretes.quantidade > 0 && (
           <section className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex gap-3 mb-5 text-amber-950">
             <Bell />
@@ -570,7 +576,7 @@ export default function Avaliacoes() {
               onChange={(e) => setSelecionado(e.target.value)}
               className="field mb-3"
             >
-              {usuarios.map((u) => (
+              {usuariosFiltrados.map((u) => (
                 <option key={u.id} value={u.id}>
                   {u.nome}
                 </option>
@@ -583,7 +589,7 @@ export default function Avaliacoes() {
             <p className="text-sm text-[var(--text-muted)] mb-3">
               Setor e cargo são definidos na aba Usuários.
             </p>
-            {usuarios.map((u) => (
+            {usuariosFiltrados.map((u) => (
               <button
                 key={u.id}
                 onClick={() => iniciar(u.id)}
@@ -701,7 +707,7 @@ export default function Avaliacoes() {
           </section>
         )}
         <section className="panel-card">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4"><h2 className="section-title">Histórico de avaliações</h2><label className="text-sm font-semibold">Filtrar por Líder<select className="field !mt-1 min-w-60" value={liderFiltro} onChange={e=>setLiderFiltro(e.target.value)}><option value="">Todos os responsáveis</option>{lideresFiltro.map(([id,nome])=><option key={id} value={id}>{nome}</option>)}</select></label></div>
+          <div className="flex items-center justify-between gap-3 mb-4"><h2 className="section-title">Histórico de avaliações</h2><span className="text-sm text-[var(--text-muted)]">{avaliacoesFiltradas.length} registro(s)</span></div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[760px] text-sm">
               <thead>

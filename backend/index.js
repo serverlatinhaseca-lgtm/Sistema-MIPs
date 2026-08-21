@@ -473,14 +473,21 @@ app.post('/api/backups/:nome/restaurar', verificarToken, somenteAdministrador, a
   if(!arquivo||!fs.existsSync(arquivo))return res.status(404).json({error:'Backup não encontrado'});
   const adm=await pool.query('SELECT senha FROM usuarios WHERE id=$1',[req.usuarioId]);
   if(!adm.rows.length||!(await bcrypt.compare(senha,adm.rows[0].senha)))return res.status(400).json({error:'Senha do Administrador incorreta'});
+  let sqlTemporario='';
   try{
     await gerarBackup('-antes-restauracao');
-    await pool.query(`SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid() AND application_name IS DISTINCT FROM 'pg_restore'`);
-    await executarArquivo('pg_restore',['-h',process.env.DB_HOST||'db','-U',process.env.DB_USER||'postgres','-d',process.env.DB_NAME||'mips_db','--clean','--if-exists','--single-transaction','--exit-on-error','--no-owner','--no-privileges',arquivo],{env:ambientePostgres(),timeout:300000});
+    sqlTemporario=path.join(backupDir,`.restauracao-${randomUUID()}.sql`);
+    await executarArquivo('pg_restore',['--clean','--if-exists','--no-owner','--no-privileges','--file',sqlTemporario,arquivo],{env:ambientePostgres(),timeout:300000});
+    const sqlCompativel=fs.readFileSync(sqlTemporario,'utf8')
+      .replace(/^SET\s+transaction_timeout\s*=.*;\s*$/gmi,'')
+      .replace(/^SET\s+idle_session_timeout\s*=.*;\s*$/gmi,'');
+    fs.writeFileSync(sqlTemporario,sqlCompativel);
+    await executarArquivo('psql',['-h',process.env.DB_HOST||'db','-U',process.env.DB_USER||'postgres','-d',process.env.DB_NAME||'mips_db','--set','ON_ERROR_STOP=1','--single-transaction','--file',sqlTemporario],{env:ambientePostgres(),timeout:300000});
     await inicializarBancoEAdmin();
     await pool.query('INSERT INTO backup_auditoria (arquivo,acao,usuario_id) VALUES ($1,$2,NULL)',[req.params.nome,'restaurado']);
     res.json({mensagem:'Banco restaurado com sucesso. Entre novamente no sistema.'});
   }catch(error){console.error('Erro na restauração:',error.stderr||error.message);const detalhe=String(error.stderr||error.message||'').trim().split('\n').slice(-2).join(' ').slice(0,500);res.status(500).json({error:`A restauração falhou. O backup automático anterior foi preservado.${detalhe?` Detalhe: ${detalhe}`:''}`});}
+  finally{if(sqlTemporario&&fs.existsSync(sqlTemporario))fs.unlinkSync(sqlTemporario);}
 });
 
 app.get('/api/configuracoes-portal', async (_req, res) => {
@@ -773,6 +780,23 @@ app.post('/api/modelos-avaliacao', verificarToken, async (req, res) => {
   } catch (error) { res.status(500).json({ error: 'Erro ao criar modelo de avaliação' }); }
 });
 
+app.post('/api/modelos-avaliacao/:id/copiar', verificarToken, async (req,res)=>{
+  if(normalizarPerfil(req.usuarioPerfil)!=='administrador')return res.status(403).json({error:'Somente o Administrador pode copiar modelos'});
+  const cliente=await pool.connect();
+  try{
+    await cliente.query('BEGIN');
+    const origem=await cliente.query('SELECT id,nome FROM modelos_avaliacao WHERE id=$1 AND ativo=TRUE',[req.params.id]);
+    if(!origem.rows.length){await cliente.query('ROLLBACK');return res.status(404).json({error:'Modelo não encontrado'});}
+    const nome=String(req.body?.nome||`${origem.rows[0].nome} - Cópia`).trim();
+    if(nome.length<2){await cliente.query('ROLLBACK');return res.status(400).json({error:'Informe o nome da cópia'});}
+    const base=nome.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
+    const novo=(await cliente.query('INSERT INTO modelos_avaliacao (nome,chave,ativo) VALUES ($1,$2,TRUE) RETURNING id,nome,chave',[nome,`${base}-${Date.now().toString(36)}`])).rows[0];
+    await cliente.query(`INSERT INTO perguntas_avaliacao (titulo,pergunta,criterios,obrigatoria,ordem,modelo_avaliacao_id,ativa)
+      SELECT titulo,pergunta,criterios,obrigatoria,ordem,$1,ativa FROM perguntas_avaliacao WHERE modelo_avaliacao_id=$2 AND ativa=TRUE ORDER BY ordem,id`,[novo.id,origem.rows[0].id]);
+    await cliente.query('COMMIT');res.status(201).json(novo);
+  }catch(error){await cliente.query('ROLLBACK');console.error(error);res.status(500).json({error:'Erro ao copiar modelo de avaliação'});}finally{cliente.release();}
+});
+
 app.get('/api/perguntas-avaliacao', verificarToken, async (req, res) => {
   let modeloId=req.query.modelo_id?Number(req.query.modelo_id):null;
   if(req.query.usuario_id){const u=await pool.query('SELECT modelo_avaliacao_id FROM usuarios WHERE id=$1',[Number(req.query.usuario_id)]);modeloId=u.rows[0]?.modelo_avaliacao_id;}
@@ -1017,6 +1041,25 @@ app.post('/api/reclamacoes', verificarToken, async (req,res) => {
   const r=await pool.query(`INSERT INTO reclamacoes (cliente_id,assunto,tipo_id,lider_responsavel_id,descricao,anexos,prioridade,prazo_em,status,criado_por) VALUES ($1,'',$2,$3,$4,$5,$6,NOW()+($7||' minutes')::interval,'aberto',$8) RETURNING id`,[Number(cliente_id),Number(tipo_id),Number(lider_responsavel_id),String(descricao).trim(),JSON.stringify(anexos),prioridade,String(minutos),req.usuarioId]);
   res.status(201).json(r.rows[0]);
 });
+
+app.put('/api/reclamacoes/:id', verificarToken, async (req,res)=>{
+  if(!(await podeRegistrarReclamacao(req)))return res.status(403).json({error:'Acesso negado'});
+  const {cliente_id,tipo_id,lider_responsavel_id,descricao,anexos=[],prioridade}=req.body;
+  if(!cliente_id||!tipo_id||!lider_responsavel_id||!String(descricao||'').trim())return res.status(400).json({error:'Preencha todos os campos obrigatórios'});
+  if(!Array.isArray(anexos)||anexos.length>10)return res.status(400).json({error:'Envie no máximo 10 anexos'});
+  if(!['verde','amarelo','vermelho'].includes(prioridade))return res.status(400).json({error:'Selecione uma prioridade válida'});
+  const lider=await pool.query("SELECT id FROM usuarios WHERE id=$1 AND LOWER(perfil)='editor'",[Number(lider_responsavel_id)]);
+  if(!lider.rows.length)return res.status(400).json({error:'Selecione um usuário com perfil Líder'});
+  const cfg=(await pool.query('SELECT prazo_verde_min,prazo_amarelo_min,prazo_vermelho_min FROM configuracao_reclamacoes WHERE id=TRUE')).rows[0];
+  const minutos={verde:cfg.prazo_verde_min,amarelo:cfg.prazo_amarelo_min,vermelho:cfg.prazo_vermelho_min}[prioridade];
+  const r=await pool.query(`UPDATE reclamacoes SET cliente_id=$1,tipo_id=$2,lider_responsavel_id=$3,descricao=$4,anexos=$5,prioridade=$6,
+    prazo_em=CASE WHEN status='aberto' THEN criado_em+($7||' minutes')::interval ELSE prazo_em END WHERE id=$8 RETURNING *`,[Number(cliente_id),Number(tipo_id),Number(lider_responsavel_id),String(descricao).trim(),JSON.stringify(anexos),prioridade,String(minutos),req.params.id]);
+  if(!r.rows.length)return res.status(404).json({error:'Reclamação não encontrada'});res.json(r.rows[0]);
+});
+
+async function prepararStatusReclamacoes(){await pool.query(`ALTER TABLE reclamacoes ADD COLUMN IF NOT EXISTS status VARCHAR(15) NOT NULL DEFAULT 'aberto';ALTER TABLE reclamacoes ADD COLUMN IF NOT EXISTS concluido_em TIMESTAMP;ALTER TABLE reclamacoes ADD COLUMN IF NOT EXISTS concluido_por INT REFERENCES usuarios(id) ON DELETE SET NULL;`);}
+app.post('/api/reclamacoes/:id/concluir',verificarToken,async(req,res)=>{if(!(await podeRegistrarReclamacao(req)))return res.status(403).json({error:'Acesso negado'});try{await prepararStatusReclamacoes();const r=await pool.query("UPDATE reclamacoes SET status='concluido',concluido_em=NOW(),concluido_por=$1 WHERE id=$2 RETURNING *",[req.usuarioId,req.params.id]);if(!r.rows.length)return res.status(404).json({error:'Reclamação não encontrada'});res.json(r.rows[0]);}catch(error){console.error(error);res.status(500).json({error:'Não foi possível concluir a reclamação'});}});
+app.post('/api/reclamacoes/:id/reabrir',verificarToken,async(req,res)=>{if(!(await podeRegistrarReclamacao(req)))return res.status(403).json({error:'Acesso negado'});try{await prepararStatusReclamacoes();const r=await pool.query("UPDATE reclamacoes SET status='aberto',concluido_em=NULL,concluido_por=NULL WHERE id=$1 RETURNING *",[req.params.id]);if(!r.rows.length)return res.status(404).json({error:'Reclamação não encontrada'});res.json(r.rows[0]);}catch(error){console.error(error);res.status(500).json({error:'Não foi possível reabrir a reclamação'});}});
 
 app.patch('/api/reclamacoes/:id/status', verificarToken, async (req,res) => {
   if (!(await podeRegistrarReclamacao(req))) return res.status(403).json({error:'Acesso negado'});
