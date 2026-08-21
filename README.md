@@ -2,7 +2,7 @@
 
 Portal operacional com MIPs, receitas, usuários e avaliações mensais de colaboradores.
 
-## Versão 1.7.0 · Final
+## Versão 1.7.1 · Final
 
 - Corrige o salvamento de avaliações editadas.
 - Limpa o formulário após salvar, cancelar ou excluir.
@@ -44,6 +44,8 @@ Portal operacional com MIPs, receitas, usuários e avaliações mensais de colab
 - Divide o JavaScript de produção em pacotes menores para carregamento e cache eficientes.
 - Adiciona verificações de saúde para PostgreSQL, backend e frontend, com inicialização ordenada.
 - Adiciona `/api/health`, compressão Gzip, cache de assets versionados e contextos Docker otimizados.
+- Exibe o logo do site na aba do navegador e o atualiza ao salvar a personalização.
+- Elimina a dependência circular entre os pacotes `vendor` e `react-vendor` no build do frontend.
 
 ## Configuração inicial
 

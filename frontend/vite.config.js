@@ -8,12 +8,12 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
-          if (!id.includes('node_modules')) return;
-          if (id.includes('react-quill') || id.includes('/quill/')) return 'editor';
-          if (id.includes('lucide-react')) return 'icons';
-          if (id.includes('axios')) return 'http';
-          if (id.includes('react-router') || id.includes('react-dom') || id.includes('/react/')) return 'react-vendor';
-          return 'vendor';
+          // O editor é o único bloco grande que vale separar manualmente.
+          // Deixar o Rollup agrupar React e as demais dependências evita o ciclo
+          // vendor -> react-vendor -> vendor observado no build de produção.
+          if (id.includes('node_modules/react-quill') || id.includes('node_modules/quill')) {
+            return 'editor';
+          }
         }
       }
     }
