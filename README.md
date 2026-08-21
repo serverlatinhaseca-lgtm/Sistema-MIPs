@@ -2,7 +2,7 @@
 
 Portal operacional com MIPs, receitas, usuários e avaliações mensais de colaboradores.
 
-## Versão 1.6.7
+## Versão 1.7.0 · Final
 
 - Corrige o salvamento de avaliações editadas.
 - Limpa o formulário após salvar, cancelar ou excluir.
@@ -40,6 +40,10 @@ Portal operacional com MIPs, receitas, usuários e avaliações mensais de colab
 - Corrige o contraste dos cartões da fila, pedidos fixos, avisos, legendas e botões desabilitados no modo escuro.
 - Corrige a miniatura das etiquetas, o botão de limpeza e o número das etapas no modo escuro.
 - Usa um ícone próprio de etiqueta no menu, diferente do ícone de Avaliações.
+- Remove a declaração obsoleta de versão do Docker Compose.
+- Divide o JavaScript de produção em pacotes menores para carregamento e cache eficientes.
+- Adiciona verificações de saúde para PostgreSQL, backend e frontend, com inicialização ordenada.
+- Adiciona `/api/health`, compressão Gzip, cache de assets versionados e contextos Docker otimizados.
 
 ## Configuração inicial
 
