@@ -194,6 +194,14 @@ async function inicializarBancoEAdmin() {
         ativo BOOLEAN NOT NULL DEFAULT TRUE,
         criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+      CREATE TABLE IF NOT EXISTS configuracao_reclamacoes (
+        id BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (id),
+        prazo_verde_min INT NOT NULL DEFAULT 1440,
+        prazo_amarelo_min INT NOT NULL DEFAULT 180,
+        prazo_vermelho_min INT NOT NULL DEFAULT 60,
+        atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      INSERT INTO configuracao_reclamacoes (id) VALUES (TRUE) ON CONFLICT (id) DO NOTHING;
       CREATE TABLE IF NOT EXISTS reclamacoes (
         id SERIAL PRIMARY KEY,
         cliente_id INT NOT NULL REFERENCES clientes_reclamacao(id),
@@ -202,11 +210,22 @@ async function inicializarBancoEAdmin() {
         lider_responsavel_id INT NOT NULL REFERENCES usuarios(id),
         descricao TEXT NOT NULL,
         anexos JSONB NOT NULL DEFAULT '[]'::jsonb,
+        prioridade VARCHAR(10) NOT NULL DEFAULT 'verde',
+        prazo_em TIMESTAMP,
+        status VARCHAR(15) NOT NULL DEFAULT 'aberto',
+        concluido_em TIMESTAMP,
+        concluido_por INT REFERENCES usuarios(id) ON DELETE SET NULL,
         criado_por INT REFERENCES usuarios(id) ON DELETE SET NULL,
         criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
       CREATE INDEX IF NOT EXISTS reclamacoes_criado_em_idx ON reclamacoes (criado_em DESC);
       ALTER TABLE reclamacoes ALTER COLUMN assunto DROP NOT NULL;
+      ALTER TABLE reclamacoes ADD COLUMN IF NOT EXISTS prioridade VARCHAR(10) NOT NULL DEFAULT 'verde';
+      ALTER TABLE reclamacoes ADD COLUMN IF NOT EXISTS prazo_em TIMESTAMP;
+      ALTER TABLE reclamacoes ADD COLUMN IF NOT EXISTS status VARCHAR(15) NOT NULL DEFAULT 'aberto';
+      ALTER TABLE reclamacoes ADD COLUMN IF NOT EXISTS concluido_em TIMESTAMP;
+      ALTER TABLE reclamacoes ADD COLUMN IF NOT EXISTS concluido_por INT REFERENCES usuarios(id) ON DELETE SET NULL;
+      UPDATE reclamacoes SET prazo_em = criado_em + INTERVAL '24 hours' WHERE prazo_em IS NULL;
       CREATE TABLE IF NOT EXISTS categorias_acesso (
         id SERIAL PRIMARY KEY,
         nome VARCHAR(100) UNIQUE NOT NULL,
@@ -893,22 +912,27 @@ const podeRegistrarReclamacao = async (req) => {
 };
 
 app.get('/api/reclamacoes/catalogos', verificarToken, async (_req,res) => {
-  const [clientes,tipos,lideres]=await Promise.all([
+  const [clientes,tipos,lideres,prazos]=await Promise.all([
     pool.query('SELECT id,nome FROM clientes_reclamacao WHERE ativo=TRUE ORDER BY nome'),
     pool.query('SELECT id,nome FROM tipos_reclamacao WHERE ativo=TRUE ORDER BY nome'),
-    pool.query("SELECT id,nome FROM usuarios WHERE LOWER(perfil)='editor' ORDER BY nome")
+    pool.query("SELECT id,nome FROM usuarios WHERE LOWER(perfil)='editor' ORDER BY nome"),
+    pool.query('SELECT prazo_verde_min,prazo_amarelo_min,prazo_vermelho_min FROM configuracao_reclamacoes WHERE id=TRUE')
   ]);
-  res.json({clientes:clientes.rows,tipos:tipos.rows,lideres:lideres.rows});
+  res.json({clientes:clientes.rows,tipos:tipos.rows,lideres:lideres.rows,prazos:prazos.rows[0]});
 });
 
 app.get('/api/reclamacoes/metricas', verificarToken, async (_req,res) => {
-  const [total,tipo,lider,mes]=await Promise.all([
+  const [total,tipo,lider,mes,cliente,prioridade,status,prazos]=await Promise.all([
     pool.query('SELECT COUNT(*)::int AS total FROM reclamacoes'),
     pool.query(`SELECT t.nome,COUNT(*)::int AS total FROM reclamacoes r JOIN tipos_reclamacao t ON t.id=r.tipo_id GROUP BY t.id ORDER BY total DESC,t.nome`),
     pool.query(`SELECT u.nome,COUNT(*)::int AS total FROM reclamacoes r JOIN usuarios u ON u.id=r.lider_responsavel_id GROUP BY u.id ORDER BY total DESC,u.nome`),
-    pool.query(`SELECT TO_CHAR(DATE_TRUNC('month',criado_em),'YYYY-MM') AS mes,COUNT(*)::int AS total FROM reclamacoes GROUP BY 1 ORDER BY 1`)
+    pool.query(`SELECT TO_CHAR(DATE_TRUNC('month',criado_em),'YYYY-MM') AS mes,COUNT(*)::int AS total FROM reclamacoes GROUP BY 1 ORDER BY 1`),
+    pool.query(`SELECT c.nome,COUNT(*)::int AS total FROM reclamacoes r JOIN clientes_reclamacao c ON c.id=r.cliente_id GROUP BY c.id ORDER BY total DESC,c.nome LIMIT 12`),
+    pool.query(`SELECT prioridade AS nome,COUNT(*)::int AS total FROM reclamacoes GROUP BY prioridade ORDER BY CASE prioridade WHEN 'vermelho' THEN 1 WHEN 'amarelo' THEN 2 ELSE 3 END`),
+    pool.query(`SELECT status AS nome,COUNT(*)::int AS total FROM reclamacoes GROUP BY status`),
+    pool.query(`SELECT COUNT(*) FILTER (WHERE status='aberto')::int AS abertas,COUNT(*) FILTER (WHERE status='aberto' AND prazo_em<NOW())::int AS atrasadas,COUNT(*) FILTER (WHERE status='concluido')::int AS concluidas,COALESCE(ROUND((AVG(EXTRACT(EPOCH FROM (concluido_em-criado_em))/3600) FILTER (WHERE concluido_em IS NOT NULL))::numeric,1),0) AS media_horas FROM reclamacoes`)
   ]);
-  res.json({total:total.rows[0].total,por_tipo:tipo.rows,por_lider:lider.rows,por_mes:mes.rows});
+  res.json({total:total.rows[0].total,por_tipo:tipo.rows,por_lider:lider.rows,por_mes:mes.rows,por_cliente:cliente.rows,por_prioridade:prioridade.rows,por_status:status.rows,...prazos.rows[0]});
 });
 
 app.get('/api/reclamacoes', verificarToken, async (req,res) => {
@@ -919,13 +943,25 @@ app.get('/api/reclamacoes', verificarToken, async (req,res) => {
 
 app.post('/api/reclamacoes', verificarToken, async (req,res) => {
   if (!(await podeRegistrarReclamacao(req))) return res.status(403).json({error:'Acesso negado'});
-  const {cliente_id,tipo_id,lider_responsavel_id,descricao,anexos=[]}=req.body;
+  const {cliente_id,tipo_id,lider_responsavel_id,descricao,anexos=[],prioridade='verde'}=req.body;
   if(!cliente_id||!tipo_id||!lider_responsavel_id||!String(descricao||'').trim())return res.status(400).json({error:'Preencha todos os campos obrigatórios'});
   if(!Array.isArray(anexos)||anexos.length>10)return res.status(400).json({error:'Envie no máximo 10 anexos'});
+  if(!['verde','amarelo','vermelho'].includes(prioridade))return res.status(400).json({error:'Selecione uma prioridade válida'});
   const lider=await pool.query("SELECT id FROM usuarios WHERE id=$1 AND LOWER(perfil)='editor'",[Number(lider_responsavel_id)]);
   if(!lider.rows.length)return res.status(400).json({error:'Selecione um usuário com perfil Líder'});
-  const r=await pool.query(`INSERT INTO reclamacoes (cliente_id,assunto,tipo_id,lider_responsavel_id,descricao,anexos,criado_por) VALUES ($1,'',$2,$3,$4,$5,$6) RETURNING id`,[Number(cliente_id),Number(tipo_id),Number(lider_responsavel_id),String(descricao).trim(),JSON.stringify(anexos),req.usuarioId]);
+  const cfg=(await pool.query('SELECT prazo_verde_min,prazo_amarelo_min,prazo_vermelho_min FROM configuracao_reclamacoes WHERE id=TRUE')).rows[0];
+  const minutos={verde:cfg.prazo_verde_min,amarelo:cfg.prazo_amarelo_min,vermelho:cfg.prazo_vermelho_min}[prioridade];
+  const r=await pool.query(`INSERT INTO reclamacoes (cliente_id,assunto,tipo_id,lider_responsavel_id,descricao,anexos,prioridade,prazo_em,status,criado_por) VALUES ($1,'',$2,$3,$4,$5,$6,NOW()+($7||' minutes')::interval,'aberto',$8) RETURNING id`,[Number(cliente_id),Number(tipo_id),Number(lider_responsavel_id),String(descricao).trim(),JSON.stringify(anexos),prioridade,String(minutos),req.usuarioId]);
   res.status(201).json(r.rows[0]);
+});
+
+app.patch('/api/reclamacoes/:id/status', verificarToken, async (req,res) => {
+  if (!(await podeRegistrarReclamacao(req))) return res.status(403).json({error:'Acesso negado'});
+  const status=String(req.body?.status||'');
+  if(!['aberto','concluido'].includes(status))return res.status(400).json({error:'Status inválido'});
+  const r=await pool.query(`UPDATE reclamacoes SET status=$1,concluido_em=CASE WHEN $1='concluido' THEN NOW() ELSE NULL END,concluido_por=CASE WHEN $1='concluido' THEN $2 ELSE NULL END WHERE id=$3 RETURNING *`,[status,req.usuarioId,req.params.id]);
+  if(!r.rows.length)return res.status(404).json({error:'Reclamação não encontrada'});
+  res.json(r.rows[0]);
 });
 
 app.delete('/api/reclamacoes/:id', verificarToken, async (req,res) => {
@@ -937,6 +973,13 @@ for (const [rota,tabela] of [['clientes','clientes_reclamacao'],['tipos','tipos_
   app.post(`/api/configuracoes/reclamacoes/${rota}`,verificarToken,async(req,res)=>{if(normalizarPerfil(req.usuarioPerfil)!=='administrador')return res.status(403).json({error:'Acesso negado'});const nome=String(req.body?.nome||'').trim();if(nome.length<2)return res.status(400).json({error:'Informe um nome válido'});try{const r=await pool.query(`INSERT INTO ${tabela} (nome,ativo) VALUES ($1,TRUE) ON CONFLICT (nome) DO UPDATE SET ativo=TRUE RETURNING *`,[nome]);res.status(201).json(r.rows[0]);}catch(e){res.status(500).json({error:'Erro ao salvar cadastro'});}});
   app.delete(`/api/configuracoes/reclamacoes/${rota}/:id`,verificarToken,async(req,res)=>{if(normalizarPerfil(req.usuarioPerfil)!=='administrador')return res.status(403).json({error:'Acesso negado'});await pool.query(`UPDATE ${tabela} SET ativo=FALSE WHERE id=$1`,[req.params.id]);res.json({mensagem:'Cadastro desativado.'});});
 }
+
+app.put('/api/configuracoes/reclamacoes/prazos',verificarToken,async(req,res)=>{
+  if(normalizarPerfil(req.usuarioPerfil)!=='administrador')return res.status(403).json({error:'Acesso negado'});
+  const verde=Number(req.body?.prazo_verde_min),amarelo=Number(req.body?.prazo_amarelo_min),vermelho=Number(req.body?.prazo_vermelho_min);
+  if(![verde,amarelo,vermelho].every(v=>Number.isInteger(v)&&v>=1&&v<=43200))return res.status(400).json({error:'Os prazos devem ter entre 1 minuto e 30 dias'});
+  const r=await pool.query('UPDATE configuracao_reclamacoes SET prazo_verde_min=$1,prazo_amarelo_min=$2,prazo_vermelho_min=$3,atualizado_em=NOW() WHERE id=TRUE RETURNING *',[verde,amarelo,vermelho]);res.json(r.rows[0]);
+});
 
 app.get('/api/categorias-acesso',verificarToken,async(req,res)=>{if(normalizarPerfil(req.usuarioPerfil)!=='administrador')return res.status(403).json({error:'Acesso negado'});const r=await pool.query('SELECT * FROM categorias_acesso WHERE ativo=TRUE ORDER BY nome');res.json(r.rows);});
 app.post('/api/categorias-acesso',verificarToken,async(req,res)=>{if(normalizarPerfil(req.usuarioPerfil)!=='administrador')return res.status(403).json({error:'Acesso negado'});const nome=String(req.body?.nome||'').trim(),permissoes=Array.isArray(req.body?.permissoes)?req.body.permissoes:[];if(nome.length<2)return res.status(400).json({error:'Informe o nome da categoria'});try{const r=await pool.query('INSERT INTO categorias_acesso (nome,permissoes,ativo) VALUES ($1,$2,TRUE) RETURNING *',[nome,JSON.stringify(permissoes)]);res.status(201).json(r.rows[0]);}catch(e){if(e.code==='23505')return res.status(409).json({error:'Já existe uma categoria com esse nome'});res.status(500).json({error:'Erro ao criar categoria'});}});

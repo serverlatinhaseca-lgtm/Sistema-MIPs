@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { AlertTriangle, LayoutDashboard, BookOpen, Calculator, Users, ClipboardCheck, Sun, Moon, LogOut, KeyRound, Settings, Tag } from 'lucide-react';
+import { AlertTriangle, LayoutDashboard, BookOpen, Calculator, Users, ClipboardCheck, Sun, Moon, LogOut, KeyRound, Settings, Tag, Folder, ChevronDown, ChevronRight } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import useBranding from '../useBranding';
 
@@ -10,6 +10,7 @@ export default function Sidebar() {
   const location = useLocation();
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const [dark, setDark] = useState(document.documentElement.classList.contains('dark'));
+  const [pastas, setPastas] = useState({ferramentas:location.pathname.startsWith('/ferramentas'),configuracao:['/usuarios','/configuracoes'].includes(location.pathname)});
   const branding = useBranding();
 
   const toggleTheme = () => {
@@ -52,9 +53,16 @@ export default function Sidebar() {
           </div>
           <div onClick={() => navigate('/reclamacoes')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/reclamacoes') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}><AlertTriangle size={20} className="mr-3" /> Reclamações</div>
           {['editor','gerente'].includes(user.perfil?.toLowerCase()) && <div onClick={() => navigate('/meu-desempenho')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/meu-desempenho') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}><ClipboardCheck size={20} className="mr-3" /> Meu desempenho</div>}
-          {user.perfil?.toLowerCase() === 'administrador' && (
-            <><p className="px-3 pt-5 pb-1 text-[10px] uppercase tracking-[.18em] font-bold text-[var(--sidebar-text)] opacity-45">Ferramentas</p><div onClick={() => navigate('/ferramentas/etiquetas')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/ferramentas/etiquetas') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}><Tag size={20} className="mr-3" /> Etiquetas</div><div onClick={() => navigate('/ferramentas/caixas')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/ferramentas/caixas') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}><Calculator size={20} className="mr-3" /> Pacotes e Caixas</div><p className="px-3 pt-5 pb-1 text-[10px] uppercase tracking-[.18em] font-bold text-[var(--sidebar-text)] opacity-45">Configuração</p><div onClick={() => navigate('/usuarios')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/usuarios') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}><Users size={20} className="mr-3" /> Usuários</div><div onClick={() => navigate('/configuracoes')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/configuracoes') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}><Settings size={20} className="mr-3" /> Central de configurações</div></>
-          )}
+          {user.perfil?.toLowerCase() === 'administrador' && <>
+            <Pasta titulo="Ferramentas" aberta={pastas.ferramentas} alternar={()=>setPastas(v=>({...v,ferramentas:!v.ferramentas}))}>
+              <Item icon={<Tag size={18}/>} titulo="Etiquetas" ativo={isActive('/ferramentas/etiquetas')} abrir={()=>navigate('/ferramentas/etiquetas')}/>
+              <Item icon={<Calculator size={18}/>} titulo="Pacotes e Caixas" ativo={isActive('/ferramentas/caixas')} abrir={()=>navigate('/ferramentas/caixas')}/>
+            </Pasta>
+            <Pasta titulo="Configuração" aberta={pastas.configuracao} alternar={()=>setPastas(v=>({...v,configuracao:!v.configuracao}))}>
+              <Item icon={<Users size={18}/>} titulo="Usuários" ativo={isActive('/usuarios')} abrir={()=>navigate('/usuarios')}/>
+              <Item icon={<Settings size={18}/>} titulo="Central de configurações" ativo={isActive('/configuracoes')} abrir={()=>navigate('/configuracoes')}/>
+            </Pasta>
+          </>}
         </nav>
       </div>
 
@@ -76,3 +84,6 @@ export default function Sidebar() {
     </aside>
   );
 }
+
+function Pasta({titulo,aberta,alternar,children}){return <div className="mt-2"><button onClick={alternar} className={`w-full p-3 rounded-lg font-semibold flex items-center text-[var(--sidebar-text)] transition-colors ${aberta?'bg-white/10':'opacity-80 hover:bg-white/5'}`}><Folder size={20} className="mr-3"/><span className="flex-1 text-left">{titulo}</span>{aberta?<ChevronDown size={17}/>:<ChevronRight size={17}/>}</button>{aberta&&<div className="ml-4 pl-3 border-l border-white/10 mt-1 space-y-1">{children}</div>}</div>}
+function Item({icon,titulo,ativo,abrir}){return <button onClick={abrir} className={`w-full p-2.5 rounded-lg text-sm flex items-center text-left text-[var(--sidebar-text)] ${ativo?'bg-white/10':'opacity-70 hover:opacity-100 hover:bg-white/5'}`}><span className="mr-2.5">{icon}</span>{titulo}</button>}
