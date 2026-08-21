@@ -2,7 +2,7 @@
 
 Portal operacional com MIPs, receitas, usuários e avaliações mensais de colaboradores.
 
-## Versão 1.6.6
+## Versão 1.6.7
 
 - Corrige o salvamento de avaliações editadas.
 - Limpa o formulário após salvar, cancelar ou excluir.
@@ -38,6 +38,8 @@ Portal operacional com MIPs, receitas, usuários e avaliações mensais de colab
 - Mantém o modo escuro ativo mesmo quando a barra lateral está oculta e usa as variáveis oficiais de cor do portal.
 - Elimina definitivamente a rolagem externa nas ferramentas: a página fica fixa e somente o conteúdo possui uma barra.
 - Corrige o contraste dos cartões da fila, pedidos fixos, avisos, legendas e botões desabilitados no modo escuro.
+- Corrige a miniatura das etiquetas, o botão de limpeza e o número das etapas no modo escuro.
+- Usa um ícone próprio de etiqueta no menu, diferente do ícone de Avaliações.
 
 ## Configuração inicial
 
