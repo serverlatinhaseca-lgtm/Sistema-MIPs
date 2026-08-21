@@ -34,6 +34,7 @@ services:
       - "7002:7002"
     volumes:
       - ./backend/uploads:/app/uploads
+      - ./backups:/app/backups
     networks:
       - mips-net
     depends_on:

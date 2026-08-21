@@ -2,7 +2,15 @@
 
 Portal operacional com MIPs, receitas, usuários e avaliações mensais de colaboradores.
 
-## Versão 1.8.0 · Validação
+## Versão 2.0.0 · Definitiva
+
+- Centraliza reclamações com clientes, tipos, líder responsável, descrição, fotos e anexos.
+- Controla prioridades verde, amarela e vermelha com prazos editáveis, cronômetro, atraso e conclusão após retorno ao cliente.
+- Exibe métricas por tipo, cliente, líder, prioridade, status e evolução mensal.
+- Organiza Ferramentas e Configuração em pastas recolhíveis na barra lateral.
+- Permite ao Administrador gerar, baixar, excluir e restaurar backups completos do PostgreSQL pela interface.
+- Exige a senha atual do Administrador e cria uma cópia automática antes de cada restauração.
+- Exibe na ferramenta Etiquetas o total de pães cadastrados por tipo em cada entrega.
 
 - Destaca visualmente a meta de desempenho de 80% e informa quanto falta para alcançá-la.
 - Alterna mensagens motivacionais conforme o resultado mais recente do usuário.
@@ -99,7 +107,11 @@ As novas tabelas são criadas automaticamente pelo backend sem apagar os dados e
 - O histórico fica visível apenas para Administrador e Editor.
 - Na calculadora de receitas, os pesos são sempre inteiros: decimais de 0,1 a 0,4 arredondam para baixo e de 0,5 a 0,9 para cima.
 
-> Esta versão altera o vínculo das avaliações para os usuários. Em ambiente de testes, recrie o banco com `docker compose down -v` antes de subir a nova versão.
+## Backup do banco
+
+O Administrador encontra os backups em **Central de configurações → Backup do banco**. Os arquivos são persistidos na pasta `backups` do servidor e não ficam expostos pela web. A restauração exige a senha atual do Administrador.
+
+Em atualizações existentes, não use `docker compose down -v`: as migrações são automáticas e preservam os dados.
 
 ## Testes
 

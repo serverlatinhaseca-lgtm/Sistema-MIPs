@@ -347,6 +347,10 @@
         color: var(--muted);
         font-size: 0.7rem;
       }
+      .bread-total-summary { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:8px; margin:12px 0 16px; }
+      .bread-total-card { padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--cream); }
+      .bread-total-card span { display:block; color:var(--muted); font-size:.66rem; font-weight:800; text-transform:uppercase; }
+      .bread-total-card strong { display:block; margin-top:3px; color:var(--ink); font-size:1.05rem; }
 
       .settings-panel {
         padding: 24px;
@@ -1111,6 +1115,7 @@
                 <p id="queueCount"></p>
               </div>
             </div>
+            <div class="bread-total-summary" id="breadTotals"></div>
             <div id="orderQueue"></div>
             <div class="queue-actions">
               <button class="secondary-button" id="clearButton" type="button">
@@ -2491,6 +2496,10 @@
         el("queueCount").textContent = `${printable.length} etiqueta${
           printable.length === 1 ? "" : "s"
         } • ${pages} folha${pages === 1 ? "" : "s"}`;
+        const totaisPorPao = orders.filter(o=>!o.validityOnly&&o.product&&Number(o.total)>0).reduce((acc,o)=>{const nome=o.product.shortName||o.product.name||"Outro";acc[nome]=(acc[nome]||0)+Number(o.total);return acc;},{});
+        el("breadTotals").innerHTML = Object.entries(totaisPorPao).length
+          ? Object.entries(totaisPorPao).map(([nome,total])=>`<div class="bread-total-card"><span>${escapeHtml(nome)}</span><strong>${total.toLocaleString("pt-BR")} pães</strong></div>`).join("")
+          : '<div class="bread-total-card"><span>Total por tipo</span><strong>0 pães</strong></div>';
         el("orderQueue").innerHTML = orders.length
           ? `<div class="batch-list">${orders
               .map((o) =>

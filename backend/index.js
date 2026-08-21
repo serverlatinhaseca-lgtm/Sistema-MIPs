@@ -7,10 +7,13 @@ const jwt = require('jsonwebtoken');
 const path = require('path');
 const multer = require('multer');
 const fs = require('fs');
+const { execFile } = require('child_process');
+const { promisify } = require('util');
 const { randomUUID } = require('crypto');
 const { prepararAvaliacao } = require('./avaliacoes');
 const MODELOS_AVALIACAO = require('./modelos-avaliacao.json');
 const CLIENTES_INICIAIS = require('./clientes-iniciais.json');
+const executarArquivo = promisify(execFile);
 
 const app = express();
 const PORT = process.env.PORT || 7001;
@@ -27,9 +30,11 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 const uploadDir = path.join(__dirname, 'uploads');
+const backupDir = path.join(__dirname, 'backups');
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true, mode: 0o777 });
 }
+if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true, mode: 0o700 });
 
 app.use('/uploads', express.static(uploadDir));
 
@@ -59,6 +64,18 @@ const pool = new Pool({
   password: process.env.DB_PASS || 'postgres', 
   port: 5432 
 });
+
+const ambientePostgres = () => ({...process.env,PGPASSWORD:process.env.DB_PASS || 'postgres'});
+const nomeBackup = () => `mips-${new Date().toISOString().replace(/[-:]/g,'').replace('T','-').slice(0,15)}.dump`;
+const caminhoBackupSeguro = nome => {
+  if(!/^mips-[0-9]{8}-[0-9]{6}(?:-antes-restauracao)?\.dump$/.test(String(nome||''))) return null;
+  return path.join(backupDir,nome);
+};
+async function gerarBackup(sufixo=''){
+  const nome=nomeBackup().replace('.dump',`${sufixo}.dump`),destino=path.join(backupDir,nome);
+  await executarArquivo('pg_dump',['-h',process.env.DB_HOST||'db','-U',process.env.DB_USER||'postgres','-d',process.env.DB_NAME||'mips_db','-Fc','--no-owner','--no-privileges','-f',destino],{env:ambientePostgres(),timeout:120000});
+  return {nome,tamanho:fs.statSync(destino).size,criado_em:fs.statSync(destino).mtime};
+}
 
 async function conectarComRetentativa() {
   let conectado = false;
@@ -231,6 +248,13 @@ async function inicializarBancoEAdmin() {
         nome VARCHAR(100) UNIQUE NOT NULL,
         permissoes JSONB NOT NULL DEFAULT '[]'::jsonb,
         ativo BOOLEAN NOT NULL DEFAULT TRUE,
+        criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE TABLE IF NOT EXISTS backup_auditoria (
+        id SERIAL PRIMARY KEY,
+        arquivo VARCHAR(180) NOT NULL,
+        acao VARCHAR(30) NOT NULL,
+        usuario_id INT REFERENCES usuarios(id) ON DELETE SET NULL,
         criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
       ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS categoria_acesso_id INT REFERENCES categorias_acesso(id) ON DELETE SET NULL;
@@ -421,6 +445,41 @@ app.put('/api/usuarios/:id/redefinir-senha', verificarToken, async (req, res) =>
     if (!result.rows.length) return res.status(404).json({ error: 'Usuário não encontrado' });
     res.json({ mensagem: 'Senha temporária definida. O usuário deverá trocá-la no próximo acesso.' });
   } catch (error) { res.status(500).json({ error: 'Erro ao redefinir senha' }); }
+});
+
+// BACKUPS DO BANCO — acesso exclusivo do Administrador
+app.get('/api/backups', verificarToken, somenteAdministrador, async (_req,res)=>{
+  try{
+    const arquivos=fs.readdirSync(backupDir).filter(n=>caminhoBackupSeguro(n)).map(nome=>{const s=fs.statSync(path.join(backupDir,nome));return{nome,tamanho:s.size,criado_em:s.mtime};}).sort((a,b)=>new Date(b.criado_em)-new Date(a.criado_em));
+    const historico=await pool.query('SELECT b.*,u.nome AS usuario_nome FROM backup_auditoria b LEFT JOIN usuarios u ON u.id=b.usuario_id ORDER BY b.criado_em DESC LIMIT 30');
+    res.json({arquivos,historico:historico.rows});
+  }catch(error){res.status(500).json({error:'Erro ao listar backups'});}
+});
+
+app.post('/api/backups', verificarToken, somenteAdministrador, async (req,res)=>{
+  try{const arquivo=await gerarBackup();await pool.query('INSERT INTO backup_auditoria (arquivo,acao,usuario_id) VALUES ($1,$2,$3)',[arquivo.nome,'gerado',req.usuarioId]);res.status(201).json(arquivo);}catch(error){console.error('Erro no backup:',error.message);res.status(500).json({error:'Não foi possível gerar o backup do banco'});}
+});
+
+app.get('/api/backups/:nome/download', verificarToken, somenteAdministrador, (req,res)=>{
+  const arquivo=caminhoBackupSeguro(req.params.nome);if(!arquivo||!fs.existsSync(arquivo))return res.status(404).json({error:'Backup não encontrado'});res.download(arquivo,req.params.nome);
+});
+
+app.delete('/api/backups/:nome', verificarToken, somenteAdministrador, async (req,res)=>{
+  const arquivo=caminhoBackupSeguro(req.params.nome);if(!arquivo||!fs.existsSync(arquivo))return res.status(404).json({error:'Backup não encontrado'});fs.unlinkSync(arquivo);await pool.query('INSERT INTO backup_auditoria (arquivo,acao,usuario_id) VALUES ($1,$2,$3)',[req.params.nome,'excluido',req.usuarioId]);res.json({mensagem:'Backup excluído.'});
+});
+
+app.post('/api/backups/:nome/restaurar', verificarToken, somenteAdministrador, async (req,res)=>{
+  const arquivo=caminhoBackupSeguro(req.params.nome),senha=String(req.body?.senha||'');
+  if(!arquivo||!fs.existsSync(arquivo))return res.status(404).json({error:'Backup não encontrado'});
+  const adm=await pool.query('SELECT senha FROM usuarios WHERE id=$1',[req.usuarioId]);
+  if(!adm.rows.length||!(await bcrypt.compare(senha,adm.rows[0].senha)))return res.status(400).json({error:'Senha do Administrador incorreta'});
+  try{
+    await gerarBackup('-antes-restauracao');
+    await executarArquivo('pg_restore',['-h',process.env.DB_HOST||'db','-U',process.env.DB_USER||'postgres','-d',process.env.DB_NAME||'mips_db','--clean','--if-exists','--single-transaction','--exit-on-error','--no-owner','--no-privileges',arquivo],{env:ambientePostgres(),timeout:300000});
+    await inicializarBancoEAdmin();
+    await pool.query('INSERT INTO backup_auditoria (arquivo,acao,usuario_id) VALUES ($1,$2,$3)',[req.params.nome,'restaurado',req.usuarioId]);
+    res.json({mensagem:'Banco restaurado com sucesso. Entre novamente no sistema.'});
+  }catch(error){console.error('Erro na restauração:',error.message);res.status(500).json({error:'A restauração falhou. O backup automático anterior foi preservado.'});}
 });
 
 app.get('/api/configuracoes-portal', async (_req, res) => {
