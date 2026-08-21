@@ -186,13 +186,13 @@ export default function Usuarios() {
                   >
                     <option value="Leitor">Funcionário (consulta e recebe avaliações)</option>
                     <option value="Editor">Líder (MIPs e sua equipe)</option>
-                    <option value="Gerente">Gerente (acesso a todas as avaliações)</option>
+                    <option value="Gerente">Gerente (acesso geral e avaliação pelo ADM)</option>
                     <option value="Administrador">
                       Administrador (Acesso Total)
                     </option>
                   </select>
                 </div>
-                {["Leitor", "Editor"].includes(perfil) && (
+                {["Leitor", "Editor", "Gerente"].includes(perfil) && (
                   <div>
                     <label className="block text-sm font-medium mb-1 text-[var(--text-muted)]">
                       Responsável pela avaliação
@@ -218,12 +218,12 @@ export default function Usuarios() {
                     </select>
                   </div>
                 )}
-                {["Leitor", "Editor"].includes(perfil) && <div>
+                {["Leitor", "Editor", "Gerente"].includes(perfil) && <div>
                   <label className="block text-sm font-medium mb-1 text-[var(--text-muted)]">
                     Função / modelo de avaliação
                   </label>
                   <select
-                    required={["Leitor", "Editor"].includes(perfil)}
+                    required={["Leitor", "Editor", "Gerente"].includes(perfil)}
                     value={modeloId}
                     onChange={(e) => setModeloId(e.target.value)}
                     className="w-full p-3 rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)] text-[var(--text-main)]"

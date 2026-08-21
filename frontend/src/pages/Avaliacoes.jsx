@@ -110,6 +110,7 @@ export default function Avaliacoes() {
     [erro, setErro] = useState(""),
     [salvando, setSalvando] = useState(false),
     [respostas, setRespostas] = useState({});
+  const [liderFiltro,setLiderFiltro]=useState("");
   const [editandoPerguntaId, setEditandoPerguntaId] = useState(null);
   const [novaPergunta, setNovaPergunta] = useState({
     titulo: "",
@@ -171,6 +172,8 @@ export default function Avaliacoes() {
       (t, c) => t + Number(respostas[c.chave]?.nota || 0),
       0,
     );
+  const lideresFiltro=useMemo(()=>Array.from(new Map(usuarios.filter(u=>u.lider_id&&u.lider_nome).map(u=>[String(u.lider_id),u.lider_nome])).entries()),[usuarios]);
+  const avaliacoesFiltradas=useMemo(()=>liderFiltro?avaliacoes.filter(a=>String(a.lider_id)===String(liderFiltro)):avaliacoes,[avaliacoes,liderFiltro]);
   async function carregarPerguntasUsuario(id) {
     if (!id) {
       setPerguntas([]);
@@ -423,23 +426,17 @@ export default function Avaliacoes() {
               <label className="font-semibold text-sm">
                 Elaborado por
                 <input
-                  required
-                  value={form.elaborado_por}
-                  onChange={(e) =>
-                    setForm({ ...form, elaborado_por: e.target.value })
-                  }
-                  className="field"
+                  readOnly
+                  value={user.nome||""}
+                  className="field bg-[var(--bg-main)] opacity-80"
                 />
               </label>
               <label className="font-semibold text-sm">
                 Aplicado por
                 <input
-                  required
-                  value={form.aplicado_por}
-                  onChange={(e) =>
-                    setForm({ ...form, aplicado_por: e.target.value })
-                  }
-                  className="field"
+                  readOnly
+                  value={user.nome||""}
+                  className="field bg-[var(--bg-main)] opacity-80"
                 />
               </label>
             </section>
@@ -704,7 +701,7 @@ export default function Avaliacoes() {
           </section>
         )}
         <section className="panel-card">
-          <h2 className="section-title mb-4">Histórico de avaliações</h2>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4"><h2 className="section-title">Histórico de avaliações</h2><label className="text-sm font-semibold">Filtrar por Líder<select className="field !mt-1 min-w-60" value={liderFiltro} onChange={e=>setLiderFiltro(e.target.value)}><option value="">Todos os responsáveis</option>{lideresFiltro.map(([id,nome])=><option key={id} value={id}>{nome}</option>)}</select></label></div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[760px] text-sm">
               <thead>
@@ -717,7 +714,7 @@ export default function Avaliacoes() {
                 </tr>
               </thead>
               <tbody>
-                {avaliacoes.map((a) => (
+                {avaliacoesFiltradas.map((a) => (
                   <tr
                     key={a.id}
                     className="border-t border-[var(--border-color)]"

@@ -1,121 +1,311 @@
-# Portal MIPs · Nova Esperança
+# Sistema Central · Nova Esperança
 
-Portal operacional com MIPs, receitas, usuários e avaliações mensais de colaboradores.
+> Portal interno para padronização operacional, gestão de receitas, avaliações de desempenho, reclamações e ferramentas de produção.
 
-## Versão 2.0.0 · Definitiva
+![Versão](https://img.shields.io/badge/versão-2.0.0-ff8d2f)
+![React](https://img.shields.io/badge/React-18-61dafb)
+![Node.js](https://img.shields.io/badge/Node.js-18-339933)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-4169e1)
+![Docker](https://img.shields.io/badge/Docker-Compose-2496ed)
 
-- Centraliza reclamações com clientes, tipos, líder responsável, descrição, fotos e anexos.
-- Controla prioridades verde, amarela e vermelha com prazos editáveis, cronômetro, atraso e conclusão após retorno ao cliente.
-- Exibe métricas por tipo, cliente, líder, prioridade, status e evolução mensal.
-- Organiza Ferramentas e Configuração em pastas recolhíveis na barra lateral.
-- Permite ao Administrador gerar, baixar, excluir e restaurar backups completos do PostgreSQL pela interface.
-- Exige a senha atual do Administrador e cria uma cópia automática antes de cada restauração.
-- Exibe na ferramenta Etiquetas o total de pães cadastrados por tipo em cada entrega.
+## Sobre o sistema
 
-- Destaca visualmente a meta de desempenho de 80% e informa quanto falta para alcançá-la.
-- Alterna mensagens motivacionais conforme o resultado mais recente do usuário.
-- Exibe o objetivo preenchido no cadastro dentro da leitura da MIP.
-- Permite ao Administrador reprovar uma MIP com orientações obrigatórias para o autor.
-- Exibe a reprovação e as correções solicitadas na lista e na leitura da MIP do autor.
-- Limpa a orientação anterior quando a MIP é corrigida e reenviada para aprovação.
-- Adiciona o perfil Gerente, com acesso a todas as avaliações e permissões operacionais de Líder.
-- Mantém cada Líder restrito aos Funcionários vinculados à sua equipe.
-- Apresenta os perfis como Funcionário, Líder, Gerente e Administrador na gestão de usuários.
+O Sistema Central reúne em um único portal os processos internos da Nova Esperança. A aplicação funciona em computadores e celulares, possui modo claro e escuro e separa os acessos conforme a função de cada usuário.
 
-- Corrige o salvamento de avaliações editadas.
-- Limpa o formulário após salvar, cancelar ou excluir.
-- Carrega automaticamente as perguntas do modelo da função selecionada.
-- Define setor e função pelo modelo, sem preenchimento manual duplicado.
-- Corrige a edição de receitas e preserva o histórico de versões.
-- Obriga novos usuários a trocar a senha temporária no primeiro acesso.
-- Permite que cada usuário altere a própria senha e que o Administrador a redefina.
-- Publica avaliações automaticamente em **Meu desempenho** do Leitor avaliado.
-- Permite personalizar o nome do site, o logo do portal e o logo do relatório de avaliação.
-- Toda MIP editada retorna para **Em Revisão** e exige nova aprovação do Administrador.
-- Remove o prefixo “SEÇÃO” da pergunta principal e o mantém somente no título da competência.
-- Permite ao Administrador editar título, pergunta, critérios e obrigatoriedade de cada pergunta de avaliação.
-- Mostra no histórico de MIPs e receitas os valores anteriores e posteriores de cada alteração.
-- Exibe um modal de desempenho após o login de Leitores e Editores.
-- Permite ao Administrador editar nome, login, perfil, responsável e modelo dos usuários.
-- Permite gerar, visualizar e copiar uma nova senha temporária, sem expor senhas pessoais.
-- Dá ao Editor acesso às próprias avaliações, enquanto continua avaliando seus Leitores vinculados.
-- Aplica ao relatório de avaliação a identidade Nova Esperança: PT Serif, Montserrat, laranja #ff8d2f, marrom #a65526 e cinza #5e5e5e.
-- Corrige a compatibilidade dos ícones com a versão instalada do `lucide-react`.
-- Restaura o layout exclusivo do Leitor sem barra lateral.
-- Unifica MIPs, Receitas, Avaliações, troca de senha, tema e saída em uma barra superior responsiva.
-- Mantém todas as áreas do Leitor somente para consulta.
-- Exibe o modal de avaliações apenas uma vez por usuário no navegador, preservando essa preferência após sair e entrar novamente.
-- Integra as ferramentas de Etiquetas e Pacotes/Caixas ao portal, exclusivamente para Administradores.
-- Compartilha pelo PostgreSQL pedidos, regras, setores, produtos e configurações dessas ferramentas.
-- Unifica o visual das duas ferramentas com o restante do portal, preservando toda a lógica original.
-- Permite ocultar e restaurar a barra lateral para aproveitar toda a largura das ferramentas.
-- Corrige o contraste do modo escuro nas duas ferramentas com cartões em preto/marrom e textos legíveis.
-- Remove a barra de rolagem duplicada ajustando automaticamente a altura das ferramentas ao conteúdo.
-- Sincroniza o tema das ferramentas com a classe visual realmente ativa no portal, sem depender de preferência antiga do navegador.
-- Recalcula a altura após mudanças de abas, listas e formulários para garantir apenas uma rolagem.
-- Mantém o modo escuro ativo mesmo quando a barra lateral está oculta e usa as variáveis oficiais de cor do portal.
-- Elimina definitivamente a rolagem externa nas ferramentas: a página fica fixa e somente o conteúdo possui uma barra.
-- Corrige o contraste dos cartões da fila, pedidos fixos, avisos, legendas e botões desabilitados no modo escuro.
-- Corrige a miniatura das etiquetas, o botão de limpeza e o número das etapas no modo escuro.
-- Usa um ícone próprio de etiqueta no menu, diferente do ícone de Avaliações.
-- Remove a declaração obsoleta de versão do Docker Compose.
-- Divide o JavaScript de produção em pacotes menores para carregamento e cache eficientes.
-- Adiciona verificações de saúde para PostgreSQL, backend e frontend, com inicialização ordenada.
-- Adiciona `/api/health`, compressão Gzip, cache de assets versionados e contextos Docker otimizados.
-- Exibe o logo do site na aba do navegador e o atualiza ao salvar a personalização.
-- Elimina a dependência circular entre os pacotes `vendor` e `react-vendor` no build do frontend.
+### Módulos disponíveis
 
-## Configuração inicial
+| Módulo | Principais recursos |
+|---|---|
+| MIPs | Criação, edição, aprovação, reprovação com orientação e histórico detalhado de versões |
+| Receitas | Cadastro, cálculo proporcional, arredondamento automático, edição e histórico |
+| Avaliações | Modelos por função, perguntas configuráveis, avaliação mensal e histórico de desempenho |
+| Reclamações | Clientes, tipos, prioridades, SLA, cronômetro, fotos, conclusão e indicadores |
+| Etiquetas | Rotas, pedidos fixos, tipos de pão, impressão Pimaco 6187, PDF e totais por tipo |
+| Pacotes e Caixas | Cálculos de produção, configurações e resumos consolidados |
+| Usuários | Perfis, vínculos de liderança, senha temporária e categorias adicionais de acesso |
+| Personalização | Nome do portal, logo do sistema e logo dos relatórios de avaliação |
+| Backup | Geração, download, exclusão e restauração do PostgreSQL pela interface |
 
-Crie o arquivo de ambiente antes de subir os contêineres:
+## Perfis de acesso
+
+### Funcionário
+
+- Consulta MIPs e receitas publicadas;
+- Visualiza suas próprias avaliações e histórico de desempenho;
+- Consulta as métricas de reclamações;
+- Altera a própria senha;
+- Utiliza uma interface simplificada, sem barra lateral.
+
+### Líder
+
+- Possui as permissões operacionais de criação e edição;
+- Avalia somente os funcionários vinculados à sua equipe;
+- Registra e acompanha reclamações;
+- Consulta as próprias avaliações.
+
+### Gerente
+
+- Possui as permissões operacionais de Líder;
+- Visualiza avaliações de todos os líderes e funcionários;
+- Recebe avaliação exclusivamente do Administrador e utiliza modelo definido no cadastro;
+- Registra e acompanha reclamações.
+
+### Administrador
+
+- Possui acesso completo ao portal;
+- Aprova ou reprova MIPs;
+- Gerencia usuários, modelos, perguntas, clientes e tipos de reclamação;
+- Personaliza o portal;
+- Acessa Etiquetas e Pacotes/Caixas;
+- Gera, baixa, exclui e restaura backups do banco.
+
+## Avaliações de desempenho
+
+- Os modelos iniciais reproduzem os formulários fornecidos para Embalagem, Forneiro, Líderes, Motorista, Padeiro e Auxiliar de Padeiro;
+- O Administrador pode criar modelos e adicionar, editar ou remover perguntas;
+- Cada avaliação é publicada automaticamente no perfil do usuário avaliado;
+- Líderes visualizam somente a própria equipe;
+- O histórico apresenta evolução mensal e destaque visual da meta de 80%;
+- Avaliações antigas preservam as perguntas e critérios utilizados na época.
+
+## Gestão de reclamações
+
+Cada reclamação contém:
+
+- Cliente;
+- Tipo de reclamação;
+- Líder responsável;
+- Descrição;
+- Fotos e anexos;
+- Nível de importância;
+- Prazo automático e status.
+
+| Prioridade inicial | Cor | Prazo padrão |
+|---|---:|---:|
+| Não urgente | Verde | 24 horas |
+| Média | Amarelo | 3 horas |
+| Imediata | Vermelho | 1 hora |
+
+Os três prazos podem ser alterados pelo Administrador em **Central de configurações → Reclamações**. Alterações afetam novas reclamações e não modificam os prazos já iniciados.
+
+O painel apresenta totais, reclamações abertas, atrasadas e concluídas, tempo médio de solução e gráficos por tipo, cliente, líder, prioridade e mês.
+
+## Backup e restauração
+
+O Administrador encontra os backups em:
+
+```text
+Central de configurações → Backup do banco
+```
+
+O sistema permite:
+
+- Gerar uma cópia completa em formato PostgreSQL `.dump`;
+- Baixar o arquivo para outro computador;
+- Excluir cópias antigas;
+- Restaurar um backup existente;
+- Consultar o histórico das operações.
+
+Antes de restaurar, o sistema exige a senha atual do Administrador e gera automaticamente uma cópia do banco vigente. Os arquivos permanecem na pasta `backups` do servidor e não são publicados pelo Nginx.
+
+## Requisitos
+
+- Docker Engine;
+- Docker Compose;
+- Git, caso as atualizações sejam feitas pelo GitHub;
+- Portas `7070`, `7001` e `7002` disponíveis no servidor.
+
+## Instalação
+
+### 1. Clonar o projeto
+
+```bash
+git clone https://github.com/serverlatinhaseca-lgtm/Sistema-MIPs.git
+cd Sistema-MIPs
+```
+
+### 2. Criar o arquivo de ambiente
 
 ```bash
 cp .env.example .env
+nano .env
 ```
 
-Em instalações existentes, mantenha no `.env` o mesmo usuário, senha e nome do banco já utilizados. Substitua `JWT_SECRET` por uma chave aleatória forte. `ADMIN_INITIAL_PASSWORD` só é utilizada quando a conta `admin` ainda não existe; a senha atual não é redefinida a cada reinicialização.
+Exemplo:
 
-## Executar
+```env
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=DEFINA_UMA_SENHA_FORTE_PARA_O_BANCO
+POSTGRES_DB=mips_db
+JWT_SECRET=COLE_AQUI_UMA_CHAVE_ALEATORIA_DE_64_CARACTERES
+ADMIN_INITIAL_PASSWORD=DEFINA_UMA_SENHA_INICIAL_FORTE
+```
+
+Gere uma chave JWT segura com:
+
+```bash
+openssl rand -hex 32
+```
+
+### 3. Construir e iniciar
 
 ```bash
 docker compose up -d --build
+docker compose ps
 ```
 
-- Portal: `http://SERVIDOR:7070`
-- API: `http://SERVIDOR:7001`
+### 4. Acessar
 
-As novas tabelas são criadas automaticamente pelo backend sem apagar os dados existentes.
+```text
+Portal: http://IP_DO_SERVIDOR:7070
+API:    http://IP_DO_SERVIDOR:7001
+```
 
-## Avaliações
+A conta administrativa inicial utiliza a senha definida em `ADMIN_INITIAL_PASSWORD`. Essa variável não redefine a senha depois que a conta já existe.
 
-- As avaliações são vinculadas aos usuários já cadastrados; a função é definida pelo modelo escolhido na aba Usuários.
-- Cada usuário recebe um modelo de avaliação por função: Embalagem, Forneiro, Líderes, Motorista, Padeiro ou Auxiliar de Padeiro.
-- Os modelos iniciais reproduzem as perguntas das planilhas de 2026 fornecidas.
-- O Administrador gerencia perguntas separadamente em cada modelo, sem alterar avaliações antigas.
-- Cada Editor vê e avalia somente os Leitores vinculados a ele; o Administrador vê todos, inclusive líderes.
-- Administrador e Editor aplicam e podem excluir avaliações.
-- Cada funcionário acessa o próprio histórico em **Meu desempenho**.
-- O sistema lembra mensalmente quem ainda não foi avaliado.
-- Cada avaliação recebe um link exclusivo para o funcionário.
-- A avaliação concluída pelo líder aparece imediatamente no perfil do Leitor correspondente.
-- O link mostra o relatório, o gráfico histórico e oferece impressão em A4.
+## Atualização segura
 
-## Edição e histórico
+```bash
+cd ~/Sistema-MIPs
+git pull --ff-only origin main
+docker compose up -d --build
+docker compose ps
+```
 
-- Administradores e editores podem editar MIPs e receitas.
-- Antes de cada alteração, a versão anterior é guardada automaticamente.
-- O histórico fica visível apenas para Administrador e Editor.
-- Na calculadora de receitas, os pesos são sempre inteiros: decimais de 0,1 a 0,4 arredondam para baixo e de 0,5 a 0,9 para cima.
+> **Importante:** não execute `docker compose down -v` em produção. A opção `-v` remove o volume do PostgreSQL e apaga o banco.
 
-## Backup do banco
+As migrações necessárias são aplicadas automaticamente pelo backend durante a inicialização.
 
-O Administrador encontra os backups em **Central de configurações → Backup do banco**. Os arquivos são persistidos na pasta `backups` do servidor e não ficam expostos pela web. A restauração exige a senha atual do Administrador.
+## Comandos úteis
 
-Em atualizações existentes, não use `docker compose down -v`: as migrações são automáticas e preservam os dados.
+### Verificar a API
 
-## Testes
+```bash
+curl http://localhost:7001/api/health
+```
+
+Resultado esperado:
+
+```json
+{"ok":true}
+```
+
+### Consultar os serviços
+
+```bash
+docker compose ps
+```
+
+### Consultar logs
+
+```bash
+docker compose logs --tail=100 backend
+docker compose logs --tail=100 frontend
+docker compose logs --tail=100 db
+```
+
+### Reiniciar os serviços
+
+```bash
+docker compose restart
+```
+
+## Testes e validação
+
+### Backend
 
 ```bash
 cd backend
 npm test
 ```
+
+### Frontend
+
+```bash
+cd frontend
+npm ci
+npm run build
+```
+
+Antes da publicação da versão 2.0.0 foram validados:
+
+- Compilação de produção do frontend;
+- Sintaxe do backend;
+- JavaScript da ferramenta Etiquetas;
+- Testes das regras de avaliação;
+- Instalação limpa das dependências do backend;
+- Integridade do pacote de distribuição;
+- Presença do `.env.example` e das configurações Docker.
+
+## Estrutura do projeto
+
+```text
+Sistema-MIPs/
+├── backend/
+│   ├── index.js
+│   ├── init.sql
+│   ├── modelos-avaliacao.json
+│   ├── clientes-iniciais.json
+│   └── Dockerfile
+├── frontend/
+│   ├── public/admin-tools/
+│   ├── src/components/
+│   ├── src/pages/
+│   └── Dockerfile
+├── backups/                 # Criada no servidor; não enviada ao GitHub
+├── docker-compose.yml
+├── .env.example
+└── README.md
+```
+
+## Solução de problemas
+
+### Porta 7001 já está em uso
+
+```bash
+docker ps --filter publish=7001 --format 'table {{.ID}}\t{{.Names}}\t{{.Ports}}'
+```
+
+Pare somente o contêiner antigo do próprio Sistema MIPs antes de subir a nova versão.
+
+### Conflito com o nome do contêiner
+
+Isso pode ocorrer após mudar o nome da pasta ou iniciar o mesmo Compose com outro nome de projeto:
+
+```bash
+docker ps -a --filter name=portal_mips
+```
+
+Confirme os contêineres encontrados antes de removê-los.
+
+### Backend não fica saudável
+
+```bash
+docker compose logs --tail=150 backend
+docker compose logs --tail=100 db
+```
+
+Confira principalmente as variáveis do `.env` e a saúde do PostgreSQL.
+
+### Alteração não apareceu no navegador
+
+```bash
+git pull --ff-only origin main
+docker compose up -d --build
+```
+
+Depois faça uma atualização forçada no navegador com `Ctrl + F5`.
+
+## Segurança
+
+- Nunca envie o arquivo `.env` ao GitHub;
+- Nunca envie arquivos `.dump`, uploads ou volumes do PostgreSQL ao repositório;
+- Mantenha o repositório privado quando houver código ou informações internas;
+- Utilize uma chave JWT longa e senhas exclusivas;
+- Baixe periodicamente os backups para outro computador;
+- Não exponha diretamente as portas do PostgreSQL na internet.
+
+---
+
+**Sistema Central · Nova Esperança — versão 2.0.0**  
+Tecnologia e tradição em produção de pães.

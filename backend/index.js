@@ -475,11 +475,12 @@ app.post('/api/backups/:nome/restaurar', verificarToken, somenteAdministrador, a
   if(!adm.rows.length||!(await bcrypt.compare(senha,adm.rows[0].senha)))return res.status(400).json({error:'Senha do Administrador incorreta'});
   try{
     await gerarBackup('-antes-restauracao');
+    await pool.query(`SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid() AND application_name IS DISTINCT FROM 'pg_restore'`);
     await executarArquivo('pg_restore',['-h',process.env.DB_HOST||'db','-U',process.env.DB_USER||'postgres','-d',process.env.DB_NAME||'mips_db','--clean','--if-exists','--single-transaction','--exit-on-error','--no-owner','--no-privileges',arquivo],{env:ambientePostgres(),timeout:300000});
     await inicializarBancoEAdmin();
-    await pool.query('INSERT INTO backup_auditoria (arquivo,acao,usuario_id) VALUES ($1,$2,$3)',[req.params.nome,'restaurado',req.usuarioId]);
+    await pool.query('INSERT INTO backup_auditoria (arquivo,acao,usuario_id) VALUES ($1,$2,NULL)',[req.params.nome,'restaurado']);
     res.json({mensagem:'Banco restaurado com sucesso. Entre novamente no sistema.'});
-  }catch(error){console.error('Erro na restauração:',error.message);res.status(500).json({error:'A restauração falhou. O backup automático anterior foi preservado.'});}
+  }catch(error){console.error('Erro na restauração:',error.stderr||error.message);const detalhe=String(error.stderr||error.message||'').trim().split('\n').slice(-2).join(' ').slice(0,500);res.status(500).json({error:`A restauração falhou. O backup automático anterior foi preservado.${detalhe?` Detalhe: ${detalhe}`:''}`});}
 });
 
 app.get('/api/configuracoes-portal', async (_req, res) => {
@@ -639,19 +640,19 @@ app.get('/api/usuarios', verificarToken, async (req, res) => {
 app.post('/api/usuarios', verificarToken, async (req, res) => {
   if (req.usuarioPerfil !== 'Administrador') return res.status(403).json({ error: 'Acesso negado' });
   const { nome, email, senha, perfil, lider_id = null, modelo_avaliacao_id = null, categoria_acesso_id = null } = req.body;
-  if (['leitor','editor'].includes(normalizarPerfil(perfil)) && !lider_id) return res.status(400).json({ error: 'Selecione o responsável pela avaliação deste usuário' });
+  if (['leitor','editor','gerente'].includes(normalizarPerfil(perfil)) && !lider_id) return res.status(400).json({ error: 'Selecione o responsável pela avaliação deste usuário' });
   try {
     const hash = await bcrypt.hash(senha, 10);
     if (lider_id) {
       const perfilUsuario = normalizarPerfil(perfil);
-      const perfisPermitidos = perfilUsuario === 'leitor' ? ['editor'] : ['gerente','administrador'];
+      const perfisPermitidos = perfilUsuario === 'leitor' ? ['editor'] : perfilUsuario === 'editor' ? ['gerente','administrador'] : ['administrador'];
       const lider=await pool.query('SELECT id FROM usuarios WHERE id=$1 AND LOWER(perfil)=ANY($2::text[])',[Number(lider_id),perfisPermitidos]);
       if(!lider.rows.length)return res.status(400).json({error:'O responsável selecionado não possui o perfil adequado'});
     }
     let nomeModelo = '';
     if(modelo_avaliacao_id){const modelo=await pool.query('SELECT id,nome FROM modelos_avaliacao WHERE id=$1 AND ativo=TRUE',[Number(modelo_avaliacao_id)]);if(!modelo.rows.length)return res.status(400).json({error:'Modelo de avaliação inválido'});nomeModelo=modelo.rows[0].nome;}
-    if(['leitor','editor'].includes(normalizarPerfil(perfil)) && !modelo_avaliacao_id) return res.status(400).json({error:'Selecione a função/modelo de avaliação'});
-    const recebeAvaliacao = ['leitor','editor'].includes(normalizarPerfil(perfil));
+    if(['leitor','editor','gerente'].includes(normalizarPerfil(perfil)) && !modelo_avaliacao_id) return res.status(400).json({error:'Selecione a função/modelo de avaliação'});
+    const recebeAvaliacao = ['leitor','editor','gerente'].includes(normalizarPerfil(perfil));
     const result = await pool.query('INSERT INTO usuarios (nome,email,senha,perfil,setor,cargo,lider_id,modelo_avaliacao_id,categoria_acesso_id,deve_alterar_senha) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,TRUE) RETURNING id', [nome,email,hash,perfil,nomeModelo,nomeModelo,recebeAvaliacao?Number(lider_id):null,recebeAvaliacao&&modelo_avaliacao_id?Number(modelo_avaliacao_id):null,categoria_acesso_id?Number(categoria_acesso_id):null]);
     res.status(201).json({ id: result.rows[0].id, mensagem: 'Criado!' });
   } catch (err) {
@@ -666,17 +667,17 @@ app.put('/api/usuarios/:id', verificarToken, async (req, res) => {
   const perfilNormalizado = String(perfil || '').toLowerCase();
   if (String(req.params.id) === String(req.usuarioId) && perfilNormalizado !== 'administrador') return res.status(400).json({ error: 'O Administrador não pode remover o próprio acesso administrativo' });
   if (!String(nome || '').trim() || !String(email || '').trim() || !['leitor','editor','gerente','administrador'].includes(perfilNormalizado)) return res.status(400).json({ error: 'Preencha nome, login e perfil corretamente' });
-  if (['leitor','editor'].includes(perfilNormalizado) && !lider_id) return res.status(400).json({ error: 'Selecione o responsável pela avaliação deste usuário' });
+  if (['leitor','editor','gerente'].includes(perfilNormalizado) && !lider_id) return res.status(400).json({ error: 'Selecione o responsável pela avaliação deste usuário' });
   try {
     let nomeModelo = '';
     if (modelo_avaliacao_id) { const m=await pool.query('SELECT nome FROM modelos_avaliacao WHERE id=$1 AND ativo=TRUE',[Number(modelo_avaliacao_id)]);if(!m.rows.length)return res.status(400).json({error:'Modelo de avaliação inválido'});nomeModelo=m.rows[0].nome; }
-    if (['leitor','editor'].includes(perfilNormalizado) && !modelo_avaliacao_id) return res.status(400).json({ error: 'Selecione a função/modelo de avaliação' });
+    if (['leitor','editor','gerente'].includes(perfilNormalizado) && !modelo_avaliacao_id) return res.status(400).json({ error: 'Selecione a função/modelo de avaliação' });
     if (lider_id) {
-      const permitidos=perfilNormalizado==='leitor'?['editor']:['gerente','administrador'];
+      const permitidos=perfilNormalizado==='leitor'?['editor']:perfilNormalizado==='editor'?['gerente','administrador']:['administrador'];
       const r=await pool.query('SELECT id FROM usuarios WHERE id=$1 AND LOWER(perfil)=ANY($2::text[])',[Number(lider_id),permitidos]);
       if(!r.rows.length)return res.status(400).json({error:'O responsável selecionado não possui o perfil adequado'});
     }
-    const recebeAvaliacao=['leitor','editor'].includes(perfilNormalizado);
+    const recebeAvaliacao=['leitor','editor','gerente'].includes(perfilNormalizado);
     const result=await pool.query('UPDATE usuarios SET nome=$1,email=$2,perfil=$3,setor=$4,cargo=$4,lider_id=$5,modelo_avaliacao_id=$6,categoria_acesso_id=$7 WHERE id=$8 RETURNING id',[nome.trim(),email.trim(),perfil,nomeModelo,recebeAvaliacao?Number(lider_id):null,recebeAvaliacao&&modelo_avaliacao_id?Number(modelo_avaliacao_id):null,categoria_acesso_id?Number(categoria_acesso_id):null,req.params.id]);
     if(!result.rows.length)return res.status(404).json({error:'Usuário não encontrado'});
     res.json({mensagem:'Perfil atualizado com sucesso.'});
@@ -816,10 +817,10 @@ app.delete('/api/perguntas-avaliacao/:id', verificarToken, async (req, res) => {
 app.get('/api/colaboradores', verificarToken, podeGerenciarAvaliacoes, async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT u.id,u.nome,u.setor,u.cargo,u.perfil,u.modelo_avaliacao_id,MAX(a.mes_referencia) AS ultima_avaliacao
-      FROM usuarios u LEFT JOIN avaliacoes a ON a.usuario_avaliado_id=u.id
+      SELECT u.id,u.nome,u.setor,u.cargo,u.perfil,u.modelo_avaliacao_id,u.lider_id,l.nome AS lider_nome,MAX(a.mes_referencia) AS ultima_avaliacao
+      FROM usuarios u LEFT JOIN usuarios l ON l.id=u.lider_id LEFT JOIN avaliacoes a ON a.usuario_avaliado_id=u.id
       WHERE u.modelo_avaliacao_id IS NOT NULL ${restringirAoProprioTime(req.usuarioPerfil)?"AND LOWER(u.perfil)='leitor' AND u.lider_id=$1":''}
-      GROUP BY u.id ORDER BY u.nome
+      GROUP BY u.id,l.nome ORDER BY u.nome
     `, restringirAoProprioTime(req.usuarioPerfil)?[req.usuarioId]:[]);
     res.json(result.rows);
   } catch (error) { res.status(500).json({ error: 'Erro ao listar colaboradores' }); }
@@ -848,12 +849,16 @@ app.get('/api/avaliacoes', verificarToken, podeGerenciarAvaliacoes, async (req, 
     valores.push(Number(req.query.colaborador_id));
     filtro += `${filtro ? ' AND' : 'WHERE'} a.usuario_avaliado_id = $${valores.length}`;
   }
+  if (req.query.lider_id) {
+    valores.push(Number(req.query.lider_id));
+    filtro += `${filtro ? ' AND' : 'WHERE'} c.lider_id = $${valores.length}`;
+  }
   try {
     const result = await pool.query(`
       SELECT a.id, a.usuario_avaliado_id AS colaborador_id, a.mes_referencia, a.percentual, a.pontuacao_total,
              a.classificacao, a.aplicado_por, a.criado_em, a.token_compartilhamento,
-             c.nome AS colaborador_nome, c.setor, c.cargo
-      FROM avaliacoes a JOIN usuarios c ON c.id=a.usuario_avaliado_id
+             c.nome AS colaborador_nome, c.setor, c.cargo,c.lider_id,l.nome AS lider_nome
+      FROM avaliacoes a JOIN usuarios c ON c.id=a.usuario_avaliado_id LEFT JOIN usuarios l ON l.id=c.lider_id
       ${filtro}
       ORDER BY a.mes_referencia DESC, c.nome
     `, valores);
@@ -897,16 +902,15 @@ app.get('/api/avaliacoes/:id', verificarToken, podeGerenciarAvaliacoes, async (r
 });
 
 app.post('/api/avaliacoes', verificarToken, podeGerenciarAvaliacoes, async (req, res) => {
-  const { colaborador_id, mes_referencia, elaborado_por, aplicado_por, respostas } = req.body;
+  const { colaborador_id, mes_referencia, respostas } = req.body;
   if (!colaborador_id || !/^[0-9]{4}-[0-9]{2}$/.test(String(mes_referencia || ''))) {
     return res.status(400).json({ error: 'Colaborador e mês de referência são obrigatórios' });
   }
-  if (!String(elaborado_por || '').trim() || !String(aplicado_por || '').trim()) {
-    return res.status(400).json({ error: 'Informe quem elaborou e quem aplicou a avaliação' });
-  }
   try {
-    const permitido=await pool.query(`SELECT id,modelo_avaliacao_id FROM usuarios WHERE id=$1 AND modelo_avaliacao_id IS NOT NULL ${restringirAoProprioTime(req.usuarioPerfil)?"AND LOWER(perfil)='leitor' AND lider_id=$2":''}`,restringirAoProprioTime(req.usuarioPerfil)?[Number(colaborador_id),req.usuarioId]:[Number(colaborador_id)]);
+    const permitido=await pool.query(`SELECT id,perfil,modelo_avaliacao_id FROM usuarios WHERE id=$1 AND modelo_avaliacao_id IS NOT NULL ${restringirAoProprioTime(req.usuarioPerfil)?"AND LOWER(perfil)='leitor' AND lider_id=$2":''}`,restringirAoProprioTime(req.usuarioPerfil)?[Number(colaborador_id),req.usuarioId]:[Number(colaborador_id)]);
     if(!permitido.rows.length)return res.status(403).json({error:'Este funcionário não está vinculado a você'});
+    if(normalizarPerfil(permitido.rows[0].perfil)==='gerente'&&normalizarPerfil(req.usuarioPerfil)!=='administrador')return res.status(403).json({error:'Somente o Administrador pode avaliar Gerentes'});
+    const aplicador=(await pool.query('SELECT nome FROM usuarios WHERE id=$1',[req.usuarioId])).rows[0]?.nome||'Usuário';
     const perguntas=await pool.query('SELECT * FROM perguntas_avaliacao WHERE ativa=TRUE AND modelo_avaliacao_id=$1 ORDER BY ordem,id',[permitido.rows[0].modelo_avaliacao_id]);
     const calculo = prepararAvaliacaoDinamica(perguntas.rows,respostas);
     const tokenCompartilhamento = randomUUID();
@@ -916,7 +920,7 @@ app.post('/api/avaliacoes', verificarToken, podeGerenciarAvaliacoes, async (req,
         pontuacao_total, percentual, classificacao, respostas, token_compartilhamento, criado_por
       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *
     `, [
-      Number(colaborador_id), mes_referencia, elaborado_por.trim(), aplicado_por.trim(),
+      Number(colaborador_id), mes_referencia, aplicador, aplicador,
       calculo.pontuacaoTotal, calculo.percentual,
       calculo.classificacao, JSON.stringify(calculo.respostas), tokenCompartilhamento, req.usuarioId,
     ]);
@@ -931,16 +935,16 @@ app.post('/api/avaliacoes', verificarToken, podeGerenciarAvaliacoes, async (req,
 });
 
 app.put('/api/avaliacoes/:id', verificarToken, podeGerenciarAvaliacoes, async (req, res) => {
-  const { colaborador_id, mes_referencia, elaborado_por, aplicado_por, respostas } = req.body;
+  const { colaborador_id, mes_referencia, respostas } = req.body;
   if (!colaborador_id || !/^[0-9]{4}-[0-9]{2}$/.test(String(mes_referencia || ''))) return res.status(400).json({ error: 'Usuário e mês de referência são obrigatórios' });
-  if (!String(elaborado_por || '').trim() || !String(aplicado_por || '').trim()) return res.status(400).json({ error: 'Informe quem elaborou e quem aplicou a avaliação' });
   try {
     const existente = await pool.query(`SELECT a.usuario_avaliado_id,a.respostas FROM avaliacoes a JOIN usuarios u ON u.id=a.usuario_avaliado_id WHERE a.id=$1 ${restringirAoProprioTime(req.usuarioPerfil)?'AND u.lider_id=$2':''}`,restringirAoProprioTime(req.usuarioPerfil)?[req.params.id,req.usuarioId]:[req.params.id]);
     if(!existente.rows.length)return res.status(404).json({error:'Avaliação não encontrada'});
     if(Number(colaborador_id)!==Number(existente.rows[0].usuario_avaliado_id))return res.status(400).json({error:'O usuário de uma avaliação concluída não pode ser alterado'});
     const perguntasSnapshot=(existente.rows[0].respostas||[]).map((r,index)=>({id:r.pergunta_id||r.competencia,titulo:r.titulo,pergunta:r.pergunta,criterios:r.criterios||[],obrigatoria:Boolean(r.obrigatoria),ordem:index+1}));
     const calculo = prepararAvaliacaoDinamica(perguntasSnapshot,respostas);
-    const result = await pool.query(`UPDATE avaliacoes SET mes_referencia=$1,elaborado_por=$2,aplicado_por=$3,pontuacao_total=$4,percentual=$5,classificacao=$6,respostas=$7 WHERE id=$8 RETURNING *`, [mes_referencia,elaborado_por.trim(),aplicado_por.trim(),calculo.pontuacaoTotal,calculo.percentual,calculo.classificacao,JSON.stringify(calculo.respostas),req.params.id]);
+    const aplicador=(await pool.query('SELECT nome FROM usuarios WHERE id=$1',[req.usuarioId])).rows[0]?.nome||'Usuário';
+    const result = await pool.query(`UPDATE avaliacoes SET mes_referencia=$1,elaborado_por=$2,aplicado_por=$3,pontuacao_total=$4,percentual=$5,classificacao=$6,respostas=$7 WHERE id=$8 RETURNING *`, [mes_referencia,aplicador,aplicador,calculo.pontuacaoTotal,calculo.percentual,calculo.classificacao,JSON.stringify(calculo.respostas),req.params.id]);
     if (!result.rows.length) return res.status(404).json({ error: 'Avaliação não encontrada' });
     res.json(result.rows[0]);
   } catch (error) {
@@ -1022,6 +1026,12 @@ app.patch('/api/reclamacoes/:id/status', verificarToken, async (req,res) => {
   if(!r.rows.length)return res.status(404).json({error:'Reclamação não encontrada'});
   res.json(r.rows[0]);
 });
+app.put('/api/reclamacoes/:id/status', verificarToken, async (req,res) => {
+  if (!(await podeRegistrarReclamacao(req))) return res.status(403).json({error:'Acesso negado'});
+  const status=String(req.body?.status||'');
+  if(!['aberto','concluido'].includes(status))return res.status(400).json({error:'Status inválido'});
+  try{const r=await pool.query(`UPDATE reclamacoes SET status=$1,concluido_em=CASE WHEN $1='concluido' THEN NOW() ELSE NULL END,concluido_por=CASE WHEN $1='concluido' THEN $2 ELSE NULL END WHERE id=$3 RETURNING *`,[status,req.usuarioId,req.params.id]);if(!r.rows.length)return res.status(404).json({error:'Reclamação não encontrada'});res.json(r.rows[0]);}catch(error){console.error('Erro ao alterar reclamação:',error.message);res.status(500).json({error:'Não foi possível alterar o status da reclamação'});}
+});
 
 app.delete('/api/reclamacoes/:id', verificarToken, async (req,res) => {
   if(normalizarPerfil(req.usuarioPerfil)!=='administrador')return res.status(403).json({error:'Somente o Administrador pode excluir reclamações'});
@@ -1031,6 +1041,7 @@ app.delete('/api/reclamacoes/:id', verificarToken, async (req,res) => {
 for (const [rota,tabela] of [['clientes','clientes_reclamacao'],['tipos','tipos_reclamacao']]) {
   app.post(`/api/configuracoes/reclamacoes/${rota}`,verificarToken,async(req,res)=>{if(normalizarPerfil(req.usuarioPerfil)!=='administrador')return res.status(403).json({error:'Acesso negado'});const nome=String(req.body?.nome||'').trim();if(nome.length<2)return res.status(400).json({error:'Informe um nome válido'});try{const r=await pool.query(`INSERT INTO ${tabela} (nome,ativo) VALUES ($1,TRUE) ON CONFLICT (nome) DO UPDATE SET ativo=TRUE RETURNING *`,[nome]);res.status(201).json(r.rows[0]);}catch(e){res.status(500).json({error:'Erro ao salvar cadastro'});}});
   app.delete(`/api/configuracoes/reclamacoes/${rota}/:id`,verificarToken,async(req,res)=>{if(normalizarPerfil(req.usuarioPerfil)!=='administrador')return res.status(403).json({error:'Acesso negado'});await pool.query(`UPDATE ${tabela} SET ativo=FALSE WHERE id=$1`,[req.params.id]);res.json({mensagem:'Cadastro desativado.'});});
+  app.put(`/api/configuracoes/reclamacoes/${rota}/:id`,verificarToken,async(req,res)=>{if(normalizarPerfil(req.usuarioPerfil)!=='administrador')return res.status(403).json({error:'Acesso negado'});const nome=String(req.body?.nome||'').trim();if(nome.length<2)return res.status(400).json({error:'Informe um nome válido'});try{const r=await pool.query(`UPDATE ${tabela} SET nome=$1 WHERE id=$2 AND ativo=TRUE RETURNING *`,[nome,req.params.id]);if(!r.rows.length)return res.status(404).json({error:'Cadastro não encontrado'});res.json(r.rows[0]);}catch(e){if(e.code==='23505')return res.status(409).json({error:'Já existe um cadastro com esse nome'});res.status(500).json({error:'Erro ao editar cadastro'});}});
 }
 
 app.put('/api/configuracoes/reclamacoes/prazos',verificarToken,async(req,res)=>{
@@ -1042,5 +1053,7 @@ app.put('/api/configuracoes/reclamacoes/prazos',verificarToken,async(req,res)=>{
 
 app.get('/api/categorias-acesso',verificarToken,async(req,res)=>{if(normalizarPerfil(req.usuarioPerfil)!=='administrador')return res.status(403).json({error:'Acesso negado'});const r=await pool.query('SELECT * FROM categorias_acesso WHERE ativo=TRUE ORDER BY nome');res.json(r.rows);});
 app.post('/api/categorias-acesso',verificarToken,async(req,res)=>{if(normalizarPerfil(req.usuarioPerfil)!=='administrador')return res.status(403).json({error:'Acesso negado'});const nome=String(req.body?.nome||'').trim(),permissoes=Array.isArray(req.body?.permissoes)?req.body.permissoes:[];if(nome.length<2)return res.status(400).json({error:'Informe o nome da categoria'});try{const r=await pool.query('INSERT INTO categorias_acesso (nome,permissoes,ativo) VALUES ($1,$2,TRUE) RETURNING *',[nome,JSON.stringify(permissoes)]);res.status(201).json(r.rows[0]);}catch(e){if(e.code==='23505')return res.status(409).json({error:'Já existe uma categoria com esse nome'});res.status(500).json({error:'Erro ao criar categoria'});}});
+app.put('/api/categorias-acesso/:id',verificarToken,somenteAdministrador,async(req,res)=>{const nome=String(req.body?.nome||'').trim(),permissoes=Array.isArray(req.body?.permissoes)?req.body.permissoes:[];if(nome.length<2)return res.status(400).json({error:'Informe o nome da categoria'});try{const r=await pool.query('UPDATE categorias_acesso SET nome=$1,permissoes=$2::jsonb WHERE id=$3 AND ativo=TRUE RETURNING *',[nome,JSON.stringify(permissoes),req.params.id]);if(!r.rows.length)return res.status(404).json({error:'Categoria não encontrada'});res.json(r.rows[0]);}catch(e){if(e.code==='23505')return res.status(409).json({error:'Já existe uma categoria com esse nome'});res.status(500).json({error:'Erro ao editar categoria'});}});
+app.delete('/api/categorias-acesso/:id',verificarToken,somenteAdministrador,async(req,res)=>{await pool.query('UPDATE usuarios SET categoria_acesso_id=NULL WHERE categoria_acesso_id=$1',[req.params.id]);const r=await pool.query('UPDATE categorias_acesso SET ativo=FALSE WHERE id=$1 RETURNING id',[req.params.id]);if(!r.rows.length)return res.status(404).json({error:'Categoria não encontrada'});res.json({mensagem:'Categoria removida e desvinculada dos usuários.'});});
 
 app.listen(PORT, () => console.log(`🚀 Backend rodando na porta ${PORT}`));
