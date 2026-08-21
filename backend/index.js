@@ -10,6 +10,7 @@ const fs = require('fs');
 const { randomUUID } = require('crypto');
 const { prepararAvaliacao } = require('./avaliacoes');
 const MODELOS_AVALIACAO = require('./modelos-avaliacao.json');
+const CLIENTES_INICIAIS = require('./clientes-iniciais.json');
 
 const app = express();
 const PORT = process.env.PORT || 7001;
@@ -181,6 +182,39 @@ async function inicializarBancoEAdmin() {
       );
       CREATE INDEX IF NOT EXISTS avaliacoes_usuario_mes_idx
         ON avaliacoes (usuario_avaliado_id, mes_referencia DESC);
+      CREATE TABLE IF NOT EXISTS clientes_reclamacao (
+        id SERIAL PRIMARY KEY,
+        nome VARCHAR(180) UNIQUE NOT NULL,
+        ativo BOOLEAN NOT NULL DEFAULT TRUE,
+        criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE TABLE IF NOT EXISTS tipos_reclamacao (
+        id SERIAL PRIMARY KEY,
+        nome VARCHAR(150) UNIQUE NOT NULL,
+        ativo BOOLEAN NOT NULL DEFAULT TRUE,
+        criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE TABLE IF NOT EXISTS reclamacoes (
+        id SERIAL PRIMARY KEY,
+        cliente_id INT NOT NULL REFERENCES clientes_reclamacao(id),
+        assunto VARCHAR(220) DEFAULT '',
+        tipo_id INT NOT NULL REFERENCES tipos_reclamacao(id),
+        lider_responsavel_id INT NOT NULL REFERENCES usuarios(id),
+        descricao TEXT NOT NULL,
+        anexos JSONB NOT NULL DEFAULT '[]'::jsonb,
+        criado_por INT REFERENCES usuarios(id) ON DELETE SET NULL,
+        criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS reclamacoes_criado_em_idx ON reclamacoes (criado_em DESC);
+      ALTER TABLE reclamacoes ALTER COLUMN assunto DROP NOT NULL;
+      CREATE TABLE IF NOT EXISTS categorias_acesso (
+        id SERIAL PRIMARY KEY,
+        nome VARCHAR(100) UNIQUE NOT NULL,
+        permissoes JSONB NOT NULL DEFAULT '[]'::jsonb,
+        ativo BOOLEAN NOT NULL DEFAULT TRUE,
+        criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS categoria_acesso_id INT REFERENCES categorias_acesso(id) ON DELETE SET NULL;
       INSERT INTO perguntas_avaliacao (titulo,pergunta,criterios,obrigatoria,ordem)
       SELECT * FROM (VALUES
         ('Manipulação higiênica','O colaborador cumpre corretamente as práticas de higiene, organização e limpeza durante a produção?','["Colabora com a higienização das máquinas e organização ao finalizar a produção.","Cumpre a higienização das demais áreas.","Mantém a área de embalagem organizada."]'::jsonb,FALSE,1),
@@ -197,6 +231,7 @@ async function inicializarBancoEAdmin() {
       WHERE pergunta ~* '^\\s*SEÇÃO\\s+[0-9]+\\s*:';
     `);
     await inicializarModelosAvaliacao();
+    await inicializarReclamacoes();
 
     const check = await pool.query("SELECT * FROM usuarios WHERE email = 'admin'");
     if (check.rows.length === 0) {
@@ -205,6 +240,12 @@ async function inicializarBancoEAdmin() {
       console.log('✅ Usuário admin criado!');
     }
   } catch (err) { console.log('Erro ao inicializar:', err.message); }
+}
+
+async function inicializarReclamacoes() {
+  const tipos = ['Pão duro','Pão esfarelado','Pão com aspecto velho','Pão mofado','Produto sem validade','Entrega atrasada','Falta de itens','Entrega não realizada'];
+  for (const nome of tipos) await pool.query('INSERT INTO tipos_reclamacao (nome) VALUES ($1) ON CONFLICT (nome) DO NOTHING', [nome]);
+  for (const nome of CLIENTES_INICIAIS) await pool.query('INSERT INTO clientes_reclamacao (nome) VALUES ($1) ON CONFLICT (nome) DO NOTHING', [nome]);
 }
 
 async function inicializarModelosAvaliacao() {
@@ -333,7 +374,8 @@ app.post('/api/auth/login', async (req, res) => {
     const isValid = await bcrypt.compare(senha, user.senha);
     if (!isValid) return res.status(401).json({ error: 'Senha inválida' });
     const token = jwt.sign({ id: user.id, perfil: user.perfil }, JWT_SECRET, { expiresIn: '8h' });
-    res.json({ token, deve_alterar_senha: Boolean(user.deve_alterar_senha), user: { id: user.id, nome: user.nome, perfil: user.perfil, email: user.email, deve_alterar_senha: Boolean(user.deve_alterar_senha) } });
+    const categoria = user.categoria_acesso_id ? await pool.query('SELECT nome,permissoes FROM categorias_acesso WHERE id=$1 AND ativo=TRUE',[user.categoria_acesso_id]) : {rows:[]};
+    res.json({ token, deve_alterar_senha: Boolean(user.deve_alterar_senha), user: { id: user.id, nome: user.nome, perfil: user.perfil, email: user.email, deve_alterar_senha: Boolean(user.deve_alterar_senha), categoria_acesso_id:user.categoria_acesso_id, categoria_acesso_nome:categoria.rows[0]?.nome||'', permissoes:categoria.rows[0]?.permissoes||[] } });
   } catch (error) { res.status(500).json({ error: 'Erro interno' }); }
 });
 
@@ -511,27 +553,28 @@ app.delete('/api/mips/:id', verificarToken, async (req, res) => {
 app.get('/api/usuarios', verificarToken, async (req, res) => {
   if (req.usuarioPerfil !== 'Administrador') return res.status(403).json({ error: 'Acesso negado' });
   try {
-    const result = await pool.query(`SELECT u.id,u.nome,u.email,u.perfil,u.setor,u.cargo,u.lider_id,l.nome AS lider_nome,u.modelo_avaliacao_id,m.nome AS modelo_avaliacao_nome,u.deve_alterar_senha,u.criado_em FROM usuarios u LEFT JOIN usuarios l ON l.id=u.lider_id LEFT JOIN modelos_avaliacao m ON m.id=u.modelo_avaliacao_id ORDER BY u.nome`);
+    const result = await pool.query(`SELECT u.id,u.nome,u.email,u.perfil,u.setor,u.cargo,u.lider_id,l.nome AS lider_nome,u.modelo_avaliacao_id,m.nome AS modelo_avaliacao_nome,u.categoria_acesso_id,ca.nome AS categoria_acesso_nome,u.deve_alterar_senha,u.criado_em FROM usuarios u LEFT JOIN usuarios l ON l.id=u.lider_id LEFT JOIN modelos_avaliacao m ON m.id=u.modelo_avaliacao_id LEFT JOIN categorias_acesso ca ON ca.id=u.categoria_acesso_id ORDER BY u.nome`);
     res.json(result.rows);
   } catch (error) { res.status(500).json({ error: 'Erro' }); }
 });
 
 app.post('/api/usuarios', verificarToken, async (req, res) => {
   if (req.usuarioPerfil !== 'Administrador') return res.status(403).json({ error: 'Acesso negado' });
-  const { nome, email, senha, perfil, lider_id = null, modelo_avaliacao_id = null } = req.body;
-  if (['leitor','editor','gerente'].includes(normalizarPerfil(perfil)) && !lider_id) return res.status(400).json({ error: 'Selecione o responsável pela avaliação deste usuário' });
+  const { nome, email, senha, perfil, lider_id = null, modelo_avaliacao_id = null, categoria_acesso_id = null } = req.body;
+  if (['leitor','editor'].includes(normalizarPerfil(perfil)) && !lider_id) return res.status(400).json({ error: 'Selecione o responsável pela avaliação deste usuário' });
   try {
     const hash = await bcrypt.hash(senha, 10);
     if (lider_id) {
       const perfilUsuario = normalizarPerfil(perfil);
-      const perfisPermitidos = perfilUsuario === 'leitor' ? ['editor'] : perfilUsuario === 'editor' ? ['gerente','administrador'] : ['administrador'];
+      const perfisPermitidos = perfilUsuario === 'leitor' ? ['editor'] : ['gerente','administrador'];
       const lider=await pool.query('SELECT id FROM usuarios WHERE id=$1 AND LOWER(perfil)=ANY($2::text[])',[Number(lider_id),perfisPermitidos]);
       if(!lider.rows.length)return res.status(400).json({error:'O responsável selecionado não possui o perfil adequado'});
     }
     let nomeModelo = '';
     if(modelo_avaliacao_id){const modelo=await pool.query('SELECT id,nome FROM modelos_avaliacao WHERE id=$1 AND ativo=TRUE',[Number(modelo_avaliacao_id)]);if(!modelo.rows.length)return res.status(400).json({error:'Modelo de avaliação inválido'});nomeModelo=modelo.rows[0].nome;}
-    if(normalizarPerfil(perfil) !== 'administrador' && !modelo_avaliacao_id) return res.status(400).json({error:'Selecione a função/modelo de avaliação'});
-    const result = await pool.query('INSERT INTO usuarios (nome,email,senha,perfil,setor,cargo,lider_id,modelo_avaliacao_id,deve_alterar_senha) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,TRUE) RETURNING id', [nome,email,hash,perfil,nomeModelo,nomeModelo,['leitor','editor','gerente'].includes(normalizarPerfil(perfil))?Number(lider_id):null,modelo_avaliacao_id?Number(modelo_avaliacao_id):null]);
+    if(['leitor','editor'].includes(normalizarPerfil(perfil)) && !modelo_avaliacao_id) return res.status(400).json({error:'Selecione a função/modelo de avaliação'});
+    const recebeAvaliacao = ['leitor','editor'].includes(normalizarPerfil(perfil));
+    const result = await pool.query('INSERT INTO usuarios (nome,email,senha,perfil,setor,cargo,lider_id,modelo_avaliacao_id,categoria_acesso_id,deve_alterar_senha) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,TRUE) RETURNING id', [nome,email,hash,perfil,nomeModelo,nomeModelo,recebeAvaliacao?Number(lider_id):null,recebeAvaliacao&&modelo_avaliacao_id?Number(modelo_avaliacao_id):null,categoria_acesso_id?Number(categoria_acesso_id):null]);
     res.status(201).json({ id: result.rows[0].id, mensagem: 'Criado!' });
   } catch (err) {
     if (err.code === '23505') return res.status(409).json({ error: 'Este usuário de acesso já está cadastrado' });
@@ -541,21 +584,22 @@ app.post('/api/usuarios', verificarToken, async (req, res) => {
 
 app.put('/api/usuarios/:id', verificarToken, async (req, res) => {
   if (String(req.usuarioPerfil).toLowerCase() !== 'administrador') return res.status(403).json({ error: 'Acesso negado' });
-  const { nome, email, perfil, lider_id = null, modelo_avaliacao_id = null } = req.body;
+  const { nome, email, perfil, lider_id = null, modelo_avaliacao_id = null, categoria_acesso_id = null } = req.body;
   const perfilNormalizado = String(perfil || '').toLowerCase();
   if (String(req.params.id) === String(req.usuarioId) && perfilNormalizado !== 'administrador') return res.status(400).json({ error: 'O Administrador não pode remover o próprio acesso administrativo' });
   if (!String(nome || '').trim() || !String(email || '').trim() || !['leitor','editor','gerente','administrador'].includes(perfilNormalizado)) return res.status(400).json({ error: 'Preencha nome, login e perfil corretamente' });
-  if (['leitor','editor','gerente'].includes(perfilNormalizado) && !lider_id) return res.status(400).json({ error: 'Selecione o responsável pela avaliação deste usuário' });
+  if (['leitor','editor'].includes(perfilNormalizado) && !lider_id) return res.status(400).json({ error: 'Selecione o responsável pela avaliação deste usuário' });
   try {
     let nomeModelo = '';
     if (modelo_avaliacao_id) { const m=await pool.query('SELECT nome FROM modelos_avaliacao WHERE id=$1 AND ativo=TRUE',[Number(modelo_avaliacao_id)]);if(!m.rows.length)return res.status(400).json({error:'Modelo de avaliação inválido'});nomeModelo=m.rows[0].nome; }
-    if (perfilNormalizado !== 'administrador' && !modelo_avaliacao_id) return res.status(400).json({ error: 'Selecione a função/modelo de avaliação' });
+    if (['leitor','editor'].includes(perfilNormalizado) && !modelo_avaliacao_id) return res.status(400).json({ error: 'Selecione a função/modelo de avaliação' });
     if (lider_id) {
-      const permitidos=perfilNormalizado==='leitor'?['editor']:perfilNormalizado==='editor'?['gerente','administrador']:['administrador'];
+      const permitidos=perfilNormalizado==='leitor'?['editor']:['gerente','administrador'];
       const r=await pool.query('SELECT id FROM usuarios WHERE id=$1 AND LOWER(perfil)=ANY($2::text[])',[Number(lider_id),permitidos]);
       if(!r.rows.length)return res.status(400).json({error:'O responsável selecionado não possui o perfil adequado'});
     }
-    const result=await pool.query('UPDATE usuarios SET nome=$1,email=$2,perfil=$3,setor=$4,cargo=$4,lider_id=$5,modelo_avaliacao_id=$6 WHERE id=$7 RETURNING id',[nome.trim(),email.trim(),perfil,nomeModelo,['leitor','editor','gerente'].includes(perfilNormalizado)?Number(lider_id):null,modelo_avaliacao_id?Number(modelo_avaliacao_id):null,req.params.id]);
+    const recebeAvaliacao=['leitor','editor'].includes(perfilNormalizado);
+    const result=await pool.query('UPDATE usuarios SET nome=$1,email=$2,perfil=$3,setor=$4,cargo=$4,lider_id=$5,modelo_avaliacao_id=$6,categoria_acesso_id=$7 WHERE id=$8 RETURNING id',[nome.trim(),email.trim(),perfil,nomeModelo,recebeAvaliacao?Number(lider_id):null,recebeAvaliacao&&modelo_avaliacao_id?Number(modelo_avaliacao_id):null,categoria_acesso_id?Number(categoria_acesso_id):null,req.params.id]);
     if(!result.rows.length)return res.status(404).json({error:'Usuário não encontrado'});
     res.json({mensagem:'Perfil atualizado com sucesso.'});
   } catch (error) { if(error.code==='23505')return res.status(409).json({error:'Este login já está sendo utilizado'});res.status(500).json({error:'Erro ao atualizar usuário'}); }
@@ -637,6 +681,17 @@ const podeGerenciarAvaliacoes = (req, res, next) => {
 app.get('/api/modelos-avaliacao', verificarToken, async (_req, res) => {
   const result=await pool.query('SELECT id,nome,chave FROM modelos_avaliacao WHERE ativo=TRUE ORDER BY nome');
   res.json(result.rows);
+});
+
+app.post('/api/modelos-avaliacao', verificarToken, async (req, res) => {
+  if (normalizarPerfil(req.usuarioPerfil) !== 'administrador') return res.status(403).json({ error: 'Somente o Administrador pode criar modelos' });
+  const nome = String(req.body?.nome || '').trim();
+  if (nome.length < 2) return res.status(400).json({ error: 'Informe o nome do modelo' });
+  const chave = nome.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
+  try {
+    const result = await pool.query('INSERT INTO modelos_avaliacao (nome,chave,ativo) VALUES ($1,$2,TRUE) RETURNING *',[nome,`${chave}-${Date.now().toString(36)}`]);
+    res.status(201).json(result.rows[0]);
+  } catch (error) { res.status(500).json({ error: 'Erro ao criar modelo de avaliação' }); }
 });
 
 app.get('/api/perguntas-avaliacao', verificarToken, async (req, res) => {
@@ -829,5 +884,61 @@ app.delete('/api/avaliacoes/:id', verificarToken, podeGerenciarAvaliacoes, async
     res.json({ mensagem: 'Avaliação excluída.' });
   } catch (error) { res.status(500).json({ error: 'Erro ao excluir avaliação' }); }
 });
+
+// RECLAMAÇÕES
+const podeRegistrarReclamacao = async (req) => {
+  if (['administrador','editor','gerente'].includes(normalizarPerfil(req.usuarioPerfil))) return true;
+  const r = await pool.query(`SELECT 1 FROM usuarios u JOIN categorias_acesso c ON c.id=u.categoria_acesso_id WHERE u.id=$1 AND c.ativo=TRUE AND c.permissoes ? 'reclamacoes.registrar'`,[req.usuarioId]);
+  return Boolean(r.rows.length);
+};
+
+app.get('/api/reclamacoes/catalogos', verificarToken, async (_req,res) => {
+  const [clientes,tipos,lideres]=await Promise.all([
+    pool.query('SELECT id,nome FROM clientes_reclamacao WHERE ativo=TRUE ORDER BY nome'),
+    pool.query('SELECT id,nome FROM tipos_reclamacao WHERE ativo=TRUE ORDER BY nome'),
+    pool.query("SELECT id,nome FROM usuarios WHERE LOWER(perfil)='editor' ORDER BY nome")
+  ]);
+  res.json({clientes:clientes.rows,tipos:tipos.rows,lideres:lideres.rows});
+});
+
+app.get('/api/reclamacoes/metricas', verificarToken, async (_req,res) => {
+  const [total,tipo,lider,mes]=await Promise.all([
+    pool.query('SELECT COUNT(*)::int AS total FROM reclamacoes'),
+    pool.query(`SELECT t.nome,COUNT(*)::int AS total FROM reclamacoes r JOIN tipos_reclamacao t ON t.id=r.tipo_id GROUP BY t.id ORDER BY total DESC,t.nome`),
+    pool.query(`SELECT u.nome,COUNT(*)::int AS total FROM reclamacoes r JOIN usuarios u ON u.id=r.lider_responsavel_id GROUP BY u.id ORDER BY total DESC,u.nome`),
+    pool.query(`SELECT TO_CHAR(DATE_TRUNC('month',criado_em),'YYYY-MM') AS mes,COUNT(*)::int AS total FROM reclamacoes GROUP BY 1 ORDER BY 1`)
+  ]);
+  res.json({total:total.rows[0].total,por_tipo:tipo.rows,por_lider:lider.rows,por_mes:mes.rows});
+});
+
+app.get('/api/reclamacoes', verificarToken, async (req,res) => {
+  if (!(await podeRegistrarReclamacao(req))) return res.status(403).json({error:'Seu perfil possui acesso apenas às métricas'});
+  const r=await pool.query(`SELECT r.*,c.nome AS cliente_nome,t.nome AS tipo_nome,l.nome AS lider_nome,u.nome AS criado_por_nome FROM reclamacoes r JOIN clientes_reclamacao c ON c.id=r.cliente_id JOIN tipos_reclamacao t ON t.id=r.tipo_id JOIN usuarios l ON l.id=r.lider_responsavel_id LEFT JOIN usuarios u ON u.id=r.criado_por ORDER BY r.criado_em DESC`);
+  res.json(r.rows);
+});
+
+app.post('/api/reclamacoes', verificarToken, async (req,res) => {
+  if (!(await podeRegistrarReclamacao(req))) return res.status(403).json({error:'Acesso negado'});
+  const {cliente_id,tipo_id,lider_responsavel_id,descricao,anexos=[]}=req.body;
+  if(!cliente_id||!tipo_id||!lider_responsavel_id||!String(descricao||'').trim())return res.status(400).json({error:'Preencha todos os campos obrigatórios'});
+  if(!Array.isArray(anexos)||anexos.length>10)return res.status(400).json({error:'Envie no máximo 10 anexos'});
+  const lider=await pool.query("SELECT id FROM usuarios WHERE id=$1 AND LOWER(perfil)='editor'",[Number(lider_responsavel_id)]);
+  if(!lider.rows.length)return res.status(400).json({error:'Selecione um usuário com perfil Líder'});
+  const r=await pool.query(`INSERT INTO reclamacoes (cliente_id,assunto,tipo_id,lider_responsavel_id,descricao,anexos,criado_por) VALUES ($1,'',$2,$3,$4,$5,$6) RETURNING id`,[Number(cliente_id),Number(tipo_id),Number(lider_responsavel_id),String(descricao).trim(),JSON.stringify(anexos),req.usuarioId]);
+  res.status(201).json(r.rows[0]);
+});
+
+app.delete('/api/reclamacoes/:id', verificarToken, async (req,res) => {
+  if(normalizarPerfil(req.usuarioPerfil)!=='administrador')return res.status(403).json({error:'Somente o Administrador pode excluir reclamações'});
+  await pool.query('DELETE FROM reclamacoes WHERE id=$1',[req.params.id]);res.json({mensagem:'Reclamação excluída.'});
+});
+
+for (const [rota,tabela] of [['clientes','clientes_reclamacao'],['tipos','tipos_reclamacao']]) {
+  app.post(`/api/configuracoes/reclamacoes/${rota}`,verificarToken,async(req,res)=>{if(normalizarPerfil(req.usuarioPerfil)!=='administrador')return res.status(403).json({error:'Acesso negado'});const nome=String(req.body?.nome||'').trim();if(nome.length<2)return res.status(400).json({error:'Informe um nome válido'});try{const r=await pool.query(`INSERT INTO ${tabela} (nome,ativo) VALUES ($1,TRUE) ON CONFLICT (nome) DO UPDATE SET ativo=TRUE RETURNING *`,[nome]);res.status(201).json(r.rows[0]);}catch(e){res.status(500).json({error:'Erro ao salvar cadastro'});}});
+  app.delete(`/api/configuracoes/reclamacoes/${rota}/:id`,verificarToken,async(req,res)=>{if(normalizarPerfil(req.usuarioPerfil)!=='administrador')return res.status(403).json({error:'Acesso negado'});await pool.query(`UPDATE ${tabela} SET ativo=FALSE WHERE id=$1`,[req.params.id]);res.json({mensagem:'Cadastro desativado.'});});
+}
+
+app.get('/api/categorias-acesso',verificarToken,async(req,res)=>{if(normalizarPerfil(req.usuarioPerfil)!=='administrador')return res.status(403).json({error:'Acesso negado'});const r=await pool.query('SELECT * FROM categorias_acesso WHERE ativo=TRUE ORDER BY nome');res.json(r.rows);});
+app.post('/api/categorias-acesso',verificarToken,async(req,res)=>{if(normalizarPerfil(req.usuarioPerfil)!=='administrador')return res.status(403).json({error:'Acesso negado'});const nome=String(req.body?.nome||'').trim(),permissoes=Array.isArray(req.body?.permissoes)?req.body.permissoes:[];if(nome.length<2)return res.status(400).json({error:'Informe o nome da categoria'});try{const r=await pool.query('INSERT INTO categorias_acesso (nome,permissoes,ativo) VALUES ($1,$2,TRUE) RETURNING *',[nome,JSON.stringify(permissoes)]);res.status(201).json(r.rows[0]);}catch(e){if(e.code==='23505')return res.status(409).json({error:'Já existe uma categoria com esse nome'});res.status(500).json({error:'Erro ao criar categoria'});}});
 
 app.listen(PORT, () => console.log(`🚀 Backend rodando na porta ${PORT}`));

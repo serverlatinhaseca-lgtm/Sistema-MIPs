@@ -601,7 +601,7 @@ export default function Avaliacoes() {
             ))}
           </section>
         </div>
-        {user.perfil?.toLowerCase() === "administrador" && (
+        {false && (
           <section className="panel-card mb-5">
             <h2 className="section-title mb-1">Perguntas da avaliação</h2>
             <p className="text-sm text-[var(--text-muted)] mb-4">

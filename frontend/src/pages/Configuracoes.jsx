@@ -1,50 +1,38 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import axios from "axios";
-import { Image, Save } from "lucide-react";
-import Sidebar from "../components/Sidebar";
-import { aplicarBranding } from "../useBranding";
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
+import { Image, Plus, Save, Trash2 } from 'lucide-react';
+import Sidebar from '../components/Sidebar';
+import { aplicarBranding } from '../useBranding';
 
-export default function Configuracoes() {
-  const [form, setForm] = useState({ nome_site: "Portal MIPs", logo_site: "", logo_avaliacao: "" });
-  const [salvando, setSalvando] = useState(false);
-  const navigate = useNavigate();
-  const user = JSON.parse(localStorage.getItem("user") || "{}");
-  const headers = { Authorization: `Bearer ${localStorage.getItem("token")}` };
-  const api = `http://${window.location.hostname}:7001/api`;
+const permissoesDisponiveis=[['mips.editar','Criar e editar MIPs'],['receitas.editar','Criar e editar receitas'],['avaliacoes.gerenciar','Registrar e administrar avaliações'],['reclamacoes.registrar','Registrar reclamações'],['ferramentas.usar','Usar Etiquetas e Pacotes/Caixas']];
 
-  useEffect(() => {
-    if (user.perfil?.toLowerCase() !== "administrador") return navigate("/dashboard");
-    axios.get(`${api}/configuracoes-portal`).then(r=>setForm(r.data));
-  }, []);
-
-  async function enviarLogo(campo, arquivo) {
-    if (!arquivo) return;
-    if (!arquivo.type.startsWith("image/")) return alert("Selecione uma imagem válida.");
-    const dados = new FormData(); dados.append("image", arquivo);
-    try {
-      const r = await axios.post(`${api}/upload`, dados, { headers });
-      setForm(v=>({ ...v, [campo]: r.data.url }));
-    } catch (e) { alert(e.response?.data?.error || "Erro ao enviar imagem."); }
-  }
-
-  async function salvar(e) {
-    e.preventDefault(); setSalvando(true);
-    try {
-      const r = await axios.put(`${api}/configuracoes-portal`, form, { headers });
-      localStorage.setItem("branding", JSON.stringify(r.data));
-      aplicarBranding(r.data);
-      alert("Identidade visual atualizada.");
-    } catch (e) { alert(e.response?.data?.error || "Erro ao salvar configurações."); }
-    finally { setSalvando(false); }
-  }
-
-  const Logo = ({ campo, titulo, descricao }) => <div className="border border-[var(--border-color)] rounded-2xl p-4">
-    <h2 className="font-bold">{titulo}</h2><p className="text-sm text-[var(--text-muted)] mb-3">{descricao}</p>
-    <div className="h-28 bg-white border border-dashed border-stone-300 rounded-xl grid place-items-center overflow-hidden mb-3">{form[campo] ? <img src={form[campo]} alt={titulo} className="max-h-24 max-w-full object-contain" /> : <Image className="text-stone-400" />}</div>
-    <input accept="image/png,image/jpeg,image/webp,image/svg+xml" type="file" onChange={e=>enviarLogo(campo,e.target.files?.[0])} className="block w-full text-sm" />
-    {form[campo] && <button type="button" onClick={()=>setForm(v=>({...v,[campo]:""}))} className="text-red-600 text-sm font-bold mt-3">Remover logo</button>}
-  </div>;
-
-  return <div className="min-h-screen bg-[var(--bg-main)] flex"><Sidebar /><main className="flex-1 p-6 sm:p-10"><h1 className="text-3xl font-bold">Personalização do portal</h1><p className="text-[var(--text-muted)] mb-7">Altere o nome e os logos exibidos no sistema e nas avaliações.</p><form onSubmit={salvar} className="panel-card max-w-4xl space-y-6"><label className="block font-semibold">Nome do site<input required className="field" value={form.nome_site} onChange={e=>setForm({...form,nome_site:e.target.value})} /></label><div className="grid md:grid-cols-2 gap-5"><Logo campo="logo_site" titulo="Logo do site" descricao="Aparece no login, no menu lateral e na aba do navegador." /><Logo campo="logo_avaliacao" titulo="Logo da avaliação" descricao="Aparece no cabeçalho do relatório impresso." /></div><button disabled={salvando} className="bg-amber-600 text-white px-6 py-3 rounded-xl font-bold flex items-center"><Save size={18} className="mr-2" />{salvando?"Salvando...":"Salvar personalização"}</button></form></main></div>;
+export default function Configuracoes(){
+  const api=`http://${window.location.hostname}:7001/api`,headers={Authorization:`Bearer ${localStorage.getItem('token')}`};
+  const user=JSON.parse(localStorage.getItem('user')||'{}'),navigate=useNavigate();
+  const [aba,setAba]=useState('portal'),[form,setForm]=useState({nome_site:'Portal MIPs',logo_site:'',logo_avaliacao:''});
+  const [catalogos,setCatalogos]=useState({clientes:[],tipos:[],lideres:[]}),[novoCliente,setNovoCliente]=useState(''),[novoTipo,setNovoTipo]=useState('');
+  const [modelos,setModelos]=useState([]),[modeloId,setModeloId]=useState(''),[novoModelo,setNovoModelo]=useState(''),[perguntas,setPerguntas]=useState([]),[pergunta,setPergunta]=useState({titulo:'',pergunta:'',criterios:'',obrigatoria:false});
+  const [categorias,setCategorias]=useState([]),[categoria,setCategoria]=useState({nome:'',permissoes:[]});
+  useEffect(()=>{if(user.perfil?.toLowerCase()!=='administrador')return navigate('/dashboard');carregar();},[]);
+  async function carregar(){const [b,c,m,ca]=await Promise.all([axios.get(`${api}/configuracoes-portal`),axios.get(`${api}/reclamacoes/catalogos`,{headers}),axios.get(`${api}/modelos-avaliacao`,{headers}),axios.get(`${api}/categorias-acesso`,{headers})]);setForm(b.data);setCatalogos(c.data);setModelos(m.data);setCategorias(ca.data);if(m.data[0])selecionarModelo(m.data[0].id);}
+  async function selecionarModelo(id){setModeloId(String(id));const r=await axios.get(`${api}/perguntas-avaliacao?modelo_id=${id}`,{headers});setPerguntas(r.data);}
+  async function enviarLogo(campo,arquivo){if(!arquivo)return;const dados=new FormData();dados.append('image',arquivo);const r=await axios.post(`${api}/upload`,dados,{headers});setForm(v=>({...v,[campo]:r.data.url}));}
+  async function salvarPortal(e){e.preventDefault();const r=await axios.put(`${api}/configuracoes-portal`,form,{headers});localStorage.setItem('branding',JSON.stringify(r.data));aplicarBranding(r.data);alert('Identidade visual atualizada.');}
+  async function cadastrarCatalogo(rota,nome,limpar){if(!nome.trim())return;await axios.post(`${api}/configuracoes/reclamacoes/${rota}`,{nome},{headers});limpar('');const r=await axios.get(`${api}/reclamacoes/catalogos`,{headers});setCatalogos(r.data);}
+  async function removerCatalogo(rota,id){if(!confirm('Desativar este cadastro?'))return;await axios.delete(`${api}/configuracoes/reclamacoes/${rota}/${id}`,{headers});const r=await axios.get(`${api}/reclamacoes/catalogos`,{headers});setCatalogos(r.data);}
+  async function criarModelo(e){e.preventDefault();const r=await axios.post(`${api}/modelos-avaliacao`,{nome:novoModelo},{headers});setModelos(v=>[...v,r.data]);setNovoModelo('');selecionarModelo(r.data.id);}
+  async function criarPergunta(e){e.preventDefault();await axios.post(`${api}/perguntas-avaliacao`,{titulo:pergunta.titulo,pergunta:pergunta.pergunta,criterios:pergunta.criterios.split('\n').map(x=>x.trim()).filter(Boolean),obrigatoria:pergunta.obrigatoria,modelo_avaliacao_id:Number(modeloId)},{headers});setPergunta({titulo:'',pergunta:'',criterios:'',obrigatoria:false});selecionarModelo(modeloId);}
+  async function removerPergunta(id){if(!confirm('Remover esta pergunta das próximas avaliações?'))return;await axios.delete(`${api}/perguntas-avaliacao/${id}`,{headers});selecionarModelo(modeloId);}
+  async function criarCategoria(e){e.preventDefault();const r=await axios.post(`${api}/categorias-acesso`,categoria,{headers});setCategorias(v=>[...v,r.data]);setCategoria({nome:'',permissoes:[]});}
+  const Logo=({campo,titulo,descricao})=><div className="border border-[var(--border-color)] rounded-2xl p-4"><h2 className="font-bold">{titulo}</h2><p className="text-sm text-[var(--text-muted)] mb-3">{descricao}</p><div className="h-28 bg-white border border-dashed border-stone-300 rounded-xl grid place-items-center overflow-hidden mb-3">{form[campo]?<img src={form[campo]} className="max-h-24 max-w-full object-contain"/>:<Image className="text-stone-400"/>}</div><input accept="image/*" type="file" onChange={e=>enviarLogo(campo,e.target.files?.[0])}/></div>;
+  const abas=[['portal','Portal'],['avaliacoes','Avaliações'],['reclamacoes','Reclamações'],['acessos','Categorias de acesso']];
+  return <div className="min-h-screen bg-[var(--bg-main)] flex"><Sidebar/><main className="flex-1 p-4 sm:p-8 max-w-7xl mx-auto"><h1 className="text-3xl font-bold">Central de configurações</h1><p className="text-[var(--text-muted)] mb-6">Todos os cadastros ajustáveis do sistema ficam centralizados aqui.</p><div className="flex flex-wrap gap-2 mb-6">{abas.map(([id,nome])=><button key={id} onClick={()=>setAba(id)} className={`px-4 py-2 rounded-xl font-bold ${aba===id?'bg-[var(--primary)] text-white':'panel-card !p-2'}`}>{nome}</button>)}</div>
+  {aba==='portal'&&<form onSubmit={salvarPortal} className="panel-card max-w-4xl space-y-6"><label className="font-semibold">Nome do site<input required className="field" value={form.nome_site} onChange={e=>setForm({...form,nome_site:e.target.value})}/></label><div className="grid md:grid-cols-2 gap-5"><Logo campo="logo_site" titulo="Logo do site" descricao="Login, menu e aba do navegador."/><Logo campo="logo_avaliacao" titulo="Logo da avaliação" descricao="Relatório impresso."/></div><button className="bg-[var(--primary)] text-white px-6 py-3 rounded-xl font-bold flex"><Save className="mr-2"/>Salvar personalização</button></form>}
+  {aba==='reclamacoes'&&<div className="grid lg:grid-cols-2 gap-5"><Catalogo titulo="Clientes unificados" itens={catalogos.clientes} valor={novoCliente} setValor={setNovoCliente} adicionar={()=>cadastrarCatalogo('clientes',novoCliente,setNovoCliente)} remover={id=>removerCatalogo('clientes',id)}/><Catalogo titulo="Tipos de reclamação" itens={catalogos.tipos} valor={novoTipo} setValor={setNovoTipo} adicionar={()=>cadastrarCatalogo('tipos',novoTipo,setNovoTipo)} remover={id=>removerCatalogo('tipos',id)}/></div>}
+  {aba==='avaliacoes'&&<div className="space-y-5"><section className="panel-card"><h2 className="section-title">Modelos de avaliação</h2><form onSubmit={criarModelo} className="flex gap-2 mt-3"><input required className="field !mt-0" placeholder="Nome do novo modelo" value={novoModelo} onChange={e=>setNovoModelo(e.target.value)}/><button className="bg-[var(--primary)] text-white px-4 rounded-xl"><Plus/></button></form><select className="field mt-4" value={modeloId} onChange={e=>selecionarModelo(e.target.value)}>{modelos.map(m=><option key={m.id} value={m.id}>{m.nome}</option>)}</select></section><section className="panel-card"><h2 className="section-title mb-3">Perguntas do modelo</h2>{perguntas.map(p=><div key={p.id} className="flex justify-between gap-3 border-b border-[var(--border-color)] py-3"><div><strong>{p.titulo}</strong><p className="text-sm text-[var(--text-muted)]">{p.pergunta}</p></div><button onClick={()=>removerPergunta(p.id)} className="text-red-600"><Trash2 size={18}/></button></div>)}<form onSubmit={criarPergunta} className="grid md:grid-cols-2 gap-3 mt-5"><input required className="field" placeholder="Título da competência" value={pergunta.titulo} onChange={e=>setPergunta({...pergunta,titulo:e.target.value})}/><input required className="field" placeholder="Pergunta principal" value={pergunta.pergunta} onChange={e=>setPergunta({...pergunta,pergunta:e.target.value})}/><textarea className="field md:col-span-2" placeholder="Critérios — um por linha" value={pergunta.criterios} onChange={e=>setPergunta({...pergunta,criterios:e.target.value})}/><label><input type="checkbox" checked={pergunta.obrigatoria} onChange={e=>setPergunta({...pergunta,obrigatoria:e.target.checked})}/> Exigir observação</label><button className="bg-[var(--primary)] text-white rounded-xl font-bold">Adicionar pergunta</button></form></section></div>}
+  {aba==='acessos'&&<div className="grid lg:grid-cols-2 gap-5"><form onSubmit={criarCategoria} className="panel-card"><h2 className="section-title">Nova categoria de acesso</h2><input required className="field" placeholder="Ex.: Qualidade" value={categoria.nome} onChange={e=>setCategoria({...categoria,nome:e.target.value})}/><div className="space-y-2 mt-4">{permissoesDisponiveis.map(([id,nome])=><label key={id} className="flex gap-2"><input type="checkbox" checked={categoria.permissoes.includes(id)} onChange={e=>setCategoria({...categoria,permissoes:e.target.checked?[...categoria.permissoes,id]:categoria.permissoes.filter(x=>x!==id)})}/>{nome}</label>)}</div><button className="bg-[var(--primary)] text-white w-full p-3 rounded-xl font-bold mt-5">Criar categoria</button></form><section className="panel-card"><h2 className="section-title mb-3">Categorias criadas</h2>{categorias.map(c=><div key={c.id} className="border-b border-[var(--border-color)] py-3"><strong>{c.nome}</strong><p className="text-sm text-[var(--text-muted)]">{(c.permissoes||[]).map(p=>permissoesDisponiveis.find(x=>x[0]===p)?.[1]||p).join(' · ')||'Somente acessos básicos'}</p></div>)}</section></div>}
+  </main></div>;
 }
+
+function Catalogo({titulo,itens,valor,setValor,adicionar,remover}){return <section className="panel-card"><h2 className="section-title">{titulo}</h2><div className="flex gap-2 my-3"><input className="field !mt-0" value={valor} onChange={e=>setValor(e.target.value)} placeholder="Adicionar novo"/><button type="button" onClick={adicionar} className="bg-[var(--primary)] text-white px-4 rounded-xl"><Plus/></button></div><div className="max-h-[480px] overflow-auto">{itens.map(x=><div key={x.id} className="flex justify-between border-b border-[var(--border-color)] py-2"><span>{x.nome}</span><button onClick={()=>remover(x.id)} className="text-red-600"><Trash2 size={16}/></button></div>)}</div></section>}

@@ -9,12 +9,14 @@ const nomePerfil = (perfil) => ({ leitor: "Funcionário", editor: "Líder", gere
 export default function Usuarios() {
   const [usuarios, setUsuarios] = useState([]);
   const [modelos, setModelos] = useState([]);
+  const [categorias, setCategorias] = useState([]);
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [perfil, setPerfil] = useState("Leitor");
   const [liderId, setLiderId] = useState("");
   const [modeloId, setModeloId] = useState("");
+  const [categoriaId, setCategoriaId] = useState("");
   const [mostrarModal, setMostrarModal] = useState(false);
   const [editandoUsuarioId, setEditandoUsuarioId] = useState(null);
   const [usuarioSenha, setUsuarioSenha] = useState(null);
@@ -38,6 +40,8 @@ export default function Usuarios() {
         },
       );
       setModelos(modelosRes.data);
+      const categoriasRes = await axios.get(`http://${host}:7001/api/categorias-acesso`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
+      setCategorias(categoriasRes.data);
     } catch (err) {
       console.error(err);
     }
@@ -61,8 +65,9 @@ export default function Usuarios() {
           email,
           ...(editandoUsuarioId ? {} : { senha }),
           perfil,
-          lider_id: ["Leitor", "Editor", "Gerente"].includes(perfil) ? Number(liderId) : null,
+          lider_id: ["Leitor", "Editor"].includes(perfil) ? Number(liderId) : null,
           modelo_avaliacao_id: modeloId ? Number(modeloId) : null,
+          categoria_acesso_id: categoriaId ? Number(categoriaId) : null,
         },
         {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
@@ -75,6 +80,7 @@ export default function Usuarios() {
       setPerfil("Leitor");
       setLiderId("");
       setModeloId("");
+      setCategoriaId("");
       setEditandoUsuarioId(null);
       carregarUsuarios();
     } catch (err) {
@@ -82,8 +88,8 @@ export default function Usuarios() {
     }
   };
 
-  const abrirNovo = () => { setEditandoUsuarioId(null);setNome("");setEmail("");setSenha("");setPerfil("Leitor");setLiderId("");setModeloId("");setMostrarModal(true); };
-  const abrirEdicao = (u) => { setEditandoUsuarioId(u.id);setNome(u.nome||"");setEmail(u.email||"");setSenha("");setPerfil(u.perfil||"Leitor");setLiderId(String(u.lider_id||""));setModeloId(String(u.modelo_avaliacao_id||""));setMostrarModal(true); };
+  const abrirNovo = () => { setEditandoUsuarioId(null);setNome("");setEmail("");setSenha("");setPerfil("Leitor");setLiderId("");setModeloId("");setCategoriaId("");setMostrarModal(true); };
+  const abrirEdicao = (u) => { setEditandoUsuarioId(u.id);setNome(u.nome||"");setEmail(u.email||"");setSenha("");setPerfil(u.perfil||"Leitor");setLiderId(String(u.lider_id||""));setModeloId(String(u.modelo_avaliacao_id||""));setCategoriaId(String(u.categoria_acesso_id||""));setMostrarModal(true); };
 
   const handleExcluir = async (id) => {
     if (!confirm("Deseja realmente excluir este usuário?")) return;
@@ -186,7 +192,7 @@ export default function Usuarios() {
                     </option>
                   </select>
                 </div>
-                {["Leitor", "Editor", "Gerente"].includes(perfil) && (
+                {["Leitor", "Editor"].includes(perfil) && (
                   <div>
                     <label className="block text-sm font-medium mb-1 text-[var(--text-muted)]">
                       Responsável pela avaliação
@@ -212,12 +218,12 @@ export default function Usuarios() {
                     </select>
                   </div>
                 )}
-                <div>
+                {["Leitor", "Editor"].includes(perfil) && <div>
                   <label className="block text-sm font-medium mb-1 text-[var(--text-muted)]">
                     Função / modelo de avaliação
                   </label>
                   <select
-                    required={perfil !== "Administrador"}
+                    required={["Leitor", "Editor"].includes(perfil)}
                     value={modeloId}
                     onChange={(e) => setModeloId(e.target.value)}
                     className="w-full p-3 rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)] text-[var(--text-main)]"
@@ -229,7 +235,8 @@ export default function Usuarios() {
                       </option>
                     ))}
                   </select>
-                </div>
+                </div>}
+                <div><label className="block text-sm font-medium mb-1 text-[var(--text-muted)]">Categoria adicional de acesso</label><select value={categoriaId} onChange={e=>setCategoriaId(e.target.value)} className="w-full p-3 rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)] text-[var(--text-main)]"><option value="">Somente permissões do perfil</option>{categorias.map(c=><option key={c.id} value={c.id}>{c.nome}</option>)}</select><p className="text-xs text-[var(--text-muted)] mt-1">Categorias são criadas na Central de configurações.</p></div>
                 <div className="flex gap-3 pt-2">
                   <button
                     type="button"
@@ -274,6 +281,7 @@ export default function Usuarios() {
                 <th className="p-4 font-bold text-[var(--text-muted)] text-sm">
                   Modelo
                 </th>
+                <th className="p-4 font-bold text-[var(--text-muted)] text-sm">Categoria de acesso</th>
                 <th className="p-4 font-bold text-[var(--text-muted)] text-sm text-right">
                   Ações
                 </th>
@@ -295,6 +303,7 @@ export default function Usuarios() {
                   <td className="p-4 text-[var(--text-muted)]">
                     {u.modelo_avaliacao_nome || "—"}
                   </td>
+                  <td className="p-4 text-[var(--text-muted)]">{u.categoria_acesso_nome || "—"}</td>
                   <td className="p-4 text-[var(--text-muted)]">
                     {u.lider_nome || "—"}
                   </td>
