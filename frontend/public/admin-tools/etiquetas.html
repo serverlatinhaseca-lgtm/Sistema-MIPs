@@ -925,7 +925,18 @@
       .primary-button, .save-pdf-button { background: linear-gradient(135deg, #ff9b48, #e87523) !important; border-color: transparent !important; }
       .print-button { background: #a65526 !important; border-color: #a65526 !important; }
       .pending-badge { border-color: #ffd0aa; background: #fff3e8; color: #8f461f; }
-      html[data-theme="dark"] body { color: #f7efe9; }
+      html[data-theme="dark"] {
+        --ink: #f7efe9;
+        --muted: #c8b8ae;
+        --line: #4a342a;
+        --paper: #201713;
+        --cream: #2a1f1a;
+        --orange: #ff8d2f;
+        --orange-dark: #ffad6a;
+        --green: #73c493;
+      }
+      html[data-theme="dark"],
+      html[data-theme="dark"] body { color: #f7efe9; background: transparent !important; }
       html[data-theme="dark"] .delivery-tabs,
       html[data-theme="dark"] .panel { background: #201713; border-color: #4a342a; }
       html[data-theme="dark"] .settings-card,
@@ -961,6 +972,28 @@
       html[data-theme="dark"] .settings-list-row .remove-setting { background: #3b1e19 !important; border-color: #7c3a2e !important; color: #ff9d8d !important; }
       html[data-theme="dark"] .settings-list-row button:not(.remove-setting),
       html[data-theme="dark"] .settings-add-row button { background: #193326 !important; border-color: #35694e !important; color: #9ad7b5 !important; }
+      html[data-theme="dark"] .bread-option span,
+      html[data-theme="dark"] .bread-option small,
+      html[data-theme="dark"] .queue-meta,
+      html[data-theme="dark"] .print-hint,
+      html[data-theme="dark"] .indicator-line { color: #d8c9c0 !important; }
+      html[data-theme="dark"] .bread-option.selected span { color: #ffb477 !important; }
+      html[data-theme="dark"] .afternoon-check { background: #3b321b !important; border-color: #8b742c !important; color: #fff1a8 !important; }
+      html[data-theme="dark"] .batch-item { background: #2a1f1a !important; border-color: #51392e !important; }
+      html[data-theme="dark"] .batch-item strong { color: #fff5ef !important; }
+      html[data-theme="dark"] .batch-item span,
+      html[data-theme="dark"] .batch-item small { color: #d2c1b7 !important; }
+      html[data-theme="dark"] .batch-item button { color: #ff9d8d !important; }
+      html[data-theme="dark"] .check-field:not(.afternoon-check),
+      html[data-theme="dark"] .split-preview,
+      html[data-theme="dark"] .date-chooser { background: #2a1f1a !important; border-color: #51392e !important; color: #d2c1b7 !important; }
+      html[data-theme="dark"] .fixed-button { background: #352319 !important; border-color: #956037 !important; color: #ffbd83 !important; }
+      html[data-theme="dark"] .afternoon-check,
+      html[data-theme="dark"] .afternoon-check span { color: #fff1a8 !important; }
+      html[data-theme="dark"] .legend-frances { color: #f7efe9 !important; }
+      html[data-theme="dark"] .legend-leite { color: #73c493 !important; }
+      html[data-theme="dark"] .legend-integral { color: #ff9b5c !important; }
+      html[data-theme="dark"] button:disabled { color: #d2c1b7 !important; opacity: .72; }
       @media (max-width: 760px) { .app-shell { padding-inline: 0; } }
     </style>
   </head>
@@ -1248,8 +1281,6 @@
     <script>
       const portalUser = JSON.parse(localStorage.getItem("user") || "{}");
       const portalToken = localStorage.getItem("token");
-      document.documentElement.dataset.theme = localStorage.getItem("theme") || "light";
-      window.addEventListener("storage", (event) => { if (event.key === "theme") document.documentElement.dataset.theme = event.newValue || "light"; });
       if (!portalToken || String(portalUser.perfil || "").toLowerCase() !== "administrador") {
         window.top.location.href = "/mips";
       }

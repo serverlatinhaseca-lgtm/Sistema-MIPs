@@ -2,7 +2,7 @@
 
 Portal operacional com MIPs, receitas, usuários e avaliações mensais de colaboradores.
 
-## Versão 1.6.2
+## Versão 1.6.6
 
 - Corrige o salvamento de avaliações editadas.
 - Limpa o formulário após salvar, cancelar ou excluir.
@@ -33,6 +33,11 @@ Portal operacional com MIPs, receitas, usuários e avaliações mensais de colab
 - Permite ocultar e restaurar a barra lateral para aproveitar toda a largura das ferramentas.
 - Corrige o contraste do modo escuro nas duas ferramentas com cartões em preto/marrom e textos legíveis.
 - Remove a barra de rolagem duplicada ajustando automaticamente a altura das ferramentas ao conteúdo.
+- Sincroniza o tema das ferramentas com a classe visual realmente ativa no portal, sem depender de preferência antiga do navegador.
+- Recalcula a altura após mudanças de abas, listas e formulários para garantir apenas uma rolagem.
+- Mantém o modo escuro ativo mesmo quando a barra lateral está oculta e usa as variáveis oficiais de cor do portal.
+- Elimina definitivamente a rolagem externa nas ferramentas: a página fica fixa e somente o conteúdo possui uma barra.
+- Corrige o contraste dos cartões da fila, pedidos fixos, avisos, legendas e botões desabilitados no modo escuro.
 
 ## Configuração inicial
 

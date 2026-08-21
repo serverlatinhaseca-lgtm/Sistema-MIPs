@@ -491,7 +491,16 @@
       input[type="number"] { border-radius: 10px !important; border-color: #ded4cd !important; }
       input[type="number"]:focus { border-color: var(--primary) !important; box-shadow: 0 0 0 3px rgba(255, 141, 47, .14); outline: none; }
       .btn-calculate, .btn-pdf { border-radius: 11px; background: linear-gradient(135deg, #ff9b48, #e87523) !important; box-shadow: 0 8px 18px rgba(166, 85, 38, .18); }
-      html[data-theme="dark"] body { color: #f7efe9; }
+      html[data-theme="dark"] {
+        --primary: #ff8d2f;
+        --primary-dark: #d36f2e;
+        --secondary: #d8c9c0;
+        --light: #2a1f1a;
+        --gray: #b7a69b;
+        --white: #201713;
+      }
+      html[data-theme="dark"],
+      html[data-theme="dark"] body { color: #f7efe9; background: transparent !important; }
       html[data-theme="dark"] .tabs,
       html[data-theme="dark"] .client-section,
       html[data-theme="dark"] .config-section,
@@ -1737,8 +1746,6 @@
     <script>
       const portalUser = JSON.parse(localStorage.getItem("user") || "{}");
       const portalToken = localStorage.getItem("token");
-      document.documentElement.dataset.theme = localStorage.getItem("theme") || "light";
-      window.addEventListener("storage", (event) => { if (event.key === "theme") document.documentElement.dataset.theme = event.newValue || "light"; });
       if (!portalToken || String(portalUser.perfil || "").toLowerCase() !== "administrador") {
         window.top.location.href = "/mips";
       }
