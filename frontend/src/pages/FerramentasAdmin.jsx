@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 
@@ -12,12 +12,34 @@ export default function FerramentasAdmin() {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const ferramenta = FERRAMENTAS[location.pathname];
   const [menuOculto, setMenuOculto] = useState(() => localStorage.getItem('ferramentas_menu_oculto') === '1');
+  const iframeRef = useRef(null);
+  const observadorRef = useRef(null);
 
   const alternarMenu = () => {
     const proximo = !menuOculto;
     setMenuOculto(proximo);
     localStorage.setItem('ferramentas_menu_oculto', proximo ? '1' : '0');
   };
+
+  const ajustarAltura = () => {
+    const iframe = iframeRef.current;
+    const documento = iframe?.contentDocument;
+    if (!iframe || !documento) return;
+    const altura = Math.max(documento.body?.scrollHeight || 0, documento.documentElement?.scrollHeight || 0, 720);
+    iframe.style.height = `${altura + 4}px`;
+  };
+
+  const prepararAlturaAutomatica = () => {
+    observadorRef.current?.disconnect();
+    ajustarAltura();
+    const corpo = iframeRef.current?.contentDocument?.body;
+    if (corpo && window.ResizeObserver) {
+      observadorRef.current = new ResizeObserver(ajustarAltura);
+      observadorRef.current.observe(corpo);
+    }
+  };
+
+  useEffect(() => () => observadorRef.current?.disconnect(), []);
 
   if (String(user.perfil || '').toLowerCase() !== 'administrador') return <Navigate to="/mips" replace />;
   if (!ferramenta) return <Navigate to="/dashboard" replace />;
@@ -40,10 +62,13 @@ export default function FerramentasAdmin() {
           </div>
         </div>
         <iframe
+          ref={iframeRef}
           title={ferramenta.titulo}
           src={ferramenta.arquivo}
+          onLoad={prepararAlturaAutomatica}
+          scrolling="no"
           className="w-full border-0 bg-transparent"
-          style={{ height: 'calc(100vh - 145px)', minHeight: 720 }}
+          style={{ height: 720, minHeight: 720, overflow: 'hidden' }}
         />
       </main>
     </div>
