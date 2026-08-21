@@ -4,6 +4,8 @@ import axios from "axios";
 import { UserPlus, Trash2, KeyRound, Pencil, Copy, Wand2 } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 
+const nomePerfil = (perfil) => ({ leitor: "Funcionário", editor: "Líder", gerente: "Gerente", administrador: "Administrador" }[String(perfil || "").toLowerCase()] || perfil);
+
 export default function Usuarios() {
   const [usuarios, setUsuarios] = useState([]);
   const [modelos, setModelos] = useState([]);
@@ -59,7 +61,7 @@ export default function Usuarios() {
           email,
           ...(editandoUsuarioId ? {} : { senha }),
           perfil,
-          lider_id: ["Leitor", "Editor"].includes(perfil) ? Number(liderId) : null,
+          lider_id: ["Leitor", "Editor", "Gerente"].includes(perfil) ? Number(liderId) : null,
           modelo_avaliacao_id: modeloId ? Number(modeloId) : null,
         },
         {
@@ -176,16 +178,15 @@ export default function Usuarios() {
                     value={perfil}
                     onChange={(e) => setPerfil(e.target.value)}
                   >
-                    <option value="Leitor">
-                      Leitor (Visualização e Receitas)
-                    </option>
-                    <option value="Editor">Editor (Cria MIPs)</option>
+                    <option value="Leitor">Funcionário (consulta e recebe avaliações)</option>
+                    <option value="Editor">Líder (MIPs e sua equipe)</option>
+                    <option value="Gerente">Gerente (acesso a todas as avaliações)</option>
                     <option value="Administrador">
                       Administrador (Acesso Total)
                     </option>
                   </select>
                 </div>
-                {["Leitor", "Editor"].includes(perfil) && (
+                {["Leitor", "Editor", "Gerente"].includes(perfil) && (
                   <div>
                     <label className="block text-sm font-medium mb-1 text-[var(--text-muted)]">
                       Responsável pela avaliação
@@ -196,9 +197,13 @@ export default function Usuarios() {
                       onChange={(e) => setLiderId(e.target.value)}
                       className="w-full p-3 rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)] text-[var(--text-main)]"
                     >
-                      <option value="">{perfil === "Leitor" ? "Selecione um Editor" : "Selecione um Administrador"}</option>
+                      <option value="">{perfil === "Leitor" ? "Selecione um Líder" : perfil === "Editor" ? "Selecione um Gerente ou Administrador" : "Selecione um Administrador"}</option>
                       {usuarios
-                        .filter((u) => u.perfil?.toLowerCase() === (perfil === "Leitor" ? "editor" : "administrador") && u.id !== editandoUsuarioId)
+                        .filter((u) => {
+                          const p = u.perfil?.toLowerCase();
+                          const permitido = perfil === "Leitor" ? p === "editor" : perfil === "Editor" ? ["gerente","administrador"].includes(p) : p === "administrador";
+                          return permitido && u.id !== editandoUsuarioId;
+                        })
                         .map((u) => (
                           <option key={u.id} value={u.id}>
                             {u.nome}
@@ -284,7 +289,7 @@ export default function Usuarios() {
                   <td className="p-4 text-[var(--text-muted)]">{u.email}{u.deve_alterar_senha && <span className="block text-xs text-amber-700 font-bold mt-1">Troca de senha pendente</span>}</td>
                   <td className="p-4">
                     <span className="px-2.5 py-1 bg-[var(--primary)]/10 text-[var(--primary)] rounded-lg text-xs font-semibold">
-                      {u.perfil}
+                      {nomePerfil(u.perfil)}
                     </span>
                   </td>
                   <td className="p-4 text-[var(--text-muted)]">

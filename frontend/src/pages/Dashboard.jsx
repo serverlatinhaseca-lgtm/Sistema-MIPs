@@ -42,7 +42,7 @@ export default function Dashboard() {
             <h1 className="text-3xl font-bold text-[var(--text-main)]">Olá, {user.nome}! 👋</h1>
             <p className="text-[var(--text-muted)] text-sm">Bem-vindo ao painel de controle do {branding.nome_site}.</p>
           </div>
-          {(user.perfil?.toLowerCase() === 'administrador' || user.perfil?.toLowerCase() === 'editor') && (
+          {['administrador','editor','gerente'].includes(user.perfil?.toLowerCase()) && (
             <button onClick={() => navigate('/mips/nova')} className="flex items-center bg-amber-600 text-white px-5 py-2.5 rounded-xl hover:bg-amber-700 font-medium transition-colors shadow-md">
               <PlusCircle size={20} className="mr-2" /> Nova MIP
             </button>

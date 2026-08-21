@@ -210,7 +210,7 @@ export default function Receitas() {
               </button>
               
               <div className="flex gap-3">
-                {(user.perfil?.toLowerCase() === 'administrador' || user.perfil?.toLowerCase() === 'editor') && (
+                {['administrador','editor','gerente'].includes(user.perfil?.toLowerCase()) && (
                   <><button onClick={iniciarEdicao} className="flex items-center text-amber-700 px-4 py-2.5 rounded-xl font-medium"><Pencil size={18} className="mr-2"/>Editar</button><button onClick={abrirHistorico} className="flex items-center text-blue-700 px-4 py-2.5 rounded-xl font-medium"><History size={18} className="mr-2"/>Versões</button><button onClick={() => handleExcluirReceita(receitaAtiva.id)} className="flex items-center text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 px-4 py-2.5 rounded-xl font-medium transition-colors">
                     <Trash size={20} className="mr-2" /> Excluir Receita
                   </button></>
@@ -257,7 +257,7 @@ export default function Receitas() {
           <div>
             <div className="flex justify-between items-center mb-8">
               <h1 className="text-3xl font-bold">Calculadora de Receitas</h1>
-              {(user.perfil?.toLowerCase() === 'administrador' || user.perfil?.toLowerCase() === 'editor') && (
+              {['administrador','editor','gerente'].includes(user.perfil?.toLowerCase()) && (
                 <button onClick={() => setModoCriacao(true)} className="flex items-center bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white px-5 py-2.5 rounded-xl font-medium transition-colors">
                   <Plus size={20} className="mr-2" /> Nova Receita
                 </button>

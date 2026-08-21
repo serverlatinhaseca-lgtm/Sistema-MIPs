@@ -29,6 +29,15 @@ export function MinhasAvaliacoes({ api = `http://${window.location.hostname}:700
       .get(`${api}/minhas-avaliacoes`, { headers })
       .then((r) => setItens(r.data));
   }, []);
+  const ultima = itens[0];
+  const percentualAtual = Number(ultima?.percentual || 0);
+  const falta = Math.max(0, 80 - percentualAtual);
+  const mensagens = falta === 0
+    ? ["Meta alcançada! Continue mantendo esse excelente ritmo.", "Você chegou à meta de desempenho. Parabéns pela evolução!", "Resultado acima da meta. Siga consolidando seus pontos fortes."]
+    : falta <= 5
+      ? [`Faltam só ${falta}% para a meta. Você está muito perto!`, `Mais ${falta}% e você alcança a meta. Continue avançando!`, `Reta final: faltam ${falta}% para chegar aos 80%.`]
+      : [`Faltam ${falta}% para a meta. Cada melhoria conta!`, `Seu próximo objetivo é chegar aos 80%. Continue melhorando.`, `Você está evoluindo. Foque nas orientações para avançar mais ${falta}%.`];
+  const mensagemMeta = mensagens[ultima?.id ? Number(ultima.id) % mensagens.length : 0];
   return (
     <div className={`min-h-screen bg-[var(--bg-main)] ${perfil === "leitor" ? "" : "flex"}`}>
       {perfil === "leitor" ? <LeitorTopbar titulo="Meu desempenho" /> : <Sidebar />}
@@ -37,6 +46,17 @@ export function MinhasAvaliacoes({ api = `http://${window.location.hostname}:700
         <p className="text-[var(--text-muted)] mb-6">
           Consulte suas avaliações e sua evolução mensal.
         </p>
+        {ultima && <section className="panel-card mb-5 overflow-hidden relative">
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-4">
+            <div><p className="section-label">Meta de desempenho</p><h2 className="text-2xl font-bold">Objetivo: 80%</h2><p className="text-[var(--text-muted)] mt-1">{mensagemMeta}</p></div>
+            <div className={`text-4xl font-black ${percentualAtual >= 80 ? 'text-emerald-600' : 'text-[var(--primary)]'}`}>{percentualAtual}%</div>
+          </div>
+          <div className="relative h-4 rounded-full bg-[var(--bg-main)] border border-[var(--border-color)] overflow-hidden">
+            <div className={`h-full rounded-full transition-all ${percentualAtual >= 80 ? 'bg-emerald-500' : 'bg-[var(--primary)]'}`} style={{width:`${Math.min(100,percentualAtual)}%`}} />
+            <span className="absolute top-0 bottom-0 w-0.5 bg-[var(--text-main)]" style={{left:'80%'}} title="Meta: 80%" />
+          </div>
+          <div className="flex justify-between text-xs text-[var(--text-muted)] mt-2"><span>0%</span><strong>Meta 80%</strong><span>100%</span></div>
+        </section>}
         <section className="panel-card mb-5">
           <GraficoDesempenho historico={itens} />
         </section>

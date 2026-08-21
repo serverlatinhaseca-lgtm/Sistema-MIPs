@@ -101,6 +101,7 @@ async function inicializarBancoEAdmin() {
         objetivo TEXT,
         conteudo TEXT NOT NULL,
         status VARCHAR(50) DEFAULT 'Em Revisão',
+        orientacao_correcao TEXT DEFAULT '',
         autor_id INT REFERENCES usuarios(id) ON DELETE SET NULL,
         criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         search_vector tsvector
@@ -116,6 +117,7 @@ async function inicializarBancoEAdmin() {
       ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS cargo VARCHAR(100) NOT NULL DEFAULT '';
       ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS lider_id INT REFERENCES usuarios(id) ON DELETE SET NULL;
       ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS deve_alterar_senha BOOLEAN NOT NULL DEFAULT FALSE;
+      ALTER TABLE mips ADD COLUMN IF NOT EXISTS orientacao_correcao TEXT DEFAULT '';
       CREATE TABLE IF NOT EXISTS configuracoes_portal (
         id INT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
         nome_site VARCHAR(150) NOT NULL DEFAULT 'Portal MIPs',
@@ -241,6 +243,9 @@ const somenteAdministrador = (req, res, next) => {
   }
   next();
 };
+
+const normalizarPerfil = (perfil) => String(perfil || '').toLowerCase();
+const restringirAoProprioTime = (perfil) => normalizarPerfil(perfil) === 'editor';
 
 const CHAVES_FERRAMENTAS_ADMIN = new Set(['etiquetas', 'caixas']);
 
@@ -440,7 +445,7 @@ app.get('/api/mips/:id', verificarToken, async (req, res) => {
 app.post('/api/mips', verificarToken, async (req, res) => {
   if (req.usuarioPerfil === 'Leitor') return res.status(403).json({ error: 'Acesso negado' });
   const { codigo, titulo, resumo, objetivo, conteudo, status } = req.body;
-  let s = (req.usuarioPerfil === 'Editor' && status === 'Publicado') ? 'Em Revisão' : status;
+  let s = (normalizarPerfil(req.usuarioPerfil) !== 'administrador' && status === 'Publicado') ? 'Em Revisão' : status;
   try {
     const r = await pool.query(
       `INSERT INTO mips (codigo, titulo, resumo, objetivo, conteudo, status, autor_id) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
@@ -461,7 +466,7 @@ app.put('/api/mips/:id', verificarToken, async (req, res) => {
     if (!atual.rows.length) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'MIP não encontrada' }); }
     const m = atual.rows[0];
     await client.query(`INSERT INTO mip_versoes (mip_id,codigo,titulo,resumo,objetivo,conteudo,status,alterado_por) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`, [m.id,m.codigo,m.titulo,m.resumo,m.objetivo,m.conteudo,m.status,req.usuarioId]);
-    await client.query(`UPDATE mips SET codigo=$1,titulo=$2,resumo=$3,objetivo=$4,conteudo=$5,status=$6 WHERE id=$7`, [codigo,titulo,resumo,objetivo,conteudo,novoStatus,req.params.id]);
+    await client.query(`UPDATE mips SET codigo=$1,titulo=$2,resumo=$3,objetivo=$4,conteudo=$5,status=$6,orientacao_correcao='' WHERE id=$7`, [codigo,titulo,resumo,objetivo,conteudo,novoStatus,req.params.id]);
     await client.query('COMMIT');
     res.json({ mensagem: 'MIP atualizada e enviada novamente para aprovação do Administrador.', status: novoStatus });
   } catch (error) { await client.query('ROLLBACK'); res.status(500).json({ error: 'Erro ao atualizar MIP' }); }
@@ -481,8 +486,19 @@ app.get('/api/mips/:id/versoes', verificarToken, async (req, res) => {
 
 app.patch('/api/mips/:id/aprovar', verificarToken, async (req, res) => {
   if (req.usuarioPerfil !== 'Administrador') return res.status(403).json({ error: 'Acesso negado' });
-  try { await pool.query("UPDATE mips SET status = 'Publicado' WHERE id = $1", [req.params.id]); res.json({ mensagem: 'Aprovada!' }); } 
+  try { await pool.query("UPDATE mips SET status = 'Publicado', orientacao_correcao='' WHERE id = $1", [req.params.id]); res.json({ mensagem: 'Aprovada!' }); } 
   catch (error) { res.status(500).json({ error: 'Erro aprovar' }); }
+});
+
+app.patch('/api/mips/:id/reprovar', verificarToken, async (req, res) => {
+  if (normalizarPerfil(req.usuarioPerfil) !== 'administrador') return res.status(403).json({ error: 'Acesso negado' });
+  const orientacao = String(req.body?.orientacao || '').trim();
+  if (orientacao.length < 5) return res.status(400).json({ error: 'Descreva claramente as correções necessárias' });
+  try {
+    const result = await pool.query("UPDATE mips SET status='Reprovado', orientacao_correcao=$1 WHERE id=$2 RETURNING id", [orientacao, req.params.id]);
+    if (!result.rows.length) return res.status(404).json({ error: 'MIP não encontrada' });
+    res.json({ mensagem: 'MIP devolvida ao autor para correção.' });
+  } catch (error) { res.status(500).json({ error: 'Erro ao reprovar MIP' }); }
 });
 
 app.delete('/api/mips/:id', verificarToken, async (req, res) => {
@@ -503,14 +519,19 @@ app.get('/api/usuarios', verificarToken, async (req, res) => {
 app.post('/api/usuarios', verificarToken, async (req, res) => {
   if (req.usuarioPerfil !== 'Administrador') return res.status(403).json({ error: 'Acesso negado' });
   const { nome, email, senha, perfil, lider_id = null, modelo_avaliacao_id = null } = req.body;
-  if (['leitor','editor'].includes(String(perfil).toLowerCase()) && !lider_id) return res.status(400).json({ error: 'Selecione o responsável pela avaliação deste usuário' });
+  if (['leitor','editor','gerente'].includes(normalizarPerfil(perfil)) && !lider_id) return res.status(400).json({ error: 'Selecione o responsável pela avaliação deste usuário' });
   try {
     const hash = await bcrypt.hash(senha, 10);
-    if (lider_id) { const perfilResponsavel=String(perfil).toLowerCase()==='leitor'?'editor':'administrador';const lider=await pool.query('SELECT id FROM usuarios WHERE id=$1 AND LOWER(perfil)=$2',[Number(lider_id),perfilResponsavel]);if(!lider.rows.length)return res.status(400).json({error:`O responsável selecionado precisa ter perfil ${perfilResponsavel==='editor'?'Editor':'Administrador'}`}); }
+    if (lider_id) {
+      const perfilUsuario = normalizarPerfil(perfil);
+      const perfisPermitidos = perfilUsuario === 'leitor' ? ['editor'] : perfilUsuario === 'editor' ? ['gerente','administrador'] : ['administrador'];
+      const lider=await pool.query('SELECT id FROM usuarios WHERE id=$1 AND LOWER(perfil)=ANY($2::text[])',[Number(lider_id),perfisPermitidos]);
+      if(!lider.rows.length)return res.status(400).json({error:'O responsável selecionado não possui o perfil adequado'});
+    }
     let nomeModelo = '';
     if(modelo_avaliacao_id){const modelo=await pool.query('SELECT id,nome FROM modelos_avaliacao WHERE id=$1 AND ativo=TRUE',[Number(modelo_avaliacao_id)]);if(!modelo.rows.length)return res.status(400).json({error:'Modelo de avaliação inválido'});nomeModelo=modelo.rows[0].nome;}
-    if(String(perfil).toLowerCase() !== 'administrador' && !modelo_avaliacao_id) return res.status(400).json({error:'Selecione a função/modelo de avaliação'});
-    const result = await pool.query('INSERT INTO usuarios (nome,email,senha,perfil,setor,cargo,lider_id,modelo_avaliacao_id,deve_alterar_senha) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,TRUE) RETURNING id', [nome,email,hash,perfil,nomeModelo,nomeModelo,['leitor','editor'].includes(String(perfil).toLowerCase())?Number(lider_id):null,modelo_avaliacao_id?Number(modelo_avaliacao_id):null]);
+    if(normalizarPerfil(perfil) !== 'administrador' && !modelo_avaliacao_id) return res.status(400).json({error:'Selecione a função/modelo de avaliação'});
+    const result = await pool.query('INSERT INTO usuarios (nome,email,senha,perfil,setor,cargo,lider_id,modelo_avaliacao_id,deve_alterar_senha) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,TRUE) RETURNING id', [nome,email,hash,perfil,nomeModelo,nomeModelo,['leitor','editor','gerente'].includes(normalizarPerfil(perfil))?Number(lider_id):null,modelo_avaliacao_id?Number(modelo_avaliacao_id):null]);
     res.status(201).json({ id: result.rows[0].id, mensagem: 'Criado!' });
   } catch (err) {
     if (err.code === '23505') return res.status(409).json({ error: 'Este usuário de acesso já está cadastrado' });
@@ -523,14 +544,18 @@ app.put('/api/usuarios/:id', verificarToken, async (req, res) => {
   const { nome, email, perfil, lider_id = null, modelo_avaliacao_id = null } = req.body;
   const perfilNormalizado = String(perfil || '').toLowerCase();
   if (String(req.params.id) === String(req.usuarioId) && perfilNormalizado !== 'administrador') return res.status(400).json({ error: 'O Administrador não pode remover o próprio acesso administrativo' });
-  if (!String(nome || '').trim() || !String(email || '').trim() || !['leitor','editor','administrador'].includes(perfilNormalizado)) return res.status(400).json({ error: 'Preencha nome, login e perfil corretamente' });
-  if (['leitor','editor'].includes(perfilNormalizado) && !lider_id) return res.status(400).json({ error: 'Selecione o responsável pela avaliação deste usuário' });
+  if (!String(nome || '').trim() || !String(email || '').trim() || !['leitor','editor','gerente','administrador'].includes(perfilNormalizado)) return res.status(400).json({ error: 'Preencha nome, login e perfil corretamente' });
+  if (['leitor','editor','gerente'].includes(perfilNormalizado) && !lider_id) return res.status(400).json({ error: 'Selecione o responsável pela avaliação deste usuário' });
   try {
     let nomeModelo = '';
     if (modelo_avaliacao_id) { const m=await pool.query('SELECT nome FROM modelos_avaliacao WHERE id=$1 AND ativo=TRUE',[Number(modelo_avaliacao_id)]);if(!m.rows.length)return res.status(400).json({error:'Modelo de avaliação inválido'});nomeModelo=m.rows[0].nome; }
     if (perfilNormalizado !== 'administrador' && !modelo_avaliacao_id) return res.status(400).json({ error: 'Selecione a função/modelo de avaliação' });
-    if (lider_id) { const esperado=perfilNormalizado==='leitor'?'editor':'administrador';const r=await pool.query('SELECT id FROM usuarios WHERE id=$1 AND LOWER(perfil)=$2',[Number(lider_id),esperado]);if(!r.rows.length)return res.status(400).json({error:`O responsável precisa ter perfil ${esperado==='editor'?'Editor':'Administrador'}`}); }
-    const result=await pool.query('UPDATE usuarios SET nome=$1,email=$2,perfil=$3,setor=$4,cargo=$4,lider_id=$5,modelo_avaliacao_id=$6 WHERE id=$7 RETURNING id',[nome.trim(),email.trim(),perfil,nomeModelo,['leitor','editor'].includes(perfilNormalizado)?Number(lider_id):null,modelo_avaliacao_id?Number(modelo_avaliacao_id):null,req.params.id]);
+    if (lider_id) {
+      const permitidos=perfilNormalizado==='leitor'?['editor']:perfilNormalizado==='editor'?['gerente','administrador']:['administrador'];
+      const r=await pool.query('SELECT id FROM usuarios WHERE id=$1 AND LOWER(perfil)=ANY($2::text[])',[Number(lider_id),permitidos]);
+      if(!r.rows.length)return res.status(400).json({error:'O responsável selecionado não possui o perfil adequado'});
+    }
+    const result=await pool.query('UPDATE usuarios SET nome=$1,email=$2,perfil=$3,setor=$4,cargo=$4,lider_id=$5,modelo_avaliacao_id=$6 WHERE id=$7 RETURNING id',[nome.trim(),email.trim(),perfil,nomeModelo,['leitor','editor','gerente'].includes(perfilNormalizado)?Number(lider_id):null,modelo_avaliacao_id?Number(modelo_avaliacao_id):null,req.params.id]);
     if(!result.rows.length)return res.status(404).json({error:'Usuário não encontrado'});
     res.json({mensagem:'Perfil atualizado com sucesso.'});
   } catch (error) { if(error.code==='23505')return res.status(409).json({error:'Este login já está sendo utilizado'});res.status(500).json({error:'Erro ao atualizar usuário'}); }
@@ -603,8 +628,8 @@ app.delete('/api/receitas/:id', verificarToken, async (req, res) => {
 
 // AVALIAÇÕES MENSAIS
 const podeGerenciarAvaliacoes = (req, res, next) => {
-  if (!['administrador', 'editor'].includes(String(req.usuarioPerfil || '').toLowerCase())) {
-    return res.status(403).json({ error: 'Acesso restrito a líderes e administradores' });
+  if (!['administrador', 'editor', 'gerente'].includes(normalizarPerfil(req.usuarioPerfil))) {
+    return res.status(403).json({ error: 'Acesso restrito a líderes, gerentes e administradores' });
   }
   next();
 };
@@ -660,9 +685,9 @@ app.get('/api/colaboradores', verificarToken, podeGerenciarAvaliacoes, async (re
     const result = await pool.query(`
       SELECT u.id,u.nome,u.setor,u.cargo,u.perfil,u.modelo_avaliacao_id,MAX(a.mes_referencia) AS ultima_avaliacao
       FROM usuarios u LEFT JOIN avaliacoes a ON a.usuario_avaliado_id=u.id
-      WHERE u.modelo_avaliacao_id IS NOT NULL ${String(req.usuarioPerfil).toLowerCase()==='editor'?"AND LOWER(u.perfil)='leitor' AND u.lider_id=$1":''}
+      WHERE u.modelo_avaliacao_id IS NOT NULL ${restringirAoProprioTime(req.usuarioPerfil)?"AND LOWER(u.perfil)='leitor' AND u.lider_id=$1":''}
       GROUP BY u.id ORDER BY u.nome
-    `, String(req.usuarioPerfil).toLowerCase()==='editor'?[req.usuarioId]:[]);
+    `, restringirAoProprioTime(req.usuarioPerfil)?[req.usuarioId]:[]);
     res.json(result.rows);
   } catch (error) { res.status(500).json({ error: 'Erro ao listar colaboradores' }); }
 });
@@ -673,19 +698,19 @@ app.get('/api/avaliacoes/lembretes', verificarToken, podeGerenciarAvaliacoes, as
   try {
     const result = await pool.query(`
       SELECT u.id,u.nome,u.setor,u.cargo
-      FROM usuarios u WHERE u.modelo_avaliacao_id IS NOT NULL ${String(req.usuarioPerfil).toLowerCase()==='editor'?"AND LOWER(u.perfil)='leitor' AND u.lider_id=$2":''} AND NOT EXISTS (
+      FROM usuarios u WHERE u.modelo_avaliacao_id IS NOT NULL ${restringirAoProprioTime(req.usuarioPerfil)?"AND LOWER(u.perfil)='leitor' AND u.lider_id=$2":''} AND NOT EXISTS (
         SELECT 1 FROM avaliacoes a WHERE a.usuario_avaliado_id=u.id AND a.mes_referencia=$1
       )
       ORDER BY u.nome
-    `, String(req.usuarioPerfil).toLowerCase()==='editor'?[mes,req.usuarioId]:[mes]);
+    `, restringirAoProprioTime(req.usuarioPerfil)?[mes,req.usuarioId]:[mes]);
     res.json({ mes, quantidade: result.rows.length, pendentes: result.rows });
   } catch (error) { res.status(500).json({ error: 'Erro ao buscar lembretes' }); }
 });
 
 app.get('/api/avaliacoes', verificarToken, podeGerenciarAvaliacoes, async (req, res) => {
   const valores = [];
-  let filtro = String(req.usuarioPerfil).toLowerCase()==='editor' ? 'WHERE c.lider_id = $1' : '';
-  if (String(req.usuarioPerfil).toLowerCase()==='editor') valores.push(req.usuarioId);
+  let filtro = restringirAoProprioTime(req.usuarioPerfil) ? 'WHERE c.lider_id = $1' : '';
+  if (restringirAoProprioTime(req.usuarioPerfil)) valores.push(req.usuarioId);
   if (req.query.colaborador_id) {
     valores.push(Number(req.query.colaborador_id));
     filtro += `${filtro ? ' AND' : 'WHERE'} a.usuario_avaliado_id = $${valores.length}`;
@@ -726,8 +751,8 @@ app.get('/api/avaliacoes/:id', verificarToken, podeGerenciarAvaliacoes, async (r
     const result = await pool.query(`
       SELECT a.*,a.usuario_avaliado_id AS colaborador_id,c.nome AS colaborador_nome,c.setor,c.cargo
       FROM avaliacoes a JOIN usuarios c ON c.id=a.usuario_avaliado_id
-      WHERE a.id = $1 ${String(req.usuarioPerfil).toLowerCase()==='editor'?'AND c.lider_id=$2':''}
-    `, String(req.usuarioPerfil).toLowerCase()==='editor'?[req.params.id,req.usuarioId]:[req.params.id]);
+      WHERE a.id = $1 ${restringirAoProprioTime(req.usuarioPerfil)?'AND c.lider_id=$2':''}
+    `, restringirAoProprioTime(req.usuarioPerfil)?[req.params.id,req.usuarioId]:[req.params.id]);
     if (!result.rows.length) return res.status(404).json({ error: 'Avaliação não encontrada' });
     const avaliacao = result.rows[0];
     const historico = await pool.query(`
@@ -747,7 +772,7 @@ app.post('/api/avaliacoes', verificarToken, podeGerenciarAvaliacoes, async (req,
     return res.status(400).json({ error: 'Informe quem elaborou e quem aplicou a avaliação' });
   }
   try {
-    const permitido=await pool.query(`SELECT id,modelo_avaliacao_id FROM usuarios WHERE id=$1 AND modelo_avaliacao_id IS NOT NULL ${String(req.usuarioPerfil).toLowerCase()==='editor'?"AND LOWER(perfil)='leitor' AND lider_id=$2":''}`,String(req.usuarioPerfil).toLowerCase()==='editor'?[Number(colaborador_id),req.usuarioId]:[Number(colaborador_id)]);
+    const permitido=await pool.query(`SELECT id,modelo_avaliacao_id FROM usuarios WHERE id=$1 AND modelo_avaliacao_id IS NOT NULL ${restringirAoProprioTime(req.usuarioPerfil)?"AND LOWER(perfil)='leitor' AND lider_id=$2":''}`,restringirAoProprioTime(req.usuarioPerfil)?[Number(colaborador_id),req.usuarioId]:[Number(colaborador_id)]);
     if(!permitido.rows.length)return res.status(403).json({error:'Este funcionário não está vinculado a você'});
     const perguntas=await pool.query('SELECT * FROM perguntas_avaliacao WHERE ativa=TRUE AND modelo_avaliacao_id=$1 ORDER BY ordem,id',[permitido.rows[0].modelo_avaliacao_id]);
     const calculo = prepararAvaliacaoDinamica(perguntas.rows,respostas);
@@ -777,7 +802,7 @@ app.put('/api/avaliacoes/:id', verificarToken, podeGerenciarAvaliacoes, async (r
   if (!colaborador_id || !/^[0-9]{4}-[0-9]{2}$/.test(String(mes_referencia || ''))) return res.status(400).json({ error: 'Usuário e mês de referência são obrigatórios' });
   if (!String(elaborado_por || '').trim() || !String(aplicado_por || '').trim()) return res.status(400).json({ error: 'Informe quem elaborou e quem aplicou a avaliação' });
   try {
-    const existente = await pool.query(`SELECT a.usuario_avaliado_id,a.respostas FROM avaliacoes a JOIN usuarios u ON u.id=a.usuario_avaliado_id WHERE a.id=$1 ${String(req.usuarioPerfil).toLowerCase()==='editor'?'AND u.lider_id=$2':''}`,String(req.usuarioPerfil).toLowerCase()==='editor'?[req.params.id,req.usuarioId]:[req.params.id]);
+    const existente = await pool.query(`SELECT a.usuario_avaliado_id,a.respostas FROM avaliacoes a JOIN usuarios u ON u.id=a.usuario_avaliado_id WHERE a.id=$1 ${restringirAoProprioTime(req.usuarioPerfil)?'AND u.lider_id=$2':''}`,restringirAoProprioTime(req.usuarioPerfil)?[req.params.id,req.usuarioId]:[req.params.id]);
     if(!existente.rows.length)return res.status(404).json({error:'Avaliação não encontrada'});
     if(Number(colaborador_id)!==Number(existente.rows[0].usuario_avaliado_id))return res.status(400).json({error:'O usuário de uma avaliação concluída não pode ser alterado'});
     const perguntasSnapshot=(existente.rows[0].respostas||[]).map((r,index)=>({id:r.pergunta_id||r.competencia,titulo:r.titulo,pergunta:r.pergunta,criterios:r.criterios||[],obrigatoria:Boolean(r.obrigatoria),ordem:index+1}));
@@ -799,7 +824,7 @@ app.get('/api/minhas-avaliacoes', verificarToken, async (req, res) => {
 
 app.delete('/api/avaliacoes/:id', verificarToken, podeGerenciarAvaliacoes, async (req, res) => {
   try {
-    const result = await pool.query(`DELETE FROM avaliacoes a WHERE a.id=$1 ${String(req.usuarioPerfil).toLowerCase()==='editor'?'AND EXISTS (SELECT 1 FROM usuarios u WHERE u.id=a.usuario_avaliado_id AND u.lider_id=$2)':''} RETURNING id`, String(req.usuarioPerfil).toLowerCase()==='editor'?[req.params.id,req.usuarioId]:[req.params.id]);
+    const result = await pool.query(`DELETE FROM avaliacoes a WHERE a.id=$1 ${restringirAoProprioTime(req.usuarioPerfil)?'AND EXISTS (SELECT 1 FROM usuarios u WHERE u.id=a.usuario_avaliado_id AND u.lider_id=$2)':''} RETURNING id`, restringirAoProprioTime(req.usuarioPerfil)?[req.params.id,req.usuarioId]:[req.params.id]);
     if (!result.rows.length) return res.status(404).json({ error: 'Avaliação não encontrada' });
     res.json({ mensagem: 'Avaliação excluída.' });
   } catch (error) { res.status(500).json({ error: 'Erro ao excluir avaliação' }); }

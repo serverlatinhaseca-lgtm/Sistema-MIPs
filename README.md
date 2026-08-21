@@ -2,7 +2,17 @@
 
 Portal operacional com MIPs, receitas, usuários e avaliações mensais de colaboradores.
 
-## Versão 1.7.1 · Final
+## Versão 1.8.0 · Validação
+
+- Destaca visualmente a meta de desempenho de 80% e informa quanto falta para alcançá-la.
+- Alterna mensagens motivacionais conforme o resultado mais recente do usuário.
+- Exibe o objetivo preenchido no cadastro dentro da leitura da MIP.
+- Permite ao Administrador reprovar uma MIP com orientações obrigatórias para o autor.
+- Exibe a reprovação e as correções solicitadas na lista e na leitura da MIP do autor.
+- Limpa a orientação anterior quando a MIP é corrigida e reenviada para aprovação.
+- Adiciona o perfil Gerente, com acesso a todas as avaliações e permissões operacionais de Líder.
+- Mantém cada Líder restrito aos Funcionários vinculados à sua equipe.
+- Apresenta os perfis como Funcionário, Líder, Gerente e Administrador na gestão de usuários.
 
 - Corrige o salvamento de avaliações editadas.
 - Limpa o formulário após salvar, cancelar ou excluir.

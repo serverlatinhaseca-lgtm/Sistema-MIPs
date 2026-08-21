@@ -3,6 +3,8 @@ import { LayoutDashboard, BookOpen, Calculator, Users, ClipboardCheck, Sun, Moon
 import { useState, useEffect } from 'react';
 import useBranding from '../useBranding';
 
+const nomePerfil = (perfil) => ({ leitor: 'Funcionário', editor: 'Líder', gerente: 'Gerente', administrador: 'Administrador' }[String(perfil || '').toLowerCase()] || perfil);
+
 export default function Sidebar() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -48,7 +50,7 @@ export default function Sidebar() {
           <div onClick={() => navigate('/avaliacoes')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/avaliacoes') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}>
             <ClipboardCheck size={20} className="mr-3" /> {user.perfil?.toLowerCase() === 'leitor' ? 'Meu desempenho' : 'Avaliações'}
           </div>
-          {user.perfil?.toLowerCase() === 'editor' && <div onClick={() => navigate('/meu-desempenho')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/meu-desempenho') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}><ClipboardCheck size={20} className="mr-3" /> Meu desempenho</div>}
+          {['editor','gerente'].includes(user.perfil?.toLowerCase()) && <div onClick={() => navigate('/meu-desempenho')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/meu-desempenho') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}><ClipboardCheck size={20} className="mr-3" /> Meu desempenho</div>}
           {user.perfil?.toLowerCase() === 'administrador' && (
             <><div onClick={() => navigate('/ferramentas/etiquetas')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/ferramentas/etiquetas') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}><Tag size={20} className="mr-3" /> Etiquetas</div><div onClick={() => navigate('/ferramentas/caixas')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/ferramentas/caixas') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}><Calculator size={20} className="mr-3" /> Pacotes e Caixas</div><div onClick={() => navigate('/usuarios')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/usuarios') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}><Users size={20} className="mr-3" /> Usuários</div><div onClick={() => navigate('/configuracoes')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/configuracoes') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}><Settings size={20} className="mr-3" /> Personalização</div></>
           )}
@@ -64,7 +66,7 @@ export default function Sidebar() {
         <div className="mb-4 px-3 py-2 bg-white/5 rounded-lg">
           <p className="text-xs text-[var(--sidebar-text)] opacity-60">Logado como:</p>
           <p className="text-sm font-bold text-[var(--sidebar-text)] truncate">{user.nome}</p>
-          <span className="inline-block mt-1 text-[10px] px-2 py-0.5 bg-white/10 text-[var(--sidebar-text)] rounded">{user.perfil}</span>
+          <span className="inline-block mt-1 text-[10px] px-2 py-0.5 bg-white/10 text-[var(--sidebar-text)] rounded">{nomePerfil(user.perfil)}</span>
         </div>
         <div onClick={() => { localStorage.removeItem('token'); localStorage.removeItem('user'); sessionStorage.clear(); navigate('/'); }} className="p-3 text-red-400 hover:bg-red-500/10 rounded-lg cursor-pointer flex items-center">
           <LogOut size={20} className="mr-3" /> Sair

@@ -73,7 +73,7 @@ export default function ListaMIPs() {
             <h1 className="text-3xl font-bold">Manuais e Procedimentos (MIPs)</h1>
             <p className="text-[var(--text-muted)] text-sm">Consulte ou gerencie os manuais técnicos do sistema.</p>
           </div>
-          {(user.perfil?.toLowerCase() === 'administrador' || user.perfil?.toLowerCase() === 'editor') && (
+          {['administrador','editor','gerente'].includes(user.perfil?.toLowerCase()) && (
             <button onClick={() => navigate('/mips/nova')} className="flex items-center bg-[var(--primary)] text-white px-5 py-2.5 rounded-xl hover:opacity-90 font-medium transition-opacity shadow-md">
               <PlusCircle size={20} className="mr-2" /> Nova MIP
             </button>
@@ -91,8 +91,10 @@ export default function ListaMIPs() {
               <div>
                 <div className="flex justify-between items-start mb-3">
                   <span className="px-3 py-1 bg-[var(--bg-main)] border border-[var(--border-color)] text-[var(--primary)] font-mono text-xs font-bold rounded-lg">{mip.codigo}</span>
+                  <span className={`text-xs font-bold px-2 py-1 rounded-lg ${mip.status === 'Reprovado' ? 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300' : 'bg-[var(--bg-main)] text-[var(--text-muted)]'}`}>{mip.status}</span>
                 </div>
                 <h3 className="text-xl font-bold mb-2">{mip.titulo}</h3>
+                {mip.status === 'Reprovado' && Number(mip.autor_id) === Number(user.id) && <p className="text-sm text-red-700 dark:text-red-300 font-semibold mt-3">O Administrador solicitou correções. Abra a MIP para consultar a orientação.</p>}
               </div>
             </div>
           ))}

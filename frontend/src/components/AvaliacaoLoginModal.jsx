@@ -12,7 +12,7 @@ export default function AvaliacaoLoginModal() {
 
   useEffect(() => {
     const chaveVisto = `avaliacao_modal_visto_${user.id}`;
-    if (!['leitor','editor'].includes(perfil) || localStorage.getItem(chaveVisto) === '1' || sessionStorage.getItem('mostrar_avaliacoes_modal') !== '1') return;
+    if (!['leitor','editor','gerente'].includes(perfil) || localStorage.getItem(chaveVisto) === '1' || sessionStorage.getItem('mostrar_avaliacoes_modal') !== '1') return;
     sessionStorage.removeItem('mostrar_avaliacoes_modal');
     localStorage.setItem(chaveVisto, '1');
     axios.get(`http://${window.location.hostname}:7001/api/minhas-avaliacoes`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })

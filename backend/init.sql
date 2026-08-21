@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS mips (
   objetivo TEXT,
   conteudo TEXT NOT NULL,
   status VARCHAR(50) DEFAULT 'Em Revisão',
+  orientacao_correcao TEXT DEFAULT '',
   autor_id INT REFERENCES usuarios(id) ON DELETE SET NULL,
   criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
