@@ -1122,6 +1122,7 @@
             <div class="bread-total-summary" id="breadTotals"></div>
             <div id="orderQueue"></div>
             <div class="queue-actions">
+              <button class="secondary-button" id="archiveSelectedButton" type="button">Arquivar selecionadas</button>
               <button class="secondary-button" id="clearButton" type="button">
                 Limpar esta entrega
               </button>
@@ -1148,6 +1149,53 @@
             </div>
           </section>
         </div>
+
+        <section class="panel settings-panel" id="archivePanel" hidden>
+          <div class="panel-heading">
+            <span class="step">▣</span>
+            <div><h2>Arquivo de etiquetas</h2><p>Arquive em massa, consulte por mês e restaure quando necessário.</p></div>
+          </div>
+          <div class="settings-grid">
+            <section class="settings-card">
+              <h3>Arquivar por mês</h3>
+              <p>Move todas as etiquetas salvas no mês escolhido para o arquivo.</p>
+              <label class="field"><span>Mês das etiquetas</span><input id="archiveMonth" type="month" /></label>
+              <button class="primary-button" id="archiveMonthButton" type="button">Arquivar mês inteiro</button>
+              <small class="settings-message" id="archiveMessage"></small>
+            </section>
+            <section class="settings-card">
+              <h3>Etiquetas arquivadas</h3>
+              <label class="field"><span>Filtrar arquivo por mês</span><input id="archiveFilterMonth" type="month" /></label>
+              <div class="settings-list" id="archiveList"></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="panel settings-panel" id="financePanel" hidden>
+          <div class="panel-heading"><span class="step">R$</span><div><h2>Financeiro — clientes e unidades</h2><p>Cadastros e consolidação mensal para emissão de notas.</p></div></div>
+          <div class="settings-grid">
+            <section class="settings-card">
+              <h3>Clientes e suas unidades</h3>
+              <p>Lista gerada automaticamente com os clientes e unidades já definidos nas etiquetas.</p>
+              <div class="settings-list" id="financeClientList"></div>
+            </section>
+            <section class="settings-card">
+              <h3>Resumo dos cadastros</h3>
+              <p>Novas unidades salvas nas etiquetas passam a aparecer aqui automaticamente.</p>
+              <div class="bread-total-summary" id="financeRegistrySummary"></div>
+            </section>
+            <section class="settings-card" style="grid-column:1/-1">
+              <h3>Consulta mensal por cliente e unidade</h3>
+              <div class="settings-rule-grid">
+                <label class="field"><span>Mês de referência</span><input id="financeMonth" type="month" /></label>
+                <label class="field"><span>Pesquisar cliente ou unidade</span><input id="financeUnitSearch" type="search" placeholder="Digite para filtrar" /></label>
+              </div>
+              <div class="bread-total-summary" id="financeSummary"></div>
+              <div class="settings-list" id="financeUnitList"></div>
+              <button class="save-pdf-button" id="exportFinanceCsv" type="button">Baixar consulta em CSV</button>
+            </section>
+          </div>
+        </section>
 
         <section class="panel settings-panel" id="settingsPanel" hidden>
           <div class="panel-heading">
@@ -1627,6 +1675,8 @@
         },
         fixed: JSON.parse(JSON.stringify(DEFAULT_FIXED)),
         orders: [],
+        archivedOrders: [],
+        selectedOrderIds: new Set(),
       };
 
       const el = (id) => document.getElementById(id);
@@ -1808,6 +1858,10 @@
               } pedidos</span></button>`
           )
           .join("")}<button type="button" class="delivery-tab ${
+          state.view === "archive" ? "active" : ""
+        }" id="openArchive"><strong>Arquivo</strong><span>${state.archivedOrders.length} arquivadas</span></button><button type="button" class="delivery-tab ${
+          state.view === "finance" ? "active" : ""
+        }" id="openFinance"><strong>Financeiro</strong><span>Clientes e unidades</span></button><button type="button" class="delivery-tab ${
           state.view === "settings" ? "active" : ""
         }" id="openSettings"><strong>Configurações</strong><span>Regras e cadastros</span></button>`;
         document.querySelectorAll("[data-delivery]").forEach(
@@ -1826,6 +1880,8 @@
           state.view = "settings";
           render();
         };
+        el("openArchive").onclick = () => { state.view = "archive"; render(); };
+        el("openFinance").onclick = () => { state.view = "finance"; render(); };
       }
 
       function renderDateChooser() {
@@ -2560,7 +2616,7 @@
           ? `<div class="batch-list">${orders
               .map((o) =>
                 o.validityOnly
-                  ? `<article class="batch-item"><div><strong>ETIQUETAS DE VALIDADE</strong><span>${
+                  ? `<article class="batch-item"><label><input type="checkbox" data-archive-select="${o.id}" ${state.selectedOrderIds.has(o.id)?"checked":""} aria-label="Selecionar para arquivar"></label><div><strong>ETIQUETAS DE VALIDADE</strong><span>${
                       o.labelCount || o.total
                     } etiquetas • validade de ${
                       o.validityDays
@@ -2572,7 +2628,7 @@
                       o.id
                     }">Remover</button></article>`
                   : o.delivery === "genericas" && !o.parts?.length
-                  ? `<article class="batch-item"><div><strong>${
+                  ? `<article class="batch-item"><label><input type="checkbox" data-archive-select="${o.id}" ${state.selectedOrderIds.has(o.id)?"checked":""} aria-label="Selecionar para arquivar"></label><div><strong>${
                       o.destination
                     }</strong><span>${
                       o.labelCount || o.total
@@ -2582,7 +2638,7 @@
                     }</small></div><button type="button" data-remove="${
                       o.id
                     }">Remover</button></article>`
-                  : `<article class="batch-item"><div><strong>${o.destination}${
+                  : `<article class="batch-item"><label><input type="checkbox" data-archive-select="${o.id}" ${state.selectedOrderIds.has(o.id)?"checked":""} aria-label="Selecionar para arquivar"></label><div><strong>${o.destination}${
                       o.shift ? ` • ${o.shift}` : ""
                     }${o.afternoon ? " • TARDE" : ""}</strong><span>${
                       o.total
@@ -2608,6 +2664,11 @@
               render();
             })
         );
+        document.querySelectorAll("[data-archive-select]").forEach(input => input.onchange=()=>{
+          const id=Number(input.dataset.archiveSelect); input.checked ? state.selectedOrderIds.add(id) : state.selectedOrderIds.delete(id);
+          el("archiveSelectedButton").disabled=!state.selectedOrderIds.size;
+        });
+        el("archiveSelectedButton").disabled = !state.selectedOrderIds.size;
         el("clearButton").disabled = !orders.length;
         el("pdfButton").disabled = !labs.length;
         el("printButton").disabled = !labs.length;
@@ -2800,6 +2861,119 @@
         render();
       }
 
+      function archiveOrdersByIds(ids) {
+        const chosen = state.orders.filter(o => ids.has(o.id));
+        if (!chosen.length) return 0;
+        const now = new Date().toISOString();
+        state.archivedOrders.push(...chosen.map(o => ({ ...o, archivedAt: now })));
+        state.orders = state.orders.filter(o => !ids.has(o.id));
+        ids.forEach(id => state.selectedOrderIds.delete(id));
+        saveLocal();
+        return chosen.length;
+      }
+
+      function archiveSelected() {
+        const count = state.selectedOrderIds.size;
+        if (!count) return;
+        if (!confirm(`Arquivar ${count} pedido(s) de etiquetas selecionado(s)?`)) return;
+        archiveOrdersByIds(new Set(state.selectedOrderIds));
+        render();
+      }
+
+      function archiveMonth() {
+        const month = el("archiveMonth").value;
+        if (!month) { el("archiveMessage").textContent = "Selecione o mês que deseja arquivar."; return; }
+        const ids = new Set(state.orders.filter(o => String(o.date || "").startsWith(month)).map(o => o.id));
+        if (!ids.size) { el("archiveMessage").textContent = "Não existem etiquetas ativas nesse mês."; return; }
+        if (!confirm(`Arquivar todas as ${ids.size} etiqueta(s)/pedido(s) de ${month.split("-").reverse().join("/")}?`)) return;
+        const count = archiveOrdersByIds(ids);
+        renderArchive(`Foram arquivados ${count} registro(s).`);
+      }
+
+      function restoreArchived(id) {
+        const index = state.archivedOrders.findIndex(o => o.id === id);
+        if (index < 0) return;
+        const restored = { ...state.archivedOrders[index] };
+        delete restored.archivedAt;
+        state.archivedOrders.splice(index, 1);
+        if (state.orders.some(o => o.id === restored.id)) restored.id = Date.now();
+        state.orders.push(restored);
+        saveLocal(); renderArchive("Etiqueta restaurada para a fila ativa.");
+      }
+
+      function deleteArchived(id) {
+        if (!confirm("Excluir definitivamente este registro arquivado?")) return;
+        state.archivedOrders = state.archivedOrders.filter(o => o.id !== id);
+        saveLocal(); renderArchive("Registro arquivado excluído.");
+      }
+
+      function monthlyUnitRows() {
+        const month = el("financeMonth")?.value || "";
+        const search = (el("financeUnitSearch")?.value || "").trim().toLocaleLowerCase("pt-BR");
+        const all = [...state.orders, ...state.archivedOrders];
+        const grouped = new Map();
+        all.filter(o => month && String(o.date || "").startsWith(month) && !o.validityOnly).forEach(o => {
+          const unit = o.destination || "Sem unidade";
+          const client = DELIVERY_META[o.delivery]?.title || titleName(o.delivery || "Outro");
+          if (search && !`${client} ${unit}`.toLocaleLowerCase("pt-BR").includes(search)) return;
+          const product = o.product?.shortName || o.product?.name || "Outro";
+          const key = `${client}\u0000${unit}\u0000${product}`;
+          const current = grouped.get(key) || { client, unit, product, quantity: 0, orders: 0 };
+          current.quantity += Number(o.total) || 0; current.orders += 1; grouped.set(key, current);
+        });
+        return [...grouped.values()].sort((a,b)=>a.client.localeCompare(b.client,"pt-BR")||a.unit.localeCompare(b.unit,"pt-BR")||a.product.localeCompare(b.product,"pt-BR"));
+      }
+
+      function renderFinanceReport() {
+        const rows = monthlyUnitRows();
+        const units = new Set(rows.map(r=>r.unit)).size, quantity = rows.reduce((sum,r)=>sum+r.quantity,0), orders = rows.reduce((sum,r)=>sum+r.orders,0);
+        el("financeSummary").innerHTML = `<div class="bread-total-card"><span>Unidades</span><strong>${units}</strong></div><div class="bread-total-card"><span>Quantidade total</span><strong>${quantity.toLocaleString("pt-BR")}</strong></div><div class="bread-total-card"><span>Pedidos</span><strong>${orders}</strong></div>`;
+        el("financeUnitList").innerHTML = rows.length ? rows.map(r=>`<div class="settings-list-row"><div><strong>${escapeHtml(r.client)}</strong><small>${escapeHtml(r.unit)}</small></div><span>${escapeHtml(r.product)}</span><span>${r.orders} pedido(s)</span><strong>${r.quantity.toLocaleString("pt-BR")}</strong></div>`).join("") : '<div class="empty-state"><p>Nenhum registro encontrado para o mês e filtro informados.</p></div>';
+        el("exportFinanceCsv").disabled = !rows.length;
+      }
+
+      function exportFinanceCsv() {
+        const rows = monthlyUnitRows(); if (!rows.length) return;
+        const quote = value => `"${String(value).replace(/"/g,'""')}"`;
+        const csv = ["Cliente;Unidade;Produto;Quantidade;Pedidos", ...rows.map(r=>[r.client,r.unit,r.product,r.quantity,r.orders].map(quote).join(";"))].join("\r\n");
+        const url = URL.createObjectURL(new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8"}));
+        const a=document.createElement("a"); a.href=url; a.download=`CONSULTA_FINANCEIRO_${(el("financeMonth").value||"SEM_MES").replace("-","_")}.csv`; a.click(); URL.revokeObjectURL(url);
+      }
+
+      function renderArchive(message = "") {
+        const availableMonths = [...new Set([...state.orders,...state.archivedOrders].map(o=>String(o.date||"").slice(0,7)).filter(Boolean))].sort().reverse();
+        if (!el("archiveMonth").value) el("archiveMonth").value = availableMonths[0] || new Date().toISOString().slice(0,7);
+        const filter = el("archiveFilterMonth").value;
+        const rows = state.archivedOrders.filter(o=>!filter||String(o.date||"").startsWith(filter)).sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+        el("archiveList").innerHTML = rows.length ? rows.map(o=>`<div class="settings-list-row"><div><strong>${escapeHtml(o.destination||"Etiquetas de validade")}</strong><small>${formatDate(o.date)} • ${escapeHtml(DELIVERY_META[o.delivery]?.title||o.delivery)} • ${Number(o.total||o.labelCount||0).toLocaleString("pt-BR")}</small></div><button type="button" data-restore-archive="${o.id}">Restaurar</button><button class="remove-setting" type="button" data-delete-archive="${o.id}">Excluir</button></div>`).join("") : '<div class="empty-state"><p>Nenhuma etiqueta arquivada para este filtro.</p></div>';
+        document.querySelectorAll("[data-restore-archive]").forEach(b=>b.onclick=()=>restoreArchived(Number(b.dataset.restoreArchive)));
+        document.querySelectorAll("[data-delete-archive]").forEach(b=>b.onclick=()=>deleteArchived(Number(b.dataset.deleteArchive)));
+        el("archiveMessage").textContent = message;
+        el("archiveMonthButton").onclick = archiveMonth;
+        el("archiveFilterMonth").onchange = ()=>renderArchive();
+      }
+
+      function automaticClientsAndUnits() {
+        const base = {
+          igarata: [...state.destinations.igarata],
+          paraibuna: [...state.destinations.cidade, ...state.destinations.roca],
+          johnson: [...state.destinations.johnson],
+          genericas: [...state.destinations.genericas],
+        };
+        [...state.orders,...state.archivedOrders].filter(o=>base[o.delivery] && o.destination).forEach(o=>base[o.delivery].push(o.destination));
+        return Object.entries(base).map(([key,units])=>({key,name:DELIVERY_META[key].title,units:[...new Set(units.map(normalizeName).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"pt-BR"))}));
+      }
+
+      function renderFinance() {
+        const months=[...new Set([...state.orders,...state.archivedOrders].map(o=>String(o.date||"").slice(0,7)).filter(Boolean))].sort().reverse();
+        if(!el("financeMonth").value) el("financeMonth").value=months[0]||new Date().toISOString().slice(0,7);
+        const clients=automaticClientsAndUnits();
+        el("financeClientList").innerHTML=clients.map(c=>`<div class="settings-section"><div class="settings-section-title"><strong>${escapeHtml(c.name)}</strong><span>${c.units.length} unidade(s)</span></div><div class="settings-list">${c.units.length?c.units.map(u=>`<div class="settings-list-row"><strong>${escapeHtml(u)}</strong></div>`).join(""):'<small>Nenhuma unidade salva.</small>'}</div></div>`).join("");
+        el("financeRegistrySummary").innerHTML=`<div class="bread-total-card"><span>Clientes</span><strong>${clients.length}</strong></div><div class="bread-total-card"><span>Unidades</span><strong>${clients.reduce((s,c)=>s+c.units.length,0)}</strong></div>`;
+        el("financeMonth").onchange=renderFinanceReport; el("financeUnitSearch").oninput=renderFinanceReport; el("exportFinanceCsv").onclick=exportFinanceCsv;
+        renderFinanceReport();
+      }
+
       function saveLocal() {
         try {
           localStorage.setItem(
@@ -2814,6 +2988,7 @@
               destinations: state.destinations,
               fixed: state.fixed,
               validityRules: state.validityRules,
+              archivedOrders: state.archivedOrders,
             })
           );
         } catch {}
@@ -2833,6 +3008,7 @@
               state.rules = { ...DEFAULT_RULES, ...settings.rules };
             if (Array.isArray(settings.validityRules) && settings.validityRules.length)
               state.validityRules = settings.validityRules;
+            if (Array.isArray(settings.archivedOrders)) state.archivedOrders = settings.archivedOrders;
             if (
               settings.products &&
               Object.keys(DELIVERY_META).filter(key=>key!=="validade").every(
@@ -2881,8 +3057,28 @@
       function render() {
         renderTabs();
         const settingsOpen = state.view === "settings";
-        el("issuanceWorkspace").hidden = settingsOpen;
+        const archiveOpen = state.view === "archive";
+        const financeOpen = state.view === "finance";
+        el("issuanceWorkspace").hidden = settingsOpen || archiveOpen || financeOpen;
         el("settingsPanel").hidden = !settingsOpen;
+        el("archivePanel").hidden = !archiveOpen;
+        el("financePanel").hidden = !financeOpen;
+        if (financeOpen) {
+          el("previewPanel").hidden = true;
+          el("deliveryTitle").textContent = "Financeiro";
+          el("deliverySubtitle").textContent = "Clientes, unidades e consolidação mensal";
+          el("pendingBadge").textContent = `${automaticClientsAndUnits().length} cliente(s)`;
+          renderFinance();
+          return;
+        }
+        if (archiveOpen) {
+          el("previewPanel").hidden = true;
+          el("deliveryTitle").textContent = "Arquivo de etiquetas";
+          el("deliverySubtitle").textContent = "Consulta, restauração e limpeza por mês";
+          el("pendingBadge").textContent = `${state.archivedOrders.length} registro(s)`;
+          renderArchive();
+          return;
+        }
         if (settingsOpen) {
           el("previewPanel").hidden = true;
           el("deliveryTitle").textContent = "Configurações";
@@ -2915,6 +3111,7 @@
       el("orderForm").onsubmit = addOrder;
       el("quantity").oninput = updateSplit;
       el("clearButton").onclick = clearActive;
+      el("archiveSelectedButton").onclick = archiveSelected;
       el("pdfButton").onclick = downloadPdf;
       el("printButton").onclick = () => window.print();
       loadLocal();

@@ -2,7 +2,7 @@
 
 > Portal interno para padronização operacional, gestão de receitas, avaliações de desempenho, reclamações e ferramentas de produção.
 
-![Versão](https://img.shields.io/badge/versão-2.1.0-ff8d2f)
+![Versão](https://img.shields.io/badge/versão-2.2.0-ff8d2f)
 ![React](https://img.shields.io/badge/React-18-61dafb)
 ![Node.js](https://img.shields.io/badge/Node.js-18-339933)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-4169e1)
@@ -21,6 +21,16 @@ O Sistema Central reúne em um único portal os processos internos da Nova Esper
 - Exclusão segura de tipos de pão pela interface;
 - Tipos personalizados exibidos com capitalização normal;
 - Salvamento de locais recorrentes nas etiquetas genéricas.
+
+### Novidades da versão 2.2.0
+
+- Arquivamento em massa de etiquetas selecionadas;
+- Arquivamento de todas as etiquetas de um mês;
+- Consulta do arquivo por mês, restauração e exclusão;
+- Aba Financeiro preenchida automaticamente pelos clientes das etiquetas;
+- Relação automática de cada cliente com suas unidades;
+- Consolidação mensal por cliente, unidade e produto;
+- Exportação da consulta financeira em CSV.
 
 ### Módulos disponíveis
 
