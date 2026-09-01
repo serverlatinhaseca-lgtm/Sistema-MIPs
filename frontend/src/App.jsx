@@ -14,13 +14,14 @@ import MeuDesempenho from './pages/MeuDesempenho';
 import AvaliacaoLoginModal from './components/AvaliacaoLoginModal';
 import FerramentasAdmin from './pages/FerramentasAdmin';
 import Reclamacoes from './pages/Reclamacoes';
+import MipNotifications from './components/MipNotifications';
 
 function RotaPrivada({ children }) {
   const token = localStorage.getItem('token');
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   if (!token) return <Navigate to="/" />;
   if (user.deve_alterar_senha && window.location.pathname !== '/alterar-senha') return <Navigate to="/alterar-senha" />;
-  return <><AvaliacaoLoginModal />{children}</>;
+  return <><AvaliacaoLoginModal /><MipNotifications />{children}</>;
 }
 
 export default function App() {

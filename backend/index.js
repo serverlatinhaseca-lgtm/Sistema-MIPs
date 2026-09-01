@@ -122,6 +122,7 @@ async function inicializarBancoEAdmin() {
         orientacao_correcao TEXT DEFAULT '',
         autor_id INT REFERENCES usuarios(id) ON DELETE SET NULL,
         criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         search_vector tsvector
       );
       CREATE TABLE IF NOT EXISTS receitas (
@@ -136,6 +137,7 @@ async function inicializarBancoEAdmin() {
       ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS lider_id INT REFERENCES usuarios(id) ON DELETE SET NULL;
       ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS deve_alterar_senha BOOLEAN NOT NULL DEFAULT FALSE;
       ALTER TABLE mips ADD COLUMN IF NOT EXISTS orientacao_correcao TEXT DEFAULT '';
+      ALTER TABLE mips ADD COLUMN IF NOT EXISTS atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
       CREATE TABLE IF NOT EXISTS configuracoes_portal (
         id INT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
         nome_site VARCHAR(150) NOT NULL DEFAULT 'Portal MIPs',
@@ -550,6 +552,34 @@ app.get('/api/mips', verificarToken, async (req, res) => {
   } catch (error) { res.status(500).json({ error: 'Erro listar' }); }
 });
 
+// Avisos contextuais de MIPs. O navegador registra localmente quais avisos já
+// foram lidos; a API sempre devolve o estado atual, sem criar dados descartáveis
+// no banco.
+app.get('/api/mips-notificacoes', verificarToken, async (req, res) => {
+  try {
+    const perfil = normalizarPerfil(req.usuarioPerfil);
+    const parametros = [];
+    let filtro;
+    if (perfil === 'administrador') {
+      filtro = "m.status = 'Em Revisão'";
+    } else {
+      parametros.push(req.usuarioId);
+      filtro = "m.autor_id = $1 AND m.status IN ('Publicado','Reprovado')";
+    }
+    const resultado = await pool.query(
+      `SELECT m.id,m.codigo,m.titulo,m.status,m.orientacao_correcao,m.atualizado_em
+       FROM mips m WHERE ${filtro} ORDER BY m.atualizado_em DESC, m.id DESC LIMIT 20`,
+      parametros
+    );
+    res.json(resultado.rows.map(m => ({
+      ...m,
+      tipo: m.status === 'Reprovado' ? 'correcao' : m.status === 'Publicado' ? 'aprovacao' : 'revisao'
+    })));
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao carregar notificações de MIPs' });
+  }
+});
+
 app.get('/api/mips/buscar', verificarToken, async (req, res) => {
   const { q } = req.query;
   try {
@@ -594,7 +624,7 @@ app.put('/api/mips/:id', verificarToken, async (req, res) => {
     if (!atual.rows.length) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'MIP não encontrada' }); }
     const m = atual.rows[0];
     await client.query(`INSERT INTO mip_versoes (mip_id,codigo,titulo,resumo,objetivo,conteudo,status,alterado_por) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`, [m.id,m.codigo,m.titulo,m.resumo,m.objetivo,m.conteudo,m.status,req.usuarioId]);
-    await client.query(`UPDATE mips SET codigo=$1,titulo=$2,resumo=$3,objetivo=$4,conteudo=$5,status=$6,orientacao_correcao='' WHERE id=$7`, [codigo,titulo,resumo,objetivo,conteudo,novoStatus,req.params.id]);
+    await client.query(`UPDATE mips SET codigo=$1,titulo=$2,resumo=$3,objetivo=$4,conteudo=$5,status=$6,orientacao_correcao='',atualizado_em=CURRENT_TIMESTAMP WHERE id=$7`, [codigo,titulo,resumo,objetivo,conteudo,novoStatus,req.params.id]);
     await client.query('COMMIT');
     res.json({ mensagem: 'MIP atualizada e enviada novamente para aprovação do Administrador.', status: novoStatus });
   } catch (error) { await client.query('ROLLBACK'); res.status(500).json({ error: 'Erro ao atualizar MIP' }); }
@@ -614,7 +644,7 @@ app.get('/api/mips/:id/versoes', verificarToken, async (req, res) => {
 
 app.patch('/api/mips/:id/aprovar', verificarToken, async (req, res) => {
   if (req.usuarioPerfil !== 'Administrador') return res.status(403).json({ error: 'Acesso negado' });
-  try { await pool.query("UPDATE mips SET status = 'Publicado', orientacao_correcao='' WHERE id = $1", [req.params.id]); res.json({ mensagem: 'Aprovada!' }); } 
+  try { await pool.query("UPDATE mips SET status = 'Publicado', orientacao_correcao='', atualizado_em=CURRENT_TIMESTAMP WHERE id = $1", [req.params.id]); res.json({ mensagem: 'Aprovada!' }); } 
   catch (error) { res.status(500).json({ error: 'Erro aprovar' }); }
 });
 
@@ -623,7 +653,7 @@ app.patch('/api/mips/:id/reprovar', verificarToken, async (req, res) => {
   const orientacao = String(req.body?.orientacao || '').trim();
   if (orientacao.length < 5) return res.status(400).json({ error: 'Descreva claramente as correções necessárias' });
   try {
-    const result = await pool.query("UPDATE mips SET status='Reprovado', orientacao_correcao=$1 WHERE id=$2 RETURNING id", [orientacao, req.params.id]);
+    const result = await pool.query("UPDATE mips SET status='Reprovado', orientacao_correcao=$1, atualizado_em=CURRENT_TIMESTAMP WHERE id=$2 RETURNING id", [orientacao, req.params.id]);
     if (!result.rows.length) return res.status(404).json({ error: 'MIP não encontrada' });
     res.json({ mensagem: 'MIP devolvida ao autor para correção.' });
   } catch (error) { res.status(500).json({ error: 'Erro ao reprovar MIP' }); }

@@ -1097,6 +1097,10 @@
                 pacote</span
               >
             </label>
+            <label class="check-field" id="saveGenericField" hidden>
+              <input type="checkbox" id="saveGenericDestination" checked />
+              <span>Salvar este local para reutilizar nas próximas etiquetas</span>
+            </label>
 
             <div class="split-preview" id="splitPreview">
               <span>Digite a quantidade para visualizar a divisão.</span>
@@ -1156,9 +1160,7 @@
           <div class="settings-grid">
             <section class="settings-card">
               <h3>Regras gerais</h3>
-              <p>
-                Estas regras controlam a fabricação e as validades da Johnson.
-              </p>
+              <p>Estas regras controlam fabricação, validades e turnos.</p>
               <div class="settings-rule-grid">
                 <label class="field"
                   ><span>Etiquetas de validade</span
@@ -1192,11 +1194,23 @@
                     min="1"
                     step="1"
                 /></label>
+                <label class="field"><span>2º turno: fabricação após a entrega (dias)</span><input id="ruleSecondShiftLead" type="number" min="0" step="1" /></label>
+                <label class="field"><span>3º turno: fabricação após a entrega (dias)</span><input id="ruleThirdShiftLead" type="number" min="0" step="1" /></label>
               </div>
               <button class="primary-button" id="saveRulesButton" type="button">
                 Salvar regras gerais
               </button>
               <small class="settings-message" id="rulesMessage"></small>
+              <div class="settings-section">
+                <div class="settings-section-title"><strong>Regras de etiquetas de validade</strong></div>
+                <div class="settings-list" id="validityRulesList"></div>
+                <div class="settings-add-row">
+                  <input id="newValidityName" type="text" maxlength="70" placeholder="Produto / regra" />
+                  <input id="newValidityDays" type="number" min="1" step="1" placeholder="Dias" />
+                  <input id="newValidityLabels" type="number" min="1" step="1" placeholder="Etiquetas" />
+                  <button id="addValidityRule" type="button">Adicionar regra</button>
+                </div>
+              </div>
             </section>
 
             <section class="settings-card">
@@ -1346,7 +1360,11 @@
         },
         johnson: {
           title: "Johnson",
-          subtitle: "Setores, turnos, fabricação e validade",
+          subtitle: "Setores, turnos e lanches com frios",
+        },
+        validade: {
+          title: "Validades",
+          subtitle: "Etiquetas de fabricação e validade por produto e turno",
         },
         genericas: {
           title: "Genéricas",
@@ -1510,7 +1528,13 @@
         friosValidityDays: 3,
         milkMargarineValidityDays: 3,
         frenchMargarineValidityDays: 2,
+        secondShiftManufactureDays: 1,
+        thirdShiftManufactureDays: 1,
       };
+      const DEFAULT_VALIDITY_RULES = [
+        { id: "validity-milk", name: "Pão de leite com margarina", days: 3, labels: 60 },
+        { id: "validity-french", name: "Pão francês com margarina", days: 2, labels: 60 },
+      ];
 
       const IGARATA_BASE = [
         ["FUNDO SOCIAL", 6, "frances"],
@@ -1581,10 +1605,13 @@
         date: "",
         shift: "1º TURNO",
         johnsonMode: "frios",
+        validityRuleId: "validity-milk",
+        validityShift: "1º TURNO",
         settingsDelivery: "igarata",
         settingsRoute: "cidade",
         settingsFixedGroup: "segQua",
         rules: { ...DEFAULT_RULES },
+        validityRules: DEFAULT_VALIDITY_RULES.map((r) => ({ ...r })),
         products: {
           igarata: PRODUCTS.igarata.map((p) => ({ ...p })),
           paraibuna: PRODUCTS.paraibuna.map((p) => ({ ...p })),
@@ -1604,7 +1631,8 @@
 
       const el = (id) => document.getElementById(id);
       const normalizeName = (value) =>
-        value.trim().replace(/\s+/g, " ").toUpperCase();
+        value.trim().replace(/\s+/g, " ");
+      const titleName = (value) => normalizeName(value).toLocaleLowerCase("pt-BR").replace(/(^|[\s-])\p{L}/gu, (m) => m.toLocaleUpperCase("pt-BR"));
       const escapeHtml = (value) =>
         String(value).replace(
           /[&<>"']/g,
@@ -1664,6 +1692,8 @@
             ? `PARAIBUNA_${state.route === "cidade" ? "CIDADE" : "ROCA"}`
             : state.delivery === "johnson"
             ? "JOHNSON"
+            : state.delivery === "validade"
+            ? "VALIDADES"
             : "GENERICAS";
         return `${place}_${fileDate(state.date)}.pdf`;
       }
@@ -1726,6 +1756,12 @@
               afternoon: o.afternoon,
             }))
           );
+        if (state.delivery === "validade") {
+          return activeOrders().flatMap((o) => Array.from({ length: o.labelCount || o.total }, (_, index) => ({
+            id: `${o.id}-date-${index}`, kind: "date", manufacture: o.manufactureDate || o.date,
+            expiry: addDays(o.manufactureDate || o.date, o.validityDays)
+          })));
+        }
         if (state.delivery !== "johnson") return packages;
         const dates = activeOrders().flatMap((o) => {
           if (o.validityOnly)
@@ -1877,11 +1913,18 @@
                 } fixo${fixedCount === 1 ? "" : "s"} de ${weekday(state.date)}`
           }</button></fieldset>`;
           el("fixedIgarata").onclick = addIgarataFixed;
+        } else if (state.delivery === "validade") {
+          const options = state.validityRules.map(r => `<option value="${r.id}">${escapeHtml(r.name)} • ${r.days} dias</option>`).join("");
+          el("deliveryFields").innerHTML = `<label class="field"><span>Regra de validade</span><select id="validityRule">${options}</select></label><div class="two-column-fields">${dateInput("Data base / entrega")}<label class="field"><span>Turno</span><select id="validityShift"><option>1º TURNO</option><option>2º TURNO</option><option>3º TURNO</option></select></label></div>`;
+          el("validityRule").value = state.validityRuleId;
+          el("validityRule").onchange = e => { state.validityRuleId = e.target.value; render(); };
+          el("validityShift").value = state.validityShift;
+          el("validityShift").onchange = e => { state.validityShift = e.target.value; render(); };
         } else if (state.delivery === "johnson") {
-          const validityOnly = state.johnsonMode !== "frios";
+          const validityOnly = false;
           el(
             "deliveryFields"
-          ).innerHTML = `<label class="field"><span>Tipo de geração</span><select id="johnsonMode"><option value="frios">Lanche com frios</option><option value="validity-milk">Somente validade • pão de leite com margarina</option><option value="validity-french">Somente validade • pão francês com margarina</option></select></label><div class="${
+          ).innerHTML = `<div class="${
             validityOnly ? "" : "two-column-fields"
           }">${dateInput(
             validityOnly ? "Data de fabricação" : "Data da entrega"
@@ -1890,14 +1933,6 @@
               ? ""
               : `<label class="field"><span>Turno</span><select id="shift"><option>1º TURNO</option><option>2º TURNO</option><option>3º TURNO</option></select></label>`
           }</div>`;
-          el("johnsonMode").value = state.johnsonMode;
-          el("johnsonMode").onchange = (e) => {
-            state.johnsonMode = e.target.value;
-            el("destination").value = "";
-            el("quantity").value = "";
-            hideError();
-            render();
-          };
           if (!validityOnly) {
             el("shift").value = state.shift;
             el("shift").onchange = (e) => (state.shift = e.target.value);
@@ -1915,7 +1950,7 @@
 
       function renderProducts() {
         const validityOnly =
-          state.delivery === "johnson" && state.johnsonMode !== "frios";
+          state.delivery === "validade";
         el("productField").hidden = validityOnly;
         el("breadOptions").innerHTML = productsFor(state.delivery)
           .map(
@@ -1941,7 +1976,7 @@
 
       function renderDestinations() {
         const validityOnly =
-          state.delivery === "johnson" && state.johnsonMode !== "frios";
+          state.delivery === "validade";
         const generic = state.delivery === "genericas";
         const list =
           state.delivery === "igarata"
@@ -1963,9 +1998,9 @@
           : "Digite ou selecione";
         el("destinationField").hidden = validityOnly;
         el("afternoonField").hidden = state.delivery !== "igarata";
-        el("dateLabelsField").hidden =
-          state.delivery !== "johnson" || validityOnly;
-        el("johnsonRule").hidden = state.delivery !== "johnson";
+        el("dateLabelsField").hidden = true;
+        el("saveGenericField").hidden = !generic;
+        el("johnsonRule").hidden = !["johnson","validade"].includes(state.delivery);
         el("quantityLabel").textContent = generic
           ? "Quantidade total de pães"
           : validityOnly
@@ -1980,20 +2015,15 @@
         el("addButton").textContent = validityOnly
           ? "Adicionar etiquetas de validade"
           : "Adicionar etiquetas";
-        if (state.delivery === "johnson") {
-          const days =
-            state.johnsonMode === "validity-french"
-              ? state.rules.frenchMargarineValidityDays
-              : state.rules.milkMargarineValidityDays;
-          el("johnsonRule").innerHTML = validityOnly
-            ? state.date
-              ? `<strong>${
-                  state.rules.validityLabels
-                } etiquetas • fabricação e validade • ${days} dias</strong><span>Fab.: ${formatDate(
-                  state.date
-                )} • Val.: ${formatDate(addDays(state.date, days))}</span>`
-              : `<strong>${state.rules.validityLabels} etiquetas • fabricação e validade • ${days} dias</strong><span>Informe a data de fabricação.</span>`
-            : state.date
+        if (state.delivery === "validade") {
+          const rule = state.validityRules.find(r => r.id === state.validityRuleId) || state.validityRules[0];
+          const offset = state.validityShift === "2º TURNO" ? state.rules.secondShiftManufactureDays : state.validityShift === "3º TURNO" ? state.rules.thirdShiftManufactureDays : 0;
+          const manufacture = state.date ? addDays(state.date, offset) : "";
+          el("johnsonRule").innerHTML = state.date
+            ? `<strong>${rule.labels} etiquetas • ${escapeHtml(rule.name)} • ${rule.days} dias</strong><span>${state.validityShift} • Fab.: ${formatDate(manufacture)} • Val.: ${formatDate(addDays(manufacture, rule.days))}</span>`
+            : `<strong>${rule.labels} etiquetas • ${escapeHtml(rule.name)}</strong><span>Informe a data base.</span>`;
+        } else if (state.delivery === "johnson") {
+          el("johnsonRule").innerHTML = state.date
             ? `<strong>Fabricação e validade automáticas</strong><span>Fab.: ${formatDate(
                 addDays(state.date, -state.rules.manufactureLeadDays)
               )} • Val.: ${formatDate(
@@ -2010,12 +2040,12 @@
         const total = Number(el("quantity").value),
           product = productById(state.delivery, state.productId);
         const validityOnly =
-          state.delivery === "johnson" && state.johnsonMode !== "frios";
+          state.delivery === "validade";
         const generic = state.delivery === "genericas";
         if (validityOnly) {
           el(
             "splitPreview"
-          ).innerHTML = `<span>Serão geradas automaticamente <strong>${state.rules.validityLabels} etiquetas de validade</strong>.</span>`;
+          ).innerHTML = `<span>Serão geradas automaticamente <strong>${(state.validityRules.find(r=>r.id===state.validityRuleId)||state.validityRules[0]).labels} etiquetas de validade</strong>.</span>`;
           return;
         }
         el("splitPreview").innerHTML =
@@ -2033,11 +2063,11 @@
       function addOrder(event) {
         event.preventDefault();
         const validityOnly =
-          state.delivery === "johnson" && state.johnsonMode !== "frios";
+          state.delivery === "validade";
         const generic = state.delivery === "genericas";
         const destination = normalizeName(el("destination").value),
           total = validityOnly
-            ? state.rules.validityLabels
+            ? (state.validityRules.find(r=>r.id===state.validityRuleId)||state.validityRules[0]).labels
             : Number(el("quantity").value),
           product = productById(state.delivery, state.productId);
         if (!validityOnly && !destination)
@@ -2057,6 +2087,7 @@
               : "Informe a data da entrega."
           );
         if (generic) {
+          if (el("saveGenericDestination").checked && !state.destinations.genericas.some(n=>n.toLocaleLowerCase("pt-BR")===destination.toLocaleLowerCase("pt-BR"))) state.destinations.genericas.push(destination);
           state.orders.push({
             id: Date.now(),
             delivery: "genericas",
@@ -2068,22 +2099,22 @@
             source: "manual",
           });
         } else if (validityOnly) {
-          const validityDays =
-            state.johnsonMode === "validity-french"
-              ? state.rules.frenchMargarineValidityDays
-              : state.rules.milkMargarineValidityDays;
+          const rule = state.validityRules.find(r=>r.id===state.validityRuleId)||state.validityRules[0];
+          const offset = state.validityShift === "2º TURNO" ? state.rules.secondShiftManufactureDays : state.validityShift === "3º TURNO" ? state.rules.thirdShiftManufactureDays : 0;
           state.orders.push({
             id: Date.now(),
-            delivery: "johnson",
+            delivery: "validade",
             destination: "ETIQUETAS DE VALIDADE",
-            product,
+            product: { id: rule.id, name: rule.name, shortName: rule.name, packageSize: 1 },
             total,
             parts: [],
             date: state.date,
+            manufactureDate: addDays(state.date, offset),
+            shift: state.validityShift,
             validityOnly: true,
-            validityDays,
+            validityDays: rule.days,
             labelCount: total,
-            validityMode: state.johnsonMode,
+            validityMode: rule.id,
             source: "manual",
           });
         } else {
@@ -2097,10 +2128,7 @@
             parts: divide(total, product.packageSize),
             date: state.date,
             shift: state.delivery === "johnson" ? state.shift : null,
-            includeDateLabels:
-              state.delivery === "johnson"
-                ? el("includeDateLabels").checked
-                : false,
+            includeDateLabels: false,
             afternoon:
               state.delivery === "igarata" ? el("afternoon").checked : false,
             source: "manual",
@@ -2170,7 +2198,12 @@
         el("ruleMilkValidity").value = state.rules.milkMargarineValidityDays;
         el("ruleFrenchValidity").value =
           state.rules.frenchMargarineValidityDays;
-        el("settingsDeliveryTabs").innerHTML = Object.keys(DELIVERY_META)
+        el("ruleSecondShiftLead").value = state.rules.secondShiftManufactureDays;
+        el("ruleThirdShiftLead").value = state.rules.thirdShiftManufactureDays;
+        el("validityRulesList").innerHTML = state.validityRules.map((rule,index)=>`<div class="settings-list-row"><strong>${escapeHtml(rule.name)}</strong><span>${rule.days} dias • ${rule.labels} etiquetas</span><button class="remove-setting" type="button" data-remove-validity="${index}">Remover</button></div>`).join("");
+        document.querySelectorAll("[data-remove-validity]").forEach(button => button.onclick=()=>{ if(state.validityRules.length<=1){el("rulesMessage").textContent="Mantenha pelo menos uma regra de validade.";return;} state.validityRules.splice(Number(button.dataset.removeValidity),1); if(!state.validityRules.some(r=>r.id===state.validityRuleId)) state.validityRuleId=state.validityRules[0].id; saveLocal(); renderSettings("Regra removida."); });
+        el("addValidityRule").onclick = addValidityRule;
+        el("settingsDeliveryTabs").innerHTML = Object.keys(DELIVERY_META).filter(key=>key!=="validade")
           .map(
             (key) =>
               `<button type="button" data-settings-delivery="${key}" class="${
@@ -2239,7 +2272,7 @@
                 product.id
               }"><button type="button" data-save-product="${
                 product.id
-              }">Salvar</button></div>`
+              }">Salvar</button><button class="remove-setting" type="button" data-remove-product="${product.id}">Remover</button></div>`
           )
           .join("");
         document
@@ -2249,6 +2282,7 @@
               (button.onclick = () =>
                 saveSettingProduct(button.dataset.saveProduct))
           );
+        document.querySelectorAll("[data-remove-product]").forEach(button => button.onclick=()=>removeSettingProduct(button.dataset.removeProduct));
 
         const showFixed =
           state.settingsDelivery === "igarata" ||
@@ -2394,11 +2428,13 @@
           friosValidityDays: Number(el("ruleFriosValidity").value),
           milkMargarineValidityDays: Number(el("ruleMilkValidity").value),
           frenchMargarineValidityDays: Number(el("ruleFrenchValidity").value),
+          secondShiftManufactureDays: Number(el("ruleSecondShiftLead").value),
+          thirdShiftManufactureDays: Number(el("ruleThirdShiftLead").value),
         };
         const valid = Object.entries(values).every(
           ([key, value]) =>
             Number.isInteger(value) &&
-            (key === "manufactureLeadDays" ? value >= 0 : value > 0)
+            (["manufactureLeadDays","secondShiftManufactureDays","thirdShiftManufactureDays"].includes(key) ? value >= 0 : value > 0)
         );
         if (!valid) {
           el("rulesMessage").textContent =
@@ -2408,6 +2444,14 @@
         state.rules = values;
         saveLocal();
         el("rulesMessage").textContent = "Regras gerais salvas.";
+      }
+
+      function addValidityRule() {
+        const name=titleName(el("newValidityName").value), days=Number(el("newValidityDays").value), labels=Number(el("newValidityLabels").value);
+        if(!name || !Number.isInteger(days) || days<1 || !Number.isInteger(labels) || labels<1){ el("rulesMessage").textContent="Informe nome, dias e quantidade de etiquetas válidos."; return; }
+        if(state.validityRules.some(r=>r.name.toLocaleLowerCase("pt-BR")===name.toLocaleLowerCase("pt-BR"))){ el("rulesMessage").textContent="Essa regra já existe."; return; }
+        state.validityRules.push({id:`validity-${Date.now()}`,name,days,labels});
+        saveLocal(); renderSettings("Nova regra de validade adicionada.");
       }
 
       function addSettingSector() {
@@ -2444,8 +2488,20 @@
         if (state.delivery === state.settingsDelivery) updateSplit();
       }
 
+      function removeSettingProduct(id) {
+        const products=productsFor(state.settingsDelivery);
+        if(products.length<=1){ el("settingsCatalogMessage").textContent="Mantenha pelo menos um tipo de pão nesta aba."; return; }
+        if(state.orders.some(o=>o.delivery===state.settingsDelivery&&o.product?.id===id)){ el("settingsCatalogMessage").textContent="Remova primeiro os pedidos que usam esse tipo de pão."; return; }
+        const index=products.findIndex(p=>p.id===id); if(index<0)return;
+        products.splice(index,1);
+        if(state.settingsDelivery==="igarata") Object.values(state.fixed.igarata).forEach(items=>items.splice(0,items.length,...items.filter(i=>i.productId!==id)));
+        if(state.settingsDelivery==="paraibuna") state.fixed.paraibunaCidade=state.fixed.paraibunaCidade.filter(i=>i.productId!==id);
+        if(state.productId===id) state.productId=products[0].id;
+        saveLocal(); renderSettings("Tipo de pão removido.");
+      }
+
       function addSettingProduct() {
-        const name = normalizeName(el("newSettingProduct").value),
+        const name = titleName(el("newSettingProduct").value),
           size = Number(el("newSettingPackage").value),
           products = productsFor(state.settingsDelivery);
         if (!name) {
@@ -2757,6 +2813,7 @@
               products: state.products,
               destinations: state.destinations,
               fixed: state.fixed,
+              validityRules: state.validityRules,
             })
           );
         } catch {}
@@ -2774,9 +2831,11 @@
           if (settings && typeof settings === "object") {
             if (settings.rules && typeof settings.rules === "object")
               state.rules = { ...DEFAULT_RULES, ...settings.rules };
+            if (Array.isArray(settings.validityRules) && settings.validityRules.length)
+              state.validityRules = settings.validityRules;
             if (
               settings.products &&
-              Object.keys(DELIVERY_META).every(
+              Object.keys(DELIVERY_META).filter(key=>key!=="validade").every(
                 (key) =>
                   Array.isArray(settings.products[key]) &&
                   settings.products[key].length
