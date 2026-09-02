@@ -1757,7 +1757,7 @@
             : state.delivery === "johnson"
             ? "JOHNSON"
             : state.delivery === "validade"
-            ? `VALIDADES_${state.validityShift === "1º TURNO" ? "1_TURNO" : "2_E_3_TURNOS"}`
+            ? "VALIDADES"
             : "GENERICAS";
         return `${place}_${fileDate(state.date)}.pdf`;
       }
@@ -1767,8 +1767,7 @@
           (o) =>
             o.delivery === state.delivery &&
             o.date === state.date &&
-            (state.delivery !== "paraibuna" || o.route === state.route) &&
-            (state.delivery !== "validade" || o.shift === state.validityShift)
+            (state.delivery !== "paraibuna" || o.route === state.route)
         );
       }
 
@@ -1822,10 +1821,12 @@
             }))
           );
         if (state.delivery === "validade") {
-          return activeOrders().flatMap((o) => Array.from({ length: o.labelCount || o.total }, (_, index) => ({
-            id: `${o.id}-date-${index}`, kind: "date", manufacture: o.manufactureDate || o.date,
-            expiry: addDays(o.manufactureDate || o.date, o.validityDays)
-          })));
+          const orders=activeOrders().slice().sort((a,b)=>(a.shift==="1º TURNO"?0:1)-(b.shift==="1º TURNO"?0:1));
+          const first=orders.filter(o=>o.shift==="1º TURNO"), combined=orders.filter(o=>o.shift!=="1º TURNO");
+          const build=items=>items.flatMap(o=>Array.from({length:o.labelCount||o.total},(_,index)=>({id:`${o.id}-date-${index}`,kind:"date",manufacture:o.manufactureDate||o.date,expiry:addDays(o.manufactureDate||o.date,o.validityDays)})));
+          const firstLabels=build(first), combinedLabels=build(combined);
+          const separator=firstLabels.length&&combinedLabels.length?Array.from({length:((4-(firstLabels.length%4))%4)+4},(_,index)=>({id:`shift-separator-${index}`,kind:"blank"})):[];
+          return [...firstLabels,...separator,...combinedLabels];
         }
         if (state.delivery !== "johnson") return packages;
         const dates = activeOrders().flatMap((o) => {
@@ -2878,8 +2879,7 @@
             !(
               o.delivery === state.delivery &&
               o.date === state.date &&
-              (state.delivery !== "paraibuna" || o.route === state.route) &&
-              (state.delivery !== "validade" || o.shift === state.validityShift)
+              (state.delivery !== "paraibuna" || o.route === state.route)
             )
         );
         saveLocal();
@@ -2937,7 +2937,7 @@
       function archiveKeyMatches(order,key) {
         return archiveOrderKey(order)===key;
       }
-      function archiveOrderKey(order) { return `${order.delivery}|${order.route||""}|${order.date}|${order.delivery==="validade"?(order.shift||""):""}`; }
+      function archiveOrderKey(order) { return `${order.delivery}|${order.route||""}|${order.date}`; }
 
       function restoreArchivedDay(key) {
         const items=state.archivedOrders.filter(o=>archiveKeyMatches(o,key)); if(!items.length)return;
@@ -2994,7 +2994,7 @@
         const rows = state.archivedOrders.filter(o=>!filter||String(o.date||"").startsWith(filter));
         const groups=new Map(); rows.forEach(o=>{const key=archiveOrderKey(o);if(!groups.has(key))groups.set(key,[]);groups.get(key).push(o);});
         const grouped=[...groups.entries()].sort((a,b)=>String(b[1][0].date).localeCompare(String(a[1][0].date)));
-        el("archiveList").innerHTML = grouped.length ? grouped.map(([key,items])=>{const first=items[0],title=`${DELIVERY_META[first.delivery]?.title||first.delivery}${first.route?` • ${first.route==="cidade"?"Cidade":"Roça"}`:""}${first.delivery==="validade"&&first.shift?` • ${first.shift}`:""} — ${formatDate(first.date)}`,labels=items.reduce((sum,o)=>sum+(o.validityOnly?(o.labelCount||o.total||0):(o.parts?.length||0)),0);return `<div class="settings-list-row"><div><strong>${escapeHtml(title)}</strong><small>${items.length} pedido(s) • ${labels} etiqueta(s) • arquivo diário</small></div><button type="button" data-restore-day="${escapeHtml(key)}">Restaurar dia</button><button class="remove-setting" type="button" data-delete-day="${escapeHtml(key)}">Excluir dia</button></div>`;}).join("") : '<div class="empty-state"><p>Nenhum arquivo diário encontrado para este filtro.</p></div>';
+        el("archiveList").innerHTML = grouped.length ? grouped.map(([key,items])=>{const first=items[0],title=`${DELIVERY_META[first.delivery]?.title||first.delivery}${first.route?` • ${first.route==="cidade"?"Cidade":"Roça"}`:""} — ${formatDate(first.date)}`,labels=items.reduce((sum,o)=>sum+(o.validityOnly?(o.labelCount||o.total||0):(o.parts?.length||0)),0);return `<div class="settings-list-row"><div><strong>${escapeHtml(title)}</strong><small>${items.length} lote(s) • ${labels} etiqueta(s) • arquivo diário único</small></div><button type="button" data-restore-day="${escapeHtml(key)}">Restaurar dia</button><button class="remove-setting" type="button" data-delete-day="${escapeHtml(key)}">Excluir dia</button></div>`;}).join("") : '<div class="empty-state"><p>Nenhum arquivo diário encontrado para este filtro.</p></div>';
         document.querySelectorAll("[data-restore-day]").forEach(b=>b.onclick=()=>restoreArchivedDay(b.dataset.restoreDay));
         document.querySelectorAll("[data-delete-day]").forEach(b=>b.onclick=()=>deleteArchivedDay(b.dataset.deleteDay));
         el("archiveMessage").textContent = message;

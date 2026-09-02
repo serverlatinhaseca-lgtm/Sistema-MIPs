@@ -2,7 +2,7 @@
 
 > Portal interno para padronização operacional, gestão de receitas, avaliações de desempenho, reclamações e ferramentas de produção.
 
-![Versão](https://img.shields.io/badge/versão-2.4.0-ff8d2f)
+![Versão](https://img.shields.io/badge/versão-2.4.1-ff8d2f)
 ![React](https://img.shields.io/badge/React-18-61dafb)
 ![Node.js](https://img.shields.io/badge/Node.js-18-339933)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-4169e1)
@@ -53,6 +53,16 @@ O Sistema Central reúne em um único portal os processos internos da Nova Esper
 - Quantidade padrão conjunta para o 2º e 3º turnos;
 - Dias de validade e nome da regra editáveis;
 - Prazo de fabricação do arquivo conjunto configurável.
+
+### Correção da versão 2.4.1
+
+- Todos os turnos de validade são impressos no mesmo PDF diário;
+- O 1º turno aparece primeiro;
+- O lote conjunto do 2º e 3º turnos aparece depois;
+- Uma linha completa em branco separa os dois lotes;
+- A separação permanece alinhada mesmo com quantidades diárias personalizadas;
+- Nome do arquivo unificado em `VALIDADES_DD.MM.pdf`;
+- Arquivo histórico de validade novamente agrupado por dia.
 
 ### Módulos disponíveis
 
