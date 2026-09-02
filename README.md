@@ -2,7 +2,7 @@
 
 > Portal interno para padronização operacional, gestão de receitas, avaliações de desempenho, reclamações e ferramentas de produção.
 
-![Versão](https://img.shields.io/badge/versão-2.2.0-ff8d2f)
+![Versão](https://img.shields.io/badge/versão-2.3.0-ff8d2f)
 ![React](https://img.shields.io/badge/React-18-61dafb)
 ![Node.js](https://img.shields.io/badge/Node.js-18-339933)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-4169e1)
@@ -31,6 +31,18 @@ O Sistema Central reúne em um único portal os processos internos da Nova Esper
 - Relação automática de cada cliente com suas unidades;
 - Consolidação mensal por cliente, unidade e produto;
 - Exportação da consulta financeira em CSV.
+
+### Novidades da versão 2.3.0
+
+- Financeiro com subaba própria para Igaratá, Paraibuna, Johnson e Genéricas;
+- Unidades agrupadas automaticamente por setor, incluindo Educação, Saúde e Assistência Social;
+- Consulta mensal e CSV separados pelo cliente selecionado;
+- Arquivo organizado por cliente e dia, seguindo a lógica dos PDFs;
+- Restauração e exclusão do arquivo diário completo;
+- Validades com 28 etiquetas no primeiro turno;
+- Segundo e terceiro turnos reunidos em um único arquivo com 40 etiquetas e fabricação no dia seguinte;
+- Regra adicional de 5 etiquetas com validade de três dias;
+- Layout visual anterior das etiquetas preservado.
 
 ### Módulos disponíveis
 
