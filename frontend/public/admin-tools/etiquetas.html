@@ -1255,7 +1255,8 @@
                 <div class="settings-add-row">
                   <input id="newValidityName" type="text" maxlength="70" placeholder="Produto / regra" />
                   <input id="newValidityDays" type="number" min="1" step="1" placeholder="Dias" />
-                  <input id="newValidityLabels" type="number" min="1" step="1" placeholder="Etiquetas" />
+                  <input id="newValidityLabels" type="number" min="1" step="1" placeholder="Qtd. 1º turno" />
+                  <input id="newValidityCombinedLabels" type="number" min="1" step="1" placeholder="Qtd. 2º+3º" />
                   <button id="addValidityRule" type="button">Adicionar regra</button>
                 </div>
               </div>
@@ -1665,6 +1666,7 @@
         johnsonMode: "frios",
         validityRuleId: "validity-daily",
         validityShift: "1º TURNO",
+        validityQuantityOverride: null,
         financeDelivery: "igarata",
         settingsDelivery: "igarata",
         settingsRoute: "cidade",
@@ -1986,9 +1988,9 @@
           const options = state.validityRules.map(r => `<option value="${r.id}">${escapeHtml(r.name)} • ${r.days} dias</option>`).join("");
           el("deliveryFields").innerHTML = `<label class="field"><span>Regra de validade</span><select id="validityRule">${options}</select></label><div class="two-column-fields">${dateInput("Data base / entrega")}<label class="field"><span>Lote de impressão</span><select id="validityShift"><option>1º TURNO</option><option>2º E 3º TURNOS</option></select></label></div>`;
           el("validityRule").value = state.validityRuleId;
-          el("validityRule").onchange = e => { state.validityRuleId = e.target.value; render(); };
+          el("validityRule").onchange = e => { state.validityRuleId = e.target.value; state.validityQuantityOverride=null; render(); };
           el("validityShift").value = state.validityShift;
-          el("validityShift").onchange = e => { state.validityShift = e.target.value; render(); };
+          el("validityShift").onchange = e => { state.validityShift = e.target.value; state.validityQuantityOverride=null; render(); };
         } else if (state.delivery === "johnson") {
           const validityOnly = false;
           el(
@@ -2073,24 +2075,26 @@
         el("quantityLabel").textContent = generic
           ? "Quantidade total de pães"
           : validityOnly
-          ? "Quantidade de etiquetas de validade"
+          ? "Quantidade de etiquetas para este dia"
           : "Quantidade total";
         el("quantity").placeholder = generic
           ? "Ex.: 110"
           : validityOnly
           ? "Ex.: 48"
           : "Ex.: 110";
-        el("quantityField").hidden = validityOnly;
+        el("quantityField").hidden = false;
         el("addButton").textContent = validityOnly
           ? "Adicionar etiquetas de validade"
           : "Adicionar etiquetas";
         if (state.delivery === "validade") {
           const rule = state.validityRules.find(r => r.id === state.validityRuleId) || state.validityRules[0];
+          const dailyQuantity = state.validityQuantityOverride ?? validityLabelCount(rule);
+          el("quantity").value = dailyQuantity;
           const offset = state.validityShift === "2º E 3º TURNOS" ? state.rules.secondShiftManufactureDays : 0;
           const manufacture = state.date ? addDays(state.date, offset) : "";
           el("johnsonRule").innerHTML = state.date
-            ? `<strong>${validityLabelCount(rule)} etiquetas • ${escapeHtml(rule.name)} • ${rule.days} dias</strong><span>${state.validityShift} • Fab.: ${formatDate(manufacture)} • Val.: ${formatDate(addDays(manufacture, rule.days))}</span>`
-            : `<strong>${validityLabelCount(rule)} etiquetas • ${escapeHtml(rule.name)}</strong><span>Informe a data base.</span>`;
+            ? `<strong>${dailyQuantity} etiquetas • ${escapeHtml(rule.name)} • ${rule.days} dias</strong><span>${state.validityShift} • Fab.: ${formatDate(manufacture)} • Val.: ${formatDate(addDays(manufacture, rule.days))}</span>`
+            : `<strong>${dailyQuantity} etiquetas • ${escapeHtml(rule.name)}</strong><span>Informe a data base.</span>`;
         } else if (state.delivery === "johnson") {
           el("johnsonRule").innerHTML = state.date
             ? `<strong>Fabricação e validade automáticas</strong><span>Fab.: ${formatDate(
@@ -2114,7 +2118,7 @@
         if (validityOnly) {
           el(
             "splitPreview"
-          ).innerHTML = `<span>Serão geradas automaticamente <strong>${validityLabelCount(state.validityRules.find(r=>r.id===state.validityRuleId)||state.validityRules[0])} etiquetas de validade</strong>.</span>`;
+          ).innerHTML = Number.isInteger(total) && total > 0 ? `<span>Este arquivo terá <strong>${total} etiquetas de validade</strong>.</span>` : "<span>Informe uma quantidade inteira maior que zero.</span>";
           return;
         }
         el("splitPreview").innerHTML =
@@ -2136,7 +2140,7 @@
         const generic = state.delivery === "genericas";
         const destination = normalizeName(el("destination").value),
           total = validityOnly
-            ? validityLabelCount(state.validityRules.find(r=>r.id===state.validityRuleId)||state.validityRules[0])
+            ? Number(el("quantity").value)
             : Number(el("quantity").value),
           product = productById(state.delivery, state.productId);
         if (!validityOnly && !destination)
@@ -2205,6 +2209,7 @@
         }
         el("destination").value = "";
         el("quantity").value = "";
+        if(validityOnly) state.validityQuantityOverride=null;
         el("afternoon").checked = false;
         hideError();
         saveLocal();
@@ -2268,7 +2273,8 @@
         el("ruleFrenchValidity").value =
           state.rules.frenchMargarineValidityDays;
         el("ruleSecondShiftLead").value = state.rules.secondShiftManufactureDays;
-        el("validityRulesList").innerHTML = state.validityRules.map((rule,index)=>`<div class="settings-list-row"><strong>${escapeHtml(rule.name)}</strong><span>${rule.days} dias • 1º: ${validityLabelCount(rule,"1º TURNO")} • 2º+3º: ${validityLabelCount(rule,"2º E 3º TURNOS")}</span><button class="remove-setting" type="button" data-remove-validity="${index}">Remover</button></div>`).join("");
+        el("validityRulesList").innerHTML = state.validityRules.map((rule,index)=>`<div class="settings-section"><div class="settings-list-row fixed-row"><input type="text" value="${escapeHtml(rule.name)}" data-validity-name="${index}" aria-label="Nome da regra"><label><small>Dias de validade</small><input type="number" min="1" step="1" value="${rule.days}" data-validity-days="${index}"></label><label><small>Qtd. 1º turno</small><input type="number" min="1" step="1" value="${validityLabelCount(rule,"1º TURNO")}" data-validity-first="${index}"></label><label><small>Qtd. 2º+3º</small><input type="number" min="1" step="1" value="${validityLabelCount(rule,"2º E 3º TURNOS")}" data-validity-combined="${index}"></label><button type="button" data-save-validity="${index}">Salvar</button><button class="remove-setting" type="button" data-remove-validity="${index}">Remover</button></div></div>`).join("");
+        document.querySelectorAll("[data-save-validity]").forEach(button=>button.onclick=()=>saveValidityRule(Number(button.dataset.saveValidity)));
         document.querySelectorAll("[data-remove-validity]").forEach(button => button.onclick=()=>{ if(state.validityRules.length<=1){el("rulesMessage").textContent="Mantenha pelo menos uma regra de validade.";return;} state.validityRules.splice(Number(button.dataset.removeValidity),1); if(!state.validityRules.some(r=>r.id===state.validityRuleId)) state.validityRuleId=state.validityRules[0].id; saveLocal(); renderSettings("Regra removida."); });
         el("addValidityRule").onclick = addValidityRule;
         el("settingsDeliveryTabs").innerHTML = Object.keys(DELIVERY_META).filter(key=>key!=="validade")
@@ -2514,11 +2520,22 @@
       }
 
       function addValidityRule() {
-        const name=titleName(el("newValidityName").value), days=Number(el("newValidityDays").value), labels=Number(el("newValidityLabels").value);
-        if(!name || !Number.isInteger(days) || days<1 || !Number.isInteger(labels) || labels<1){ el("rulesMessage").textContent="Informe nome, dias e quantidade de etiquetas válidos."; return; }
+        const name=titleName(el("newValidityName").value), days=Number(el("newValidityDays").value), labels=Number(el("newValidityLabels").value), combined=Number(el("newValidityCombinedLabels").value);
+        if(!name || !Number.isInteger(days) || days<1 || !Number.isInteger(labels) || labels<1 || !Number.isInteger(combined) || combined<1){ el("rulesMessage").textContent="Informe nome, dias e as duas quantidades de etiquetas."; return; }
         if(state.validityRules.some(r=>r.name.toLocaleLowerCase("pt-BR")===name.toLocaleLowerCase("pt-BR"))){ el("rulesMessage").textContent="Essa regra já existe."; return; }
-        state.validityRules.push({id:`validity-${Date.now()}`,name,days,labels,labelsByShift:{"1º TURNO":labels,"2º E 3º TURNOS":labels}});
+        state.validityRules.push({id:`validity-${Date.now()}`,name,days,labels,labelsByShift:{"1º TURNO":labels,"2º E 3º TURNOS":combined}});
         saveLocal(); renderSettings("Nova regra de validade adicionada.");
+      }
+
+      function saveValidityRule(index) {
+        const rule=state.validityRules[index]; if(!rule)return;
+        const name=titleName(document.querySelector(`[data-validity-name="${index}"]`)?.value||""),
+          days=Number(document.querySelector(`[data-validity-days="${index}"]`)?.value),
+          first=Number(document.querySelector(`[data-validity-first="${index}"]`)?.value),
+          combined=Number(document.querySelector(`[data-validity-combined="${index}"]`)?.value);
+        if(!name || ![days,first,combined].every(value=>Number.isInteger(value)&&value>0)){el("rulesMessage").textContent="Revise o nome, os dias e as quantidades da regra.";return;}
+        rule.name=name; rule.days=days; rule.labels=first; rule.labelsByShift={"1º TURNO":first,"2º E 3º TURNOS":combined};
+        state.validityQuantityOverride=null; saveLocal(); renderSettings("Regra de validade atualizada.");
       }
 
       function addSettingSector() {
@@ -3159,7 +3176,7 @@
       }
 
       el("orderForm").onsubmit = addOrder;
-      el("quantity").oninput = updateSplit;
+      el("quantity").oninput = () => { if(state.delivery==="validade") state.validityQuantityOverride=Number(el("quantity").value); updateSplit(); };
       el("clearButton").onclick = clearActive;
       el("archiveSelectedButton").onclick = archiveSelected;
       el("pdfButton").onclick = downloadPdf;

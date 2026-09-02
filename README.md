@@ -2,7 +2,7 @@
 
 > Portal interno para padronização operacional, gestão de receitas, avaliações de desempenho, reclamações e ferramentas de produção.
 
-![Versão](https://img.shields.io/badge/versão-2.3.0-ff8d2f)
+![Versão](https://img.shields.io/badge/versão-2.4.0-ff8d2f)
 ![React](https://img.shields.io/badge/React-18-61dafb)
 ![Node.js](https://img.shields.io/badge/Node.js-18-339933)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-4169e1)
@@ -43,6 +43,16 @@ O Sistema Central reúne em um único portal os processos internos da Nova Esper
 - Segundo e terceiro turnos reunidos em um único arquivo com 40 etiquetas e fabricação no dia seguinte;
 - Regra adicional de 5 etiquetas com validade de três dias;
 - Layout visual anterior das etiquetas preservado.
+
+### Novidades da versão 2.4.0
+
+- Quantidade de etiquetas editável para cada dia antes da geração;
+- Alteração diária não modifica os valores padrão;
+- Edição completa das regras de validade pela interface;
+- Quantidade padrão independente para o 1º turno;
+- Quantidade padrão conjunta para o 2º e 3º turnos;
+- Dias de validade e nome da regra editáveis;
+- Prazo de fabricação do arquivo conjunto configurável.
 
 ### Módulos disponíveis
 
