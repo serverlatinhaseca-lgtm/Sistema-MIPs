@@ -2,7 +2,7 @@
 
 > Portal interno para padronização operacional, gestão de receitas, avaliações de desempenho, reclamações e ferramentas de produção.
 
-![Versão](https://img.shields.io/badge/versão-2.4.1-ff8d2f)
+![Versão](https://img.shields.io/badge/versão-2.5.0-ff8d2f)
 ![React](https://img.shields.io/badge/React-18-61dafb)
 ![Node.js](https://img.shields.io/badge/Node.js-18-339933)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-4169e1)
@@ -63,6 +63,18 @@ O Sistema Central reúne em um único portal os processos internos da Nova Esper
 - A separação permanece alinhada mesmo com quantidades diárias personalizadas;
 - Nome do arquivo unificado em `VALIDADES_DD.MM.pdf`;
 - Arquivo histórico de validade novamente agrupado por dia.
+
+### Novidades da versão 2.5.0
+
+- Filtro de tipo de pão no resumo Financeiro;
+- Filtros de cliente, mês, setor, unidade e pão podem ser combinados;
+- Cópia de um dia completo para uma nova data;
+- Cópia disponível nas etiquetas ativas e no Arquivo;
+- Edição de pedidos já cadastrados;
+- Alteração de setor/local, tipo de pão e quantidade;
+- Recálculo automático dos pacotes após a edição;
+- Edição compatível com pedidos fixos, manuais, genéricos e validades;
+- Persistência no banco corrigida para regras de validade e arquivo diário.
 
 ### Módulos disponíveis
 

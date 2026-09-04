@@ -680,6 +680,12 @@
         font-size: 0.7rem;
         font-weight: 800;
       }
+      .batch-actions { display:flex; gap:6px; align-items:center; }
+      .batch-actions .edit-order { color:var(--primary); }
+      .order-edit-overlay { position:fixed; inset:0; z-index:1000; display:grid; place-items:center; padding:20px; background:rgba(25,20,17,.65); }
+      .order-edit-overlay[hidden] { display:none; }
+      .order-edit-card { width:min(520px,100%); padding:22px; border-radius:18px; background:var(--paper); box-shadow:0 24px 70px rgba(0,0,0,.3); }
+      .order-edit-actions { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:18px; }
 
       .queue-actions {
         display: grid;
@@ -1123,6 +1129,7 @@
             <div id="orderQueue"></div>
             <div class="queue-actions">
               <button class="secondary-button" id="archiveSelectedButton" type="button">Arquivar dia selecionado</button>
+              <button class="secondary-button" id="copyActiveDayButton" type="button">Copiar este dia</button>
               <button class="secondary-button" id="clearButton" type="button">
                 Limpar esta entrega
               </button>
@@ -1190,6 +1197,7 @@
               <div class="settings-rule-grid">
                 <label class="field"><span>Mês de referência</span><input id="financeMonth" type="month" /></label>
                 <label class="field"><span>Pesquisar cliente ou unidade</span><input id="financeUnitSearch" type="search" placeholder="Digite para filtrar" /></label>
+                <label class="field"><span>Tipo de pão</span><select id="financeProductFilter"><option value="">Todos os tipos</option></select></label>
               </div>
               <div class="bread-total-summary" id="financeSummary"></div>
               <div class="settings-list" id="financeUnitList"></div>
@@ -1354,6 +1362,18 @@
         </section>
       </section>
 
+      <div class="order-edit-overlay" id="orderEditOverlay" hidden>
+        <form class="order-edit-card" id="orderEditForm">
+          <h2>Editar pedido de etiquetas</h2>
+          <p class="subtitle">Altere os dados sem precisar apagar e cadastrar novamente.</p>
+          <label class="field" id="editDestinationField"><span>Setor / local</span><input id="editOrderDestination" type="text" required /></label>
+          <label class="field"><span>Tipo de pão</span><select id="editOrderProduct" required></select></label>
+          <label class="field"><span>Quantidade total</span><input id="editOrderQuantity" type="number" min="1" step="1" required /></label>
+          <p class="error" id="editOrderError" hidden></p>
+          <div class="order-edit-actions"><button class="secondary-button" id="cancelOrderEdit" type="button">Cancelar</button><button class="primary-button" type="submit">Salvar alterações</button></div>
+        </form>
+      </div>
+
       <section class="print-area" id="printArea"></section>
     </main>
 
@@ -1372,7 +1392,7 @@
             const resposta = await fetch(adminApi, {
               method: "PUT",
               headers: { "Content-Type": "application/json", Authorization: `Bearer ${portalToken}` },
-              body: JSON.stringify({ dados: { orders: state.orders, settings: { rules: state.rules, products: state.products, destinations: state.destinations, fixed: state.fixed } } })
+              body: JSON.stringify({ dados: { orders: state.orders, settings: { rules: state.rules, products: state.products, destinations: state.destinations, fixed: state.fixed, validityRules: state.validityRules, archivedOrders: state.archivedOrders } } })
             });
             if (!resposta.ok) throw new Error();
             const badge = document.getElementById("pendingBadge");
@@ -1690,6 +1710,7 @@
         orders: [],
         archivedOrders: [],
         selectedOrderIds: new Set(),
+        editingOrderId: null,
       };
 
       const el = (id) => document.getElementById(id);
@@ -2653,9 +2674,7 @@
                       o.date
                     )} • VAL.: ${formatDate(
                       addDays(o.date, o.validityDays)
-                    )}</small></div><button type="button" data-remove="${
-                      o.id
-                    }">Remover</button></article>`
+                    )}</small></div><div class="batch-actions"><button class="edit-order" type="button" data-edit-order="${o.id}">Editar</button><button type="button" data-remove="${o.id}">Remover</button></div></article>`
                   : o.delivery === "genericas" && !o.parts?.length
                   ? `<article class="batch-item"><label><input type="checkbox" data-archive-select="${o.id}" ${state.selectedOrderIds.has(o.id)?"checked":""} aria-label="Selecionar para arquivar"></label><div><strong>${
                       o.destination
@@ -2664,9 +2683,7 @@
                     } etiquetas genéricas</span><small>${
                       [o.line2, o.line3].filter(Boolean).join(" • ") ||
                       "Somente texto principal"
-                    }</small></div><button type="button" data-remove="${
-                      o.id
-                    }">Remover</button></article>`
+                    }</small></div><div class="batch-actions"><button class="edit-order" type="button" data-edit-order="${o.id}">Editar</button><button type="button" data-remove="${o.id}">Remover</button></div></article>`
                   : `<article class="batch-item"><label><input type="checkbox" data-archive-select="${o.id}" ${state.selectedOrderIds.has(o.id)?"checked":""} aria-label="Selecionar para arquivar"></label><div><strong>${o.destination}${
                       o.shift ? ` • ${o.shift}` : ""
                     }${o.afternoon ? " • TARDE" : ""}</strong><span>${
@@ -2677,9 +2694,7 @@
                       o.parts.length === 1 ? "" : "s"
                     }</span><small>${o.parts.join(" + ")}${
                       o.source === "fixo" ? " • PEDIDO FIXO" : ""
-                    }</small></div><button type="button" data-remove="${
-                      o.id
-                    }">Remover</button></article>`
+                    }</small></div><div class="batch-actions"><button class="edit-order" type="button" data-edit-order="${o.id}">Editar</button><button type="button" data-remove="${o.id}">Remover</button></div></article>`
               )
               .join("")}</div>`
           : '<div class="empty-state"><span>6187</span><p>Os pedidos adicionados aparecerão aqui.</p></div>';
@@ -2697,7 +2712,9 @@
           const id=Number(input.dataset.archiveSelect); input.checked ? state.selectedOrderIds.add(id) : state.selectedOrderIds.delete(id);
           el("archiveSelectedButton").disabled=!state.selectedOrderIds.size;
         });
+        document.querySelectorAll("[data-edit-order]").forEach(button=>button.onclick=()=>openOrderEdit(Number(button.dataset.editOrder)));
         el("archiveSelectedButton").disabled = !state.selectedOrderIds.size;
+        el("copyActiveDayButton").disabled = !orders.length;
         el("clearButton").disabled = !orders.length;
         el("pdfButton").disabled = !labs.length;
         el("printButton").disabled = !labs.length;
@@ -2871,6 +2888,62 @@
         doc.save(pdfName());
       }
 
+      function openOrderEdit(id) {
+        const order=state.orders.find(o=>o.id===id); if(!order)return;
+        state.editingOrderId=id;
+        const validity=Boolean(order.validityOnly);
+        el("editDestinationField").hidden=validity;
+        el("editOrderDestination").required=!validity;
+        el("editOrderDestination").value=order.destination||"";
+        const options=validity
+          ? state.validityRules.map(rule=>({id:rule.id,name:rule.name}))
+          : productsFor(order.delivery).map(product=>({id:product.id,name:product.shortName}));
+        el("editOrderProduct").innerHTML=options.map(option=>`<option value="${option.id}">${escapeHtml(option.name)}</option>`).join("");
+        const selectedProduct=validity?(order.validityMode||order.product?.id):(order.product?.id||"");
+        el("editOrderProduct").value=options.some(option=>option.id===selectedProduct)?selectedProduct:(options[0]?.id||"");
+        el("editOrderQuantity").value=order.labelCount||order.total||"";
+        el("editOrderError").hidden=true;
+        el("orderEditOverlay").hidden=false;
+      }
+
+      function closeOrderEdit() { state.editingOrderId=null; el("orderEditOverlay").hidden=true; }
+
+      function saveOrderEdit(event) {
+        event.preventDefault();
+        const order=state.orders.find(o=>o.id===state.editingOrderId), quantity=Number(el("editOrderQuantity").value);
+        if(!order||!Number.isInteger(quantity)||quantity<=0){el("editOrderError").textContent="Informe uma quantidade inteira maior que zero.";el("editOrderError").hidden=false;return;}
+        if(order.validityOnly){
+          const rule=state.validityRules.find(r=>r.id===el("editOrderProduct").value);if(!rule)return;
+          order.product={id:rule.id,name:rule.name,shortName:rule.name,packageSize:1};order.validityMode=rule.id;order.validityDays=rule.days;order.total=quantity;order.labelCount=quantity;
+          const offset=order.shift==="2º E 3º TURNOS"?state.rules.secondShiftManufactureDays:0;order.manufactureDate=addDays(order.date,offset);
+        } else {
+          const destination=normalizeName(el("editOrderDestination").value), product=productById(order.delivery,el("editOrderProduct").value);
+          if(!destination||!product){el("editOrderError").textContent="Informe o setor/local e selecione um tipo de pão.";el("editOrderError").hidden=false;return;}
+          order.destination=destination;order.product={...product};order.total=quantity;order.parts=divide(quantity,product.packageSize);
+          const destinationKey=order.delivery==="paraibuna"?(order.route||"cidade"):order.delivery;
+          if(state.destinations[destinationKey]&&!state.destinations[destinationKey].some(name=>name.toLocaleLowerCase("pt-BR")===destination.toLocaleLowerCase("pt-BR")))state.destinations[destinationKey].push(destination);
+        }
+        saveLocal();closeOrderEdit();render();
+      }
+
+      function validCopyDate(value) { return /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(new Date(`${value}T12:00:00`).getTime()); }
+
+      function copyOrdersToDate(items,sourceDate) {
+        if(!items.length)return;
+        const target=prompt(`Copiar as etiquetas de ${formatDate(sourceDate)} para qual data?\nUse o formato AAAA-MM-DD.`);
+        if(target===null)return;
+        if(!validCopyDate(target)){alert("Data inválida. Use o formato AAAA-MM-DD.");return;}
+        if(target===sourceDate&&!confirm("A data de destino é igual à original. Deseja duplicar mesmo assim?"))return;
+        const now=Date.now();items.forEach((item,index)=>{const copy={...item,id:now+index,date:target,product:item.product?{...item.product}:item.product,parts:Array.isArray(item.parts)?[...item.parts]:item.parts,source:"copia"};delete copy.archivedAt;if(copy.validityOnly){const offset=copy.shift==="2º E 3º TURNOS"?state.rules.secondShiftManufactureDays:0;copy.manufactureDate=addDays(target,offset);}state.orders.push(copy);});
+        state.date=target;saveLocal();render();alert(`${items.length} pedido(s) copiado(s) para ${formatDate(target)}.`);
+      }
+
+      function copyActiveDay() { copyOrdersToDate(activeOrders(),state.date); }
+
+      function copyArchivedDay(key) {
+        const items=state.archivedOrders.filter(o=>archiveKeyMatches(o,key));copyOrdersToDate(items,items[0]?.date||"");
+      }
+
       function clearActive() {
         if (!confirm("Limpar todos os pedidos desta entrega e desta data?"))
           return;
@@ -2955,6 +3028,7 @@
       function monthlyUnitRows() {
         const month = el("financeMonth")?.value || "";
         const search = (el("financeUnitSearch")?.value || "").trim().toLocaleLowerCase("pt-BR");
+        const productFilter = el("financeProductFilter")?.value || "";
         const all = [...state.orders, ...state.archivedOrders];
         const grouped = new Map();
         all.filter(o => month && String(o.date || "").startsWith(month) && !o.validityOnly && o.delivery===state.financeDelivery).forEach(o => {
@@ -2963,6 +3037,7 @@
           const sector = sectorForUnit(unit, o.delivery);
           if (search && !`${client} ${sector} ${unit}`.toLocaleLowerCase("pt-BR").includes(search)) return;
           const product = o.product?.shortName || o.product?.name || "Outro";
+          if(productFilter && product!==productFilter)return;
           const key = `${client}\u0000${sector}\u0000${unit}\u0000${product}`;
           const current = grouped.get(key) || { client, sector, unit, product, quantity: 0, orders: 0 };
           current.quantity += Number(o.total) || 0; current.orders += 1; grouped.set(key, current);
@@ -2994,7 +3069,8 @@
         const rows = state.archivedOrders.filter(o=>!filter||String(o.date||"").startsWith(filter));
         const groups=new Map(); rows.forEach(o=>{const key=archiveOrderKey(o);if(!groups.has(key))groups.set(key,[]);groups.get(key).push(o);});
         const grouped=[...groups.entries()].sort((a,b)=>String(b[1][0].date).localeCompare(String(a[1][0].date)));
-        el("archiveList").innerHTML = grouped.length ? grouped.map(([key,items])=>{const first=items[0],title=`${DELIVERY_META[first.delivery]?.title||first.delivery}${first.route?` • ${first.route==="cidade"?"Cidade":"Roça"}`:""} — ${formatDate(first.date)}`,labels=items.reduce((sum,o)=>sum+(o.validityOnly?(o.labelCount||o.total||0):(o.parts?.length||0)),0);return `<div class="settings-list-row"><div><strong>${escapeHtml(title)}</strong><small>${items.length} lote(s) • ${labels} etiqueta(s) • arquivo diário único</small></div><button type="button" data-restore-day="${escapeHtml(key)}">Restaurar dia</button><button class="remove-setting" type="button" data-delete-day="${escapeHtml(key)}">Excluir dia</button></div>`;}).join("") : '<div class="empty-state"><p>Nenhum arquivo diário encontrado para este filtro.</p></div>';
+        el("archiveList").innerHTML = grouped.length ? grouped.map(([key,items])=>{const first=items[0],title=`${DELIVERY_META[first.delivery]?.title||first.delivery}${first.route?` • ${first.route==="cidade"?"Cidade":"Roça"}`:""} — ${formatDate(first.date)}`,labels=items.reduce((sum,o)=>sum+(o.validityOnly?(o.labelCount||o.total||0):(o.parts?.length||0)),0);return `<div class="settings-list-row"><div><strong>${escapeHtml(title)}</strong><small>${items.length} lote(s) • ${labels} etiqueta(s) • arquivo diário único</small></div><button type="button" data-copy-day="${escapeHtml(key)}">Copiar dia</button><button type="button" data-restore-day="${escapeHtml(key)}">Restaurar dia</button><button class="remove-setting" type="button" data-delete-day="${escapeHtml(key)}">Excluir dia</button></div>`;}).join("") : '<div class="empty-state"><p>Nenhum arquivo diário encontrado para este filtro.</p></div>';
+        document.querySelectorAll("[data-copy-day]").forEach(b=>b.onclick=()=>copyArchivedDay(b.dataset.copyDay));
         document.querySelectorAll("[data-restore-day]").forEach(b=>b.onclick=()=>restoreArchivedDay(b.dataset.restoreDay));
         document.querySelectorAll("[data-delete-day]").forEach(b=>b.onclick=()=>deleteArchivedDay(b.dataset.deleteDay));
         el("archiveMessage").textContent = message;
@@ -3033,10 +3109,14 @@
         el("financeClientTabs").innerHTML=clients.map(c=>`<button type="button" data-finance-client="${c.key}" class="${state.financeDelivery===c.key?"active":""}">${escapeHtml(c.name)}</button>`).join("");
         document.querySelectorAll("[data-finance-client]").forEach(b=>b.onclick=()=>{state.financeDelivery=b.dataset.financeClient;renderFinance();});
         const selected=clients.find(c=>c.key===state.financeDelivery)||clients[0];
+        const currentProduct=el("financeProductFilter").value;
+        const productNames=[...new Set([...productsFor(state.financeDelivery).map(p=>p.shortName||p.name),...[...state.orders,...state.archivedOrders].filter(o=>o.delivery===state.financeDelivery&&!o.validityOnly).map(o=>o.product?.shortName||o.product?.name).filter(Boolean)])].sort((a,b)=>a.localeCompare(b,"pt-BR"));
+        el("financeProductFilter").innerHTML='<option value="">Todos os tipos</option>'+productNames.map(name=>`<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("");
+        if(productNames.includes(currentProduct))el("financeProductFilter").value=currentProduct;
         const sectors=[...new Set(selected.units.map(u=>sectorForUnit(u,selected.key)))];
         el("financeClientList").innerHTML=sectors.map(sector=>`<div class="settings-section"><div class="settings-section-title"><strong>${escapeHtml(sector)}</strong><span>${selected.units.filter(u=>sectorForUnit(u,selected.key)===sector).length} unidade(s)</span></div><div class="settings-list">${selected.units.filter(u=>sectorForUnit(u,selected.key)===sector).map(u=>`<div class="settings-list-row"><strong>${escapeHtml(u)}</strong></div>`).join("")}</div></div>`).join("")||'<small>Nenhuma unidade salva.</small>';
         el("financeRegistrySummary").innerHTML=`<div class="bread-total-card"><span>Clientes</span><strong>${clients.length}</strong></div><div class="bread-total-card"><span>Unidades</span><strong>${clients.reduce((s,c)=>s+c.units.length,0)}</strong></div>`;
-        el("financeMonth").onchange=renderFinanceReport; el("financeUnitSearch").oninput=renderFinanceReport; el("exportFinanceCsv").onclick=exportFinanceCsv;
+        el("financeMonth").onchange=renderFinanceReport; el("financeUnitSearch").oninput=renderFinanceReport; el("financeProductFilter").onchange=renderFinanceReport; el("exportFinanceCsv").onclick=exportFinanceCsv;
         renderFinanceReport();
       }
 
@@ -3179,6 +3259,10 @@
       el("quantity").oninput = () => { if(state.delivery==="validade") state.validityQuantityOverride=Number(el("quantity").value); updateSplit(); };
       el("clearButton").onclick = clearActive;
       el("archiveSelectedButton").onclick = archiveSelected;
+      el("copyActiveDayButton").onclick = copyActiveDay;
+      el("orderEditForm").onsubmit = saveOrderEdit;
+      el("cancelOrderEdit").onclick = closeOrderEdit;
+      el("orderEditOverlay").onclick = event => { if(event.target===el("orderEditOverlay")) closeOrderEdit(); };
       el("pdfButton").onclick = downloadPdf;
       el("printButton").onclick = () => window.print();
       loadLocal();
