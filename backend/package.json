@@ -1,6 +1,6 @@
 {
   "name": "portal-mips-api",
-  "version": "2.5.1",
+  "version": "2.5.0",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
