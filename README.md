@@ -2,7 +2,7 @@
 
 > Portal interno para padronização operacional, gestão de receitas, avaliações de desempenho, reclamações e ferramentas de produção.
 
-![Versão](https://img.shields.io/badge/versão-2.5.0-ff8d2f)
+![Versão](https://img.shields.io/badge/versão-2.5.1-ff8d2f)
 ![React](https://img.shields.io/badge/React-18-61dafb)
 ![Node.js](https://img.shields.io/badge/Node.js-18-339933)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-4169e1)
@@ -63,6 +63,11 @@ O Sistema Central reúne em um único portal os processos internos da Nova Esper
 - A separação permanece alinhada mesmo com quantidades diárias personalizadas;
 - Nome do arquivo unificado em `VALIDADES_DD.MM.pdf`;
 - Arquivo histórico de validade novamente agrupado por dia.
+
+### Correção da versão 2.5.1
+
+- Restaura a geração automática das etiquetas de fabricação e validade dos lanches da Johnson.
+- A correção também vale para pedidos antigos, copiados ou editados, sem precisar cadastrá-los novamente.
 
 ### Novidades da versão 2.5.0
 

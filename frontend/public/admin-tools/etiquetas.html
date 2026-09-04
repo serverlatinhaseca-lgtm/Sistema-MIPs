@@ -1861,7 +1861,10 @@
                 expiry: addDays(o.date, o.validityDays),
               })
             );
-          if (!o.includeDateLabels) return [];
+          // Todo pedido Johnson gera automaticamente uma etiqueta de
+          // fabricação/validade para cada etiqueta de lanche. Não dependemos
+          // mais do campo legado includeDateLabels, pois registros antigos
+          // podem tê-lo salvo como false.
           const manufacture = addDays(o.date, -state.rules.manufactureLeadDays);
           return o.parts.map((_, index) => ({
             id: `${o.id}-date-${index}`,
@@ -2223,7 +2226,7 @@
             parts: divide(total, product.packageSize),
             date: state.date,
             shift: state.delivery === "johnson" ? state.shift : null,
-            includeDateLabels: false,
+            includeDateLabels: state.delivery === "johnson",
             afternoon:
               state.delivery === "igarata" ? el("afternoon").checked : false,
             source: "manual",
