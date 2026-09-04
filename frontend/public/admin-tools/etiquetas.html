@@ -1742,6 +1742,11 @@
         d.setDate(d.getDate() + days);
         return d.toISOString().slice(0, 10);
       };
+      const johnsonManufactureDate = (deliveryDate, shift) =>
+        addDays(
+          deliveryDate,
+          shift === "1º TURNO" ? -Number(state.rules.manufactureLeadDays || 1) : 0
+        );
       const weekday = (date) =>
         date
           ? new Intl.DateTimeFormat("pt-BR", { weekday: "long" }).format(
@@ -1850,34 +1855,67 @@
           return [...firstLabels,...separator,...combinedLabels];
         }
         if (state.delivery !== "johnson") return packages;
-        const dates = activeOrders().flatMap((o) => {
-          if (o.validityOnly)
-            return Array.from(
-              { length: o.labelCount || o.total },
-              (_, index) => ({
-                id: `${o.id}-date-${index}`,
-                kind: "date",
-                manufacture: o.date,
-                expiry: addDays(o.date, o.validityDays),
-              })
-            );
-          if (!o.includeDateLabels) return [];
-          const manufacture = addDays(o.date, -state.rules.manufactureLeadDays);
-          return o.parts.map((_, index) => ({
-            id: `${o.id}-date-${index}`,
-            kind: "date",
-            manufacture,
-            expiry: addDays(manufacture, state.rules.friosValidityDays),
-          }));
-        });
-        const padding =
-          packages.length && dates.length
+        const johnsonOrders = activeOrders().filter((o) => !o.validityOnly);
+        const shiftNames = ["1º TURNO", "2º TURNO", "3º TURNO"];
+        const presentShifts = [
+          ...shiftNames.filter((shift) => johnsonOrders.some((o) => o.shift === shift)),
+          ...new Set(johnsonOrders.map((o) => o.shift || "SEM TURNO").filter((shift) => !shiftNames.includes(shift))),
+        ];
+        const blankLine = (used, id) =>
+          Array.from(
+            { length: ((4 - (used % 4)) % 4) + 4 },
+            (_, index) => ({ id: `${id}-${index}`, kind: "blank" })
+          );
+        const joinShiftGroups = (groups, prefix) => {
+          const result = [];
+          groups.filter((group) => group.length).forEach((group, groupIndex, nonEmpty) => {
+            result.push(...group);
+            if (groupIndex < nonEmpty.length - 1)
+              result.push(...blankLine(result.length, `${prefix}-shift-${groupIndex}`));
+          });
+          return result;
+        };
+        const packageGroups = presentShifts.map((shift) =>
+          johnsonOrders.filter((o) => (o.shift || "SEM TURNO") === shift).flatMap((o) =>
+            o.parts.map((qty, index) => ({
+              id: `${o.id}-${index}`,
+              kind: "package",
+              destination: o.destination,
+              product: o.product.name,
+              productId: o.product.id,
+              quantity: qty,
+              shift: o.shift,
+              afternoon: o.afternoon,
+            }))
+          )
+        );
+        const dateGroups = presentShifts.map((shift) =>
+          johnsonOrders.filter((o) => (o.shift || "SEM TURNO") === shift).flatMap((o) => {
+            // Todo pedido Johnson gera automaticamente uma etiqueta de
+            // fabricação/validade para cada etiqueta de lanche, inclusive os
+            // registros antigos que salvaram includeDateLabels como false.
+            const manufacture = johnsonManufactureDate(o.date, o.shift);
+            return o.parts.map((_, index) => ({
+              id: `${o.id}-date-${index}`,
+              kind: "date",
+              manufacture,
+              expiry: addDays(manufacture, state.rules.friosValidityDays),
+            }));
+          })
+        );
+        const shiftBlocks = packageGroups.map((shiftPackages, index) => {
+          const shiftDates = dateGroups[index] || [];
+          const rowAlignment = shiftPackages.length && shiftDates.length
             ? Array.from(
-                { length: (4 - (packages.length % 4)) % 4 },
-                (_, index) => ({ id: `blank-${index}`, kind: "blank" })
+                { length: (4 - (shiftPackages.length % 4)) % 4 },
+                (_, blankIndex) => ({ id: `dates-align-${index}-${blankIndex}`, kind: "blank" })
               )
             : [];
-        return [...packages, ...padding, ...dates];
+          return [...shiftPackages, ...rowAlignment, ...shiftDates];
+        });
+        // Cada turno é um bloco completo: lanches e suas validades. Uma linha
+        // inteira vazia separa o próximo turno no mesmo arquivo de impressão.
+        return joinShiftGroups(shiftBlocks, "johnson");
       }
 
       function renderTabs() {
@@ -2028,7 +2066,10 @@
           }</div>`;
           if (!validityOnly) {
             el("shift").value = state.shift;
-            el("shift").onchange = (e) => (state.shift = e.target.value);
+            el("shift").onchange = (e) => {
+              state.shift = e.target.value;
+              render();
+            };
           }
         } else {
           el("deliveryFields").innerHTML = dateInput("Data do arquivo");
@@ -2120,13 +2161,13 @@
         } else if (state.delivery === "johnson") {
           el("johnsonRule").innerHTML = state.date
             ? `<strong>Fabricação e validade automáticas</strong><span>Fab.: ${formatDate(
-                addDays(state.date, -state.rules.manufactureLeadDays)
+                johnsonManufactureDate(state.date, state.shift)
               )} • Val.: ${formatDate(
                 addDays(
-                  addDays(state.date, -state.rules.manufactureLeadDays),
+                  johnsonManufactureDate(state.date, state.shift),
                   state.rules.friosValidityDays
                 )
-              )}</span>`
+              )}</span><small>${escapeHtml(state.shift)}: ${state.shift === "1º TURNO" ? "fabricação antes da entrega" : "fabricação no dia da entrega"}</small>`
             : "<strong>Fabricação e validade automáticas</strong><span>Informe a entrega para calcular as datas.</span>";
         }
       }
@@ -2223,7 +2264,7 @@
             parts: divide(total, product.packageSize),
             date: state.date,
             shift: state.delivery === "johnson" ? state.shift : null,
-            includeDateLabels: false,
+            includeDateLabels: state.delivery === "johnson",
             afternoon:
               state.delivery === "igarata" ? el("afternoon").checked : false,
             source: "manual",

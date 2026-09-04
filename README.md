@@ -2,7 +2,7 @@
 
 > Portal interno para padronização operacional, gestão de receitas, avaliações de desempenho, reclamações e ferramentas de produção.
 
-![Versão](https://img.shields.io/badge/versão-2.5.0-ff8d2f)
+![Versão](https://img.shields.io/badge/versão-2.5.3-ff8d2f)
 ![React](https://img.shields.io/badge/React-18-61dafb)
 ![Node.js](https://img.shields.io/badge/Node.js-18-339933)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-4169e1)
@@ -63,6 +63,22 @@ O Sistema Central reúne em um único portal os processos internos da Nova Esper
 - A separação permanece alinhada mesmo com quantidades diárias personalizadas;
 - Nome do arquivo unificado em `VALIDADES_DD.MM.pdf`;
 - Arquivo histórico de validade novamente agrupado por dia.
+
+### Correção da versão 2.5.3
+
+- Organiza a impressão da Johnson em blocos completos por turno: lanches, validades correspondentes e uma linha vazia antes do próximo turno.
+- Impede que as validades fiquem deslocadas para o final de arquivos maiores.
+
+### Correção da versão 2.5.2
+
+- Aplica a regra de fabricação da Johnson por turno: o 1º turno é fabricado antes da entrega; o 2º e o 3º são fabricados no próprio dia da entrega.
+- A validade é calculada a partir da data de fabricação correta de cada turno.
+- Mantém todos os turnos no mesmo arquivo, com uma linha inteira vazia entre eles nos blocos de lanches e de validades.
+
+### Correção da versão 2.5.1
+
+- Restaura a geração automática das etiquetas de fabricação e validade dos lanches da Johnson.
+- A correção também vale para pedidos antigos, copiados ou editados, sem precisar cadastrá-los novamente.
 
 ### Novidades da versão 2.5.0
 
