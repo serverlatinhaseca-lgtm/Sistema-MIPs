@@ -1742,11 +1742,8 @@
         d.setDate(d.getDate() + days);
         return d.toISOString().slice(0, 10);
       };
-      const johnsonManufactureDate = (deliveryDate, shift) =>
-        addDays(
-          deliveryDate,
-          shift === "1º TURNO" ? -Number(state.rules.manufactureLeadDays || 1) : 0
-        );
+      const johnsonManufactureDate = (deliveryDate) =>
+        addDays(deliveryDate, -Number(state.rules.manufactureLeadDays || 1));
       const weekday = (date) =>
         date
           ? new Intl.DateTimeFormat("pt-BR", { weekday: "long" }).format(
@@ -1894,7 +1891,7 @@
             // Todo pedido Johnson gera automaticamente uma etiqueta de
             // fabricação/validade para cada etiqueta de lanche, inclusive os
             // registros antigos que salvaram includeDateLabels como false.
-            const manufacture = johnsonManufactureDate(o.date, o.shift);
+          const manufacture = johnsonManufactureDate(o.date);
             return o.parts.map((_, index) => ({
               id: `${o.id}-date-${index}`,
               kind: "date",
@@ -2161,13 +2158,13 @@
         } else if (state.delivery === "johnson") {
           el("johnsonRule").innerHTML = state.date
             ? `<strong>Fabricação e validade automáticas</strong><span>Fab.: ${formatDate(
-                johnsonManufactureDate(state.date, state.shift)
+                johnsonManufactureDate(state.date)
               )} • Val.: ${formatDate(
                 addDays(
-                  johnsonManufactureDate(state.date, state.shift),
+                  johnsonManufactureDate(state.date),
                   state.rules.friosValidityDays
                 )
-              )}</span><small>${escapeHtml(state.shift)}: ${state.shift === "1º TURNO" ? "fabricação antes da entrega" : "fabricação no dia da entrega"}</small>`
+              )}</span><small>Todos os turnos: fabricação antes da entrega</small>`
             : "<strong>Fabricação e validade automáticas</strong><span>Informe a entrega para calcular as datas.</span>";
         }
       }
