@@ -1,8 +1,8 @@
 import { useState, useRef, useMemo, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
-import ReactQuill from 'react-quill';
-import 'react-quill/dist/quill.snow.css';
+import ReactQuill from 'react-quill-new';
+import 'react-quill-new/dist/quill.snow.css';
 import { Save, ArrowLeft } from 'lucide-react';
 
 export default function CriarMIP() {

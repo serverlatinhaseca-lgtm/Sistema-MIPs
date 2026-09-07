@@ -2,15 +2,25 @@
 
 > Portal interno para padronização operacional, gestão de receitas, avaliações de desempenho, reclamações e ferramentas de produção.
 
-![Versão](https://img.shields.io/badge/versão-2.5.4-ff8d2f)
+![Versão](https://img.shields.io/badge/versão-2.6.0-ff8d2f)
 ![React](https://img.shields.io/badge/React-18-61dafb)
-![Node.js](https://img.shields.io/badge/Node.js-18-339933)
+![Node.js](https://img.shields.io/badge/Node.js-22-339933)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-4169e1)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ed)
 
 ## Sobre o sistema
 
 O Sistema Central reúne em um único portal os processos internos da Nova Esperança. A aplicação funciona em computadores e celulares, possui modo claro e escuro e separa os acessos conforme a função de cada usuário.
+
+### Segurança da versão 2.6.0
+
+- Imagens de compilação atualizadas do Node.js 18 para o Node.js 22;
+- Express atualizado para a versão 5;
+- React Router atualizado para a versão 7;
+- Vite atualizado para a versão 8;
+- Editor legado substituído por uma integração mantida com Quill 2;
+- Dependências de produção e desenvolvimento auditadas sem vulnerabilidades conhecidas;
+- Saída do Docker limpa de avisos informativos do npm durante a instalação.
 
 ### Novidades da versão 2.1.0
 
@@ -196,8 +206,18 @@ Antes de restaurar, o sistema exige a senha atual do Administrador e gera automa
 
 - Docker Engine;
 - Docker Compose;
+- Docker Buildx;
 - Git, caso as atualizações sejam feitas pelo GitHub;
 - Portas `7070`, `7001` e `7002` disponíveis no servidor.
+
+Se aparecer `buildx Docker CLI plugin not found`, instale o plugin uma única vez:
+
+```bash
+chmod +x install-buildx.sh
+./install-buildx.sh
+```
+
+Depois confirme com `docker buildx version` e execute novamente o Docker Compose.
 
 ## Instalação
 

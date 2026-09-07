@@ -1,7 +1,8 @@
-FROM node:18-alpine AS build
+FROM node:22-alpine AS build
 WORKDIR /app
+ENV NPM_CONFIG_AUDIT=false NPM_CONFIG_FUND=false NPM_CONFIG_UPDATE_NOTIFIER=false NPM_CONFIG_LOGLEVEL=error
 COPY package*.json ./
-RUN npm ci
+RUN npm ci --no-audit --no-fund
 COPY . .
 RUN npm run build
 
