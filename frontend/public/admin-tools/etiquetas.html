@@ -1320,7 +1320,7 @@
 
               <div class="settings-section" id="settingsFixedSection">
                 <div class="settings-section-title">
-                  <strong>Pedidos fixos</strong>
+                  <strong id="settingsFixedTitle">Pedidos fixos</strong>
                 </div>
                 <div id="settingsFixedGroupControls"></div>
                 <div class="settings-list" id="settingsFixedList"></div>
@@ -1431,6 +1431,10 @@
           title: "Johnson",
           subtitle: "Setores, turnos e lanches com frios",
         },
+        margarina: {
+          title: "Pão com margarina",
+          subtitle: "Base diária da Johnson, separada por turno",
+        },
         validade: {
           title: "Validades",
           subtitle: "Etiquetas de fabricação e validade por produto e turno",
@@ -1494,6 +1498,22 @@
             name: "LANCHE COM FRIOS",
             shortName: "Lanche com frios",
             packageSize: 50,
+          },
+        ],
+        margarina: [
+          {
+            id: "leite-margarina",
+            name: "PÃO DE LEITE C/ MARGARINA",
+            shortName: "Pão de leite com margarina",
+            packageSize: 1,
+            singleLabel: true,
+          },
+          {
+            id: "leite-sem-recheio",
+            name: "PÃO DE LEITE SEM RECHEIO",
+            shortName: "Pão de leite sem recheio",
+            packageSize: 1,
+            singleLabel: true,
           },
         ],
       };
@@ -1591,6 +1611,68 @@
         "FAZENDINHA",
         "FAB I - CATGUT",
       ];
+      const MARGARINE_BASE_ROWS = [
+        ["1º TURNO","FAB II - ACAB. SUTURAS",55,"leite-margarina"],
+        ["1º TURNO","AMBULATÓRIO J&J",9,"leite-margarina"],
+        ["1º TURNO","COPA MAKE - P6",59,"leite-margarina"],
+        ["1º TURNO","WWGF",6,"leite-margarina"],
+        ["1º TURNO","FAB II - ACAB. SUTURAS",55,"leite-margarina"],
+        ["1º TURNO","AGULHAS MAT. PRIMA",25,"leite-margarina"],
+        ["1º TURNO","WAREHOUSE FUNDO",16,"leite-margarina"],
+        ["1º TURNO","CALIBRAÇÃO",4,"leite-margarina"],
+        ["1º TURNO","FAB II - ACAB. SUTURAS",55,"leite-margarina"],
+        ["1º TURNO","AGULHAS",50,"leite-margarina"],
+        ["1º TURNO","WAREHOUSE ADM",15,"leite-margarina"],
+        ["1º TURNO","FAZENDINHA - COPA",25,"leite-margarina"],
+        ["1º TURNO","FAB II - ACAB. SUTURAS",60,"leite-margarina"],
+        ["1º TURNO","AGULHAS",50,"leite-margarina"],
+        ["1º TURNO","WAREHOUSE MOTORISTA",10,"leite-margarina"],
+        ["1º TURNO","ETO",26,"leite-margarina"],
+        ["1º TURNO","FAB II - ACAB. SUTURAS",51,"leite-margarina"],
+        ["1º TURNO","AGULHAS",50,"leite-margarina"],
+        ["1º TURNO","CAPSTRANO",15,"leite-margarina"],
+        ["1º TURNO","FAB II - ACAB. SUTURAS",10,"leite-sem-recheio"],
+        ["1º TURNO","CATGUT - COPA",50,"leite-margarina"],
+        ["1º TURNO","AGULHAS",47,"leite-margarina"],
+        ["1º TURNO","CGC",12,"leite-margarina"],
+        ["1º TURNO","AGULHAS",10,"leite-sem-recheio"],
+        ["1º TURNO","PLW",36,"leite-margarina"],
+        ["1º TURNO","DWS",8,"leite-margarina"],
+        ["1º TURNO","CATGUT - COPA",49,"leite-margarina"],
+        ["1º TURNO","CMP - MANSERV",30,"leite-margarina"],
+        ["2º TURNO","FAB II - ACAB. SUTURAS",50,"leite-margarina"],
+        ["2º TURNO","FAZENDINHA",10,"leite-margarina"],
+        ["2º TURNO","ETO",10,"leite-margarina"],
+        ["2º TURNO","AGULHAS",10,"leite-sem-recheio"],
+        ["2º TURNO","FAB II - ACAB. SUTURAS",50,"leite-margarina"],
+        ["2º TURNO","AMBULATÓRIO J&J",9,"leite-margarina"],
+        ["2º TURNO","COPA MAKE - P6",20,"leite-margarina"],
+        ["2º TURNO","FAB II - ACAB. SUTURAS",10,"leite-sem-recheio"],
+        ["2º TURNO","FAB II - ACAB. SUTURAS",50,"leite-margarina"],
+        ["2º TURNO","AGULHAS MAT. PRIMA",25,"leite-margarina"],
+        ["2º TURNO","WAREHOUSE FUNDO",16,"leite-margarina"],
+        ["2º TURNO","FAB II - ACAB. SUTURAS",50,"leite-margarina"],
+        ["2º TURNO","AGULHAS",60,"leite-margarina"],
+        ["2º TURNO","WAREHOUSE ADM",3,"leite-margarina"],
+        ["2º TURNO","FAB II - ACAB. SUTURAS",52,"leite-margarina"],
+        ["2º TURNO","AGULHAS",60,"leite-margarina"],
+        ["2º TURNO","WAREHOUSE MOTORISTA",10,"leite-margarina"],
+        ["2º TURNO","FAB I - CATGUT",68,"leite-margarina"],
+        ["2º TURNO","AGULHAS",42,"leite-margarina"],
+        ["2º TURNO","CALIBRAÇÃO",2,"leite-margarina"],
+        ["3º TURNO","AGULHAS",10,"leite-sem-recheio"],
+        ["3º TURNO","FAB II - ACAB. SUTURAS",50,"leite-margarina"],
+        ["3º TURNO","AMBULATÓRIO J&J",2,"leite-margarina"],
+        ["3º TURNO","AGULHAS",49,"leite-margarina"],
+        ["3º TURNO","FAB II - ACAB. SUTURAS",50,"leite-margarina"],
+        ["3º TURNO","AGULHAS MAT. PRIMA",10,"leite-margarina"],
+        ["3º TURNO","ETO",4,"leite-margarina"],
+        ["3º TURNO","FAB I - CATGUT",3,"leite-margarina"],
+        ["3º TURNO","AGULHAS",50,"leite-margarina"],
+        ["3º TURNO","WAREHOUSE ADM",2,"leite-margarina"],
+        ["3º TURNO","FAZENDINHA",6,"leite-margarina"],
+        ["3º TURNO","AGULHAS",50,"leite-margarina"],
+      ];
       const DEFAULT_RULES = {
         validityLabels: 60,
         manufactureLeadDays: 1,
@@ -1674,6 +1756,12 @@
             productId: "leite",
           },
         ],
+        margarina: Object.fromEntries(["1º TURNO","2º TURNO","3º TURNO"].map(shift => [
+          shift,
+          MARGARINE_BASE_ROWS.filter(row => row[0] === shift).map(row => ({
+            destination: row[1], quantity: row[2], productId: row[3],
+          })),
+        ])),
       };
 
       const state = {
@@ -1697,6 +1785,7 @@
           igarata: PRODUCTS.igarata.map((p) => ({ ...p })),
           paraibuna: PRODUCTS.paraibuna.map((p) => ({ ...p })),
           johnson: PRODUCTS.johnson.map((p) => ({ ...p })),
+          margarina: PRODUCTS.margarina.map((p) => ({ ...p })),
           genericas: GENERIC_DEFAULT_PRODUCTS.map((p) => ({ ...p })),
         },
         destinations: {
@@ -1704,6 +1793,7 @@
           cidade: [...DESTINATIONS.cidade],
           roca: [...DESTINATIONS.roca],
           johnson: [...JOHNSON_SECTORS],
+          margarina: [...JOHNSON_SECTORS],
           genericas: [],
         },
         fixed: JSON.parse(JSON.stringify(DEFAULT_FIXED)),
@@ -1779,6 +1869,8 @@
             ? `PARAIBUNA_${state.route === "cidade" ? "CIDADE" : "ROCA"}`
             : state.delivery === "johnson"
             ? "JOHNSON"
+            : state.delivery === "margarina"
+            ? "JOHNSON_PAO_COM_MARGARINA"
             : state.delivery === "validade"
             ? "VALIDADES"
             : "GENERICAS";
@@ -1851,7 +1943,7 @@
           const separator=firstLabels.length&&combinedLabels.length?Array.from({length:((4-(firstLabels.length%4))%4)+4},(_,index)=>({id:`shift-separator-${index}`,kind:"blank"})):[];
           return [...firstLabels,...separator,...combinedLabels];
         }
-        if (state.delivery !== "johnson") return packages;
+        if (!["johnson", "margarina"].includes(state.delivery)) return packages;
         const johnsonOrders = activeOrders().filter((o) => !o.validityOnly);
         const shiftNames = ["1º TURNO", "2º TURNO", "3º TURNO"];
         const presentShifts = [
@@ -1886,6 +1978,8 @@
             }))
           )
         );
+        if (state.delivery === "margarina")
+          return joinShiftGroups(packageGroups, "margarina");
         const dateGroups = presentShifts.map((shift) =>
           johnsonOrders.filter((o) => (o.shift || "SEM TURNO") === shift).flatMap((o) => {
             // Todo pedido Johnson gera automaticamente uma etiqueta de
@@ -2048,8 +2142,16 @@
           el("validityRule").onchange = e => { state.validityRuleId = e.target.value; state.validityQuantityOverride=null; render(); };
           el("validityShift").value = state.validityShift;
           el("validityShift").onchange = e => { state.validityShift = e.target.value; state.validityQuantityOverride=null; render(); };
-        } else if (state.delivery === "johnson") {
+        } else if (["johnson", "margarina"].includes(state.delivery)) {
           const validityOnly = false;
+          const baseItems = state.delivery === "margarina" ? state.fixed.margarina[state.shift] : [];
+          const baseAdded = state.delivery === "margarina" && activeOrders().some(o => o.source === "base-margarina" && o.shift === state.shift);
+          const secondThirdItems = state.delivery === "margarina"
+            ? [...(state.fixed.margarina["2º TURNO"] || []), ...(state.fixed.margarina["3º TURNO"] || [])]
+            : [];
+          const secondThirdAdded = state.delivery === "margarina" && ["2º TURNO","3º TURNO"].every(shift =>
+            activeOrders().some(o => o.source === "base-margarina" && o.shift === shift)
+          );
           el(
             "deliveryFields"
           ).innerHTML = `<div class="${
@@ -2060,13 +2162,17 @@
             validityOnly
               ? ""
               : `<label class="field"><span>Turno</span><select id="shift"><option>1º TURNO</option><option>2º TURNO</option><option>3º TURNO</option></select></label>`
-          }</div>`;
+          }</div>${state.delivery === "margarina" ? `<button class="fixed-button" id="fixedMargarinaSecondThird" type="button" ${!state.date || secondThirdAdded || !secondThirdItems.length ? "disabled" : ""}>${!state.date ? "Selecione a data para carregar o 2º e o 3º turnos" : secondThirdAdded ? "Bases do 2º e do 3º turnos já adicionadas" : `Adicionar 2º e 3º turnos juntos • ${secondThirdItems.length} etiquetas`}</button><button class="fixed-button" id="fixedMargarina" type="button" ${!state.date || baseAdded || !baseItems.length ? "disabled" : ""}>${!state.date ? "Selecione a data para carregar a base diária" : baseAdded ? `Base do ${state.shift.toLowerCase()} já adicionada` : !baseItems.length ? `Nenhum item configurado para o ${state.shift.toLowerCase()}` : `Adicionar somente o ${state.shift.toLowerCase()} • ${baseItems.length} etiquetas`}</button>` : ""}`;
           if (!validityOnly) {
             el("shift").value = state.shift;
             el("shift").onchange = (e) => {
               state.shift = e.target.value;
               render();
             };
+          }
+          if (state.delivery === "margarina") {
+            el("fixedMargarina").onclick = () => addMargarineFixed([state.shift]);
+            el("fixedMargarinaSecondThird").onclick = () => addMargarineFixed(["2º TURNO","3º TURNO"]);
           }
         } else {
           el("deliveryFields").innerHTML = dateInput("Data do arquivo");
@@ -2091,8 +2197,8 @@
               }"><input type="radio" name="bread" value="${p.id}" ${
                 state.productId === p.id ? "checked" : ""
               }><span>${p.shortName}</span><small>${
-                p.packageSize
-              } por pacote</small></label>`
+                p.singleLabel ? "uma etiqueta por setor" : `${p.packageSize} por pacote`
+              }</small></label>`
           )
           .join("");
         document.querySelectorAll('input[name="bread"]').forEach(
@@ -2116,15 +2222,17 @@
             ? state.destinations[state.route]
             : state.delivery === "johnson"
             ? state.destinations.johnson
+            : state.delivery === "margarina"
+            ? state.destinations.margarina
             : state.destinations.genericas;
         el("destinationList").innerHTML = list
           .map((name) => `<option value="${name}"></option>`)
           .join("");
         el("destinationLabel").textContent =
-          generic || state.delivery === "johnson" ? "Setor" : "Escola ou local";
+          generic || ["johnson", "margarina"].includes(state.delivery) ? "Setor" : "Escola ou local";
         el("destination").placeholder = generic
           ? "Digite o nome do setor"
-          : state.delivery === "johnson"
+          : ["johnson", "margarina"].includes(state.delivery)
           ? "Digite o setor, ex.: Agulhas"
           : "Digite ou selecione";
         el("destinationField").hidden = validityOnly;
@@ -2181,6 +2289,12 @@
           ).innerHTML = Number.isInteger(total) && total > 0 ? `<span>Este arquivo terá <strong>${total} etiquetas de validade</strong>.</span>` : "<span>Informe uma quantidade inteira maior que zero.</span>";
           return;
         }
+        if (state.delivery === "margarina") {
+          el("splitPreview").innerHTML = Number.isInteger(total) && total > 0
+            ? `<span>Será gerada <strong>1 etiqueta</strong> com a quantidade ${total}.</span>`
+            : "<span>Digite uma quantidade inteira maior que zero.</span>";
+          return;
+        }
         el("splitPreview").innerHTML =
           Number.isInteger(total) && total > 0
             ? `<span>Serão geradas <strong>${
@@ -2205,7 +2319,7 @@
           product = productById(state.delivery, state.productId);
         if (!validityOnly && !destination)
           return showError(
-            generic || state.delivery === "johnson"
+            generic || ["johnson", "margarina"].includes(state.delivery)
               ? "Informe o nome do setor."
               : "Informe o nome da escola ou local."
           );
@@ -2258,9 +2372,9 @@
             destination,
             product,
             total,
-            parts: divide(total, product.packageSize),
+            parts: state.delivery === "margarina" ? [total] : divide(total, product.packageSize),
             date: state.date,
-            shift: state.delivery === "johnson" ? state.shift : null,
+            shift: ["johnson", "margarina"].includes(state.delivery) ? state.shift : null,
             includeDateLabels: state.delivery === "johnson",
             afternoon:
               state.delivery === "igarata" ? el("afternoon").checked : false,
@@ -2319,6 +2433,31 @@
         render();
       }
 
+      function addMargarineFixed(shifts = [state.shift]) {
+        if (!state.date) return;
+        const now = Date.now();
+        let index = 0;
+        shifts.forEach(shift => {
+          if (activeOrders().some(o => o.source === "base-margarina" && o.shift === shift)) return;
+          (state.fixed.margarina[shift] || []).forEach(item => {
+            const product = productById("margarina", item.productId);
+            state.orders.push({
+              id: now + index++,
+              delivery: "margarina",
+              destination: item.destination,
+              product: { ...product },
+              total: item.quantity,
+              parts: [item.quantity],
+              date: state.date,
+              shift,
+              source: "base-margarina",
+            });
+          });
+        });
+        saveLocal();
+        render();
+      }
+
       function settingsSectorKey() {
         return state.settingsDelivery === "paraibuna"
           ? state.settingsRoute
@@ -2349,6 +2488,10 @@
           (button) =>
             (button.onclick = () => {
               state.settingsDelivery = button.dataset.settingsDelivery;
+              if (state.settingsDelivery === "margarina" && !["1º TURNO","2º TURNO","3º TURNO"].includes(state.settingsFixedGroup))
+                state.settingsFixedGroup = "1º TURNO";
+              if (state.settingsDelivery === "igarata" && !["segQua","terQui","sexta"].includes(state.settingsFixedGroup))
+                state.settingsFixedGroup = "segQua";
               renderSettings();
             })
         );
@@ -2396,9 +2539,9 @@
         el("settingsProductList").innerHTML = products
           .map(
             (product) =>
-              `<div class="settings-list-row"><strong>${escapeHtml(
+              `<div class="settings-list-row"><input type="text" value="${escapeHtml(
                 product.shortName
-              )}</strong><input type="number" min="1" step="1" value="${
+              )}" aria-label="Nome do tipo de pão" data-setting-name="${product.id}"><input type="number" min="1" step="1" value="${
                 product.packageSize
               }" aria-label="Quantidade por pacote de ${escapeHtml(
                 product.shortName
@@ -2420,10 +2563,12 @@
 
         const showFixed =
           state.settingsDelivery === "igarata" ||
+          state.settingsDelivery === "margarina" ||
           (state.settingsDelivery === "paraibuna" &&
             state.settingsRoute === "cidade");
         el("settingsFixedSection").hidden = !showFixed;
         if (showFixed) {
+          el("settingsFixedTitle").textContent = state.settingsDelivery === "margarina" ? "Base diária por turno" : "Pedidos fixos";
           el("settingsFixedGroupControls").innerHTML =
             state.settingsDelivery === "igarata"
               ? `<div class="segmented-control"><button type="button" data-fixed-group="segQua" class="${
@@ -2433,6 +2578,8 @@
                 }">Terça / quinta</button><button type="button" data-fixed-group="sexta" class="${
                   state.settingsFixedGroup === "sexta" ? "active" : ""
                 }">Sexta</button></div>`
+              : state.settingsDelivery === "margarina"
+              ? `<div class="segmented-control"><button type="button" data-fixed-group="1º TURNO" class="${state.settingsFixedGroup === "1º TURNO" ? "active" : ""}">1º turno</button><button type="button" data-fixed-group="2º TURNO" class="${state.settingsFixedGroup === "2º TURNO" ? "active" : ""}">2º turno</button><button type="button" data-fixed-group="3º TURNO" class="${state.settingsFixedGroup === "3º TURNO" ? "active" : ""}">3º turno</button></div>`
               : "";
           document.querySelectorAll("[data-fixed-group]").forEach(
             (button) =>
@@ -2501,6 +2648,8 @@
       function currentFixedSettings() {
         return state.settingsDelivery === "igarata"
           ? state.fixed.igarata[state.settingsFixedGroup]
+          : state.settingsDelivery === "margarina"
+          ? state.fixed.margarina[state.settingsFixedGroup] || []
           : state.fixed.paraibunaCidade;
       }
 
@@ -2532,6 +2681,9 @@
           return;
         }
         items[index] = { destination, productId, quantity };
+        const sectorKey = settingsSectorKey();
+        if (state.destinations[sectorKey] && !state.destinations[sectorKey].some(name => name.toLocaleLowerCase("pt-BR") === destination.toLocaleLowerCase("pt-BR")))
+          state.destinations[sectorKey].push(destination);
         saveLocal();
         renderSettings("Pedido fixo atualizado.");
       }
@@ -2551,6 +2703,9 @@
           return;
         }
         currentFixedSettings().push({ destination, productId, quantity });
+        const sectorKey = settingsSectorKey();
+        if (state.destinations[sectorKey] && !state.destinations[sectorKey].some(name => name.toLocaleLowerCase("pt-BR") === destination.toLocaleLowerCase("pt-BR")))
+          state.destinations[sectorKey].push(destination);
         saveLocal();
         renderSettings("Pedido fixo adicionado.");
       }
@@ -2619,16 +2774,19 @@
         const product = productsFor(state.settingsDelivery).find(
             (item) => item.id === id
           ),
+          name = titleName(document.querySelector(`[data-setting-name="${id}"]`)?.value || ""),
           input = document.querySelector(`[data-setting-size="${id}"]`),
           size = Number(input?.value);
-        if (!product || !Number.isInteger(size) || size <= 0) {
+        if (!product || !name || !Number.isInteger(size) || size <= 0) {
           el("settingsCatalogMessage").textContent =
-            "Informe uma quantidade por pacote maior que zero.";
+            "Informe o nome e uma quantidade por pacote maior que zero.";
           return;
         }
+        product.name = name.toLocaleUpperCase("pt-BR");
+        product.shortName = name;
         product.packageSize = size;
         saveLocal();
-        renderSettings(`${product.shortName}: ${size} por pacote.`);
+        renderSettings(`${product.shortName} atualizado.`);
         if (state.delivery === state.settingsDelivery) updateSplit();
       }
 
@@ -2640,6 +2798,7 @@
         products.splice(index,1);
         if(state.settingsDelivery==="igarata") Object.values(state.fixed.igarata).forEach(items=>items.splice(0,items.length,...items.filter(i=>i.productId!==id)));
         if(state.settingsDelivery==="paraibuna") state.fixed.paraibunaCidade=state.fixed.paraibunaCidade.filter(i=>i.productId!==id);
+        if(state.settingsDelivery==="margarina") Object.values(state.fixed.margarina).forEach(items=>items.splice(0,items.length,...items.filter(i=>i.productId!==id)));
         if(state.productId===id) state.productId=products[0].id;
         saveLocal(); renderSettings("Tipo de pão removido.");
       }
@@ -2668,6 +2827,7 @@
           name,
           shortName: name,
           packageSize: size,
+          singleLabel: state.settingsDelivery === "margarina",
         });
         saveLocal();
         renderSettings(`${name} adicionado.`);
@@ -2957,7 +3117,7 @@
         } else {
           const destination=normalizeName(el("editOrderDestination").value), product=productById(order.delivery,el("editOrderProduct").value);
           if(!destination||!product){el("editOrderError").textContent="Informe o setor/local e selecione um tipo de pão.";el("editOrderError").hidden=false;return;}
-          order.destination=destination;order.product={...product};order.total=quantity;order.parts=divide(quantity,product.packageSize);
+          order.destination=destination;order.product={...product};order.total=quantity;order.parts=order.delivery==="margarina"?[quantity]:divide(quantity,product.packageSize);
           const destinationKey=order.delivery==="paraibuna"?(order.route||"cidade"):order.delivery;
           if(state.destinations[destinationKey]&&!state.destinations[destinationKey].some(name=>name.toLocaleLowerCase("pt-BR")===destination.toLocaleLowerCase("pt-BR")))state.destinations[destinationKey].push(destination);
         }
@@ -3069,10 +3229,11 @@
         const productFilter = el("financeProductFilter")?.value || "";
         const all = [...state.orders, ...state.archivedOrders];
         const grouped = new Map();
-        all.filter(o => month && String(o.date || "").startsWith(month) && !o.validityOnly && o.delivery===state.financeDelivery).forEach(o => {
+        const financeDeliveries = state.financeDelivery === "johnson" ? ["johnson","margarina"] : [state.financeDelivery];
+        all.filter(o => month && String(o.date || "").startsWith(month) && !o.validityOnly && financeDeliveries.includes(o.delivery)).forEach(o => {
           const unit = o.destination || "Sem unidade";
-          const client = DELIVERY_META[o.delivery]?.title || titleName(o.delivery || "Outro");
-          const sector = sectorForUnit(unit, o.delivery);
+          const client = o.delivery === "margarina" ? DELIVERY_META.johnson.title : (DELIVERY_META[o.delivery]?.title || titleName(o.delivery || "Outro"));
+          const sector = sectorForUnit(unit, o.delivery === "margarina" ? "johnson" : o.delivery);
           if (search && !`${client} ${sector} ${unit}`.toLocaleLowerCase("pt-BR").includes(search)) return;
           const product = o.product?.shortName || o.product?.name || "Outro";
           if(productFilter && product!==productFilter)return;
@@ -3123,7 +3284,7 @@
           johnson: [...state.destinations.johnson],
           genericas: [...state.destinations.genericas],
         };
-        [...state.orders,...state.archivedOrders].filter(o=>base[o.delivery] && o.destination).forEach(o=>base[o.delivery].push(o.destination));
+        [...state.orders,...state.archivedOrders].filter(o=>(base[o.delivery] || o.delivery==="margarina") && o.destination).forEach(o=>(o.delivery==="margarina"?base.johnson:base[o.delivery]).push(o.destination));
         return Object.entries(base).map(([key,units])=>({key,name:DELIVERY_META[key].title,units:[...new Set(units.map(normalizeName).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"pt-BR"))}));
       }
 
@@ -3148,7 +3309,8 @@
         document.querySelectorAll("[data-finance-client]").forEach(b=>b.onclick=()=>{state.financeDelivery=b.dataset.financeClient;renderFinance();});
         const selected=clients.find(c=>c.key===state.financeDelivery)||clients[0];
         const currentProduct=el("financeProductFilter").value;
-        const productNames=[...new Set([...productsFor(state.financeDelivery).map(p=>p.shortName||p.name),...[...state.orders,...state.archivedOrders].filter(o=>o.delivery===state.financeDelivery&&!o.validityOnly).map(o=>o.product?.shortName||o.product?.name).filter(Boolean)])].sort((a,b)=>a.localeCompare(b,"pt-BR"));
+        const financeDeliveries=state.financeDelivery==="johnson"?["johnson","margarina"]:[state.financeDelivery];
+        const productNames=[...new Set([...financeDeliveries.flatMap(delivery=>productsFor(delivery).map(p=>p.shortName||p.name)),...[...state.orders,...state.archivedOrders].filter(o=>financeDeliveries.includes(o.delivery)&&!o.validityOnly).map(o=>o.product?.shortName||o.product?.name).filter(Boolean)])].sort((a,b)=>a.localeCompare(b,"pt-BR"));
         el("financeProductFilter").innerHTML='<option value="">Todos os tipos</option>'+productNames.map(name=>`<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("");
         if(productNames.includes(currentProduct))el("financeProductFilter").value=currentProduct;
         const sectors=[...new Set(selected.units.map(u=>sectorForUnit(u,selected.key)))];
@@ -3194,22 +3356,16 @@
               state.validityRules = normalizeValidityRules(settings.validityRules);
             if (!state.validityRules.some(rule=>rule.id===state.validityRuleId)) state.validityRuleId=state.validityRules[0].id;
             if (Array.isArray(settings.archivedOrders)) state.archivedOrders = settings.archivedOrders;
-            if (
-              settings.products &&
-              Object.keys(DELIVERY_META).filter(key=>key!=="validade").every(
-                (key) =>
-                  Array.isArray(settings.products[key]) &&
-                  settings.products[key].length
-              )
-            )
-              state.products = settings.products;
-            if (
-              settings.destinations &&
-              ["igarata", "cidade", "roca", "johnson", "genericas"].every(
-                (key) => Array.isArray(settings.destinations[key])
-              )
-            )
-              state.destinations = settings.destinations;
+            if (settings.products && typeof settings.products === "object")
+              Object.keys(state.products).forEach(key => {
+                if (Array.isArray(settings.products[key]) && settings.products[key].length)
+                  state.products[key] = settings.products[key];
+              });
+            if (settings.destinations && typeof settings.destinations === "object")
+              Object.keys(state.destinations).forEach(key => {
+                if (Array.isArray(settings.destinations[key]))
+                  state.destinations[key] = settings.destinations[key];
+              });
             if (
               settings.fixed &&
               settings.fixed.igarata &&
@@ -3218,7 +3374,14 @@
               ) &&
               Array.isArray(settings.fixed.paraibunaCidade)
             )
-              state.fixed = settings.fixed;
+              state.fixed = {
+                ...state.fixed,
+                ...settings.fixed,
+                igarata: settings.fixed.igarata,
+                margarina: ["1º TURNO","2º TURNO","3º TURNO"].every(key => Array.isArray(settings.fixed.margarina?.[key]))
+                  ? settings.fixed.margarina
+                  : state.fixed.margarina,
+              };
           } else {
             const sectors = JSON.parse(
               localStorage.getItem("etiquetas-paes-johnson-sectors") || "[]"

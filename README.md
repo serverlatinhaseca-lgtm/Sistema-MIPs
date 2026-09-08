@@ -2,7 +2,7 @@
 
 > Portal interno para padronização operacional, gestão de receitas, avaliações de desempenho, reclamações e ferramentas de produção.
 
-![Versão](https://img.shields.io/badge/versão-2.6.0-ff8d2f)
+![Versão](https://img.shields.io/badge/versão-2.7.2-ff8d2f)
 ![React](https://img.shields.io/badge/React-18-61dafb)
 ![Node.js](https://img.shields.io/badge/Node.js-22-339933)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-4169e1)
@@ -11,6 +11,17 @@
 ## Sobre o sistema
 
 O Sistema Central reúne em um único portal os processos internos da Nova Esperança. A aplicação funciona em computadores e celulares, possui modo claro e escuro e separa os acessos conforme a função de cada usuário.
+
+### Novidades da versão 2.7.2
+
+- Nova aba **Pão com margarina** com a base diária da Johnson;
+- 60 etiquetas iniciais extraídas do modelo: 28 do 1º turno, 20 do 2º e 12 do 3º;
+- Carregamento independente da base de cada turno na data escolhida;
+- Atalho para carregar o 2º e o 3º turnos juntos no mesmo arquivo;
+- Uma etiqueta por setor, preservando a quantidade integral informada;
+- Impressão dos três turnos no mesmo arquivo, com uma linha vazia entre eles;
+- Edição, inclusão e remoção de setores, tipos e quantidades pela interface;
+- Consolidação dos pães com margarina no cliente Johnson no Financeiro.
 
 ### Segurança da versão 2.6.0
 
