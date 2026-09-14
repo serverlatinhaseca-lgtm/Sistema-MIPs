@@ -27,28 +27,28 @@ export default function InstallPrompt() {
   const deferred = useRef(null);
 
   useEffect(() => {
-    if (jaInstalado() || haMenosDe(DIAS) || !ehCelular()) return;
+    if (jaInstalado() || haMenosDe(DIAS)) return;
 
     let timer = null;
-    const mostrar = () => {
-      if (timer) return;
-      timer = setTimeout(() => setVisivel(true), 2500);
-    };
 
     const onPrompt = (e) => {
       e.preventDefault();
       deferred.current = e;
-      mostrar();
+      setVisivel(true);
     };
 
+    const onInstalado = () => localStorage.setItem(CHAVE_INSTALADO, '1');
+
     window.addEventListener('beforeinstallprompt', onPrompt);
-    if (ehIOS()) {
-      // iOS não dispara beforeinstallprompt; orientamos direto no banner.
-      mostrar();
-    }
+    window.addEventListener('appinstalled', onInstalado);
+
+    // Dispara em qualquer celular (Android com HTTP não emite beforeinstallprompt;
+    // iOS nunca emite). No desktop, só aparece se o Chrome permitir instalação.
+    if (ehCelular()) timer = setTimeout(() => setVisivel(true), 2000);
 
     return () => {
       window.removeEventListener('beforeinstallprompt', onPrompt);
+      window.removeEventListener('appinstalled', onInstalado);
       if (timer) clearTimeout(timer);
     };
   }, []);
@@ -61,10 +61,7 @@ export default function InstallPrompt() {
   };
 
   const instalar = async () => {
-    if (!deferred.current) {
-      fechar();
-      return;
-    }
+    if (!deferred.current) return;
     deferred.current.prompt();
     const { outcome } = await deferred.current.userChoice;
     deferred.current = null;
@@ -72,35 +69,52 @@ export default function InstallPrompt() {
     if (outcome === 'accepted') localStorage.setItem(CHAVE_INSTALADO, '1');
   };
 
+  const temInstalacao = !!deferred.current;
+
+  const instrucoes = () => {
+    if (ehIOS()) {
+      return (
+        <>
+          Toque no botão <strong className="text-[var(--text-main)]">Compartilhar</strong>{' '}
+          <span className="inline-flex align-middle text-amber-600 mx-1"><Share size={16} /></span>{' '}
+          (ícone quadrado com seta) e depois em{' '}
+          <strong className="text-[var(--text-main)]">"Adicionar à Tela de Início"</strong>.
+        </>
+      );
+    }
+    if (!temInstalacao && ehCelular()) {
+      return (
+        <>
+          Abra o menu de três pontos{' '}
+          <strong className="text-[var(--text-main)]">⋮</strong> do navegador e toque em{' '}
+          <strong className="text-[var(--text-main)]">"Adicionar à tela inicial"</strong> ou{' '}
+          <strong className="text-[var(--text-main)]">"Instalar aplicativo"</strong>.
+        </>
+      );
+    }
+    return <>Clique no ícone de instalação que aparece na barra de endereço do navegador.</>;
+  };
+
   return (
-    <div className="fixed bottom-0 inset-x-0 z-[90] p-3 sm:p-4 pointer-events-none">
-      <section className="panel-card pointer-events-auto flex items-start gap-3 max-w-md w-full mx-auto shadow-2xl" role="dialog" aria-label="Instalar aplicativo">
-        <div className="w-11 h-11 shrink-0 rounded-2xl bg-amber-100 text-amber-700 grid place-items-center">
-          {ehIOS() ? <Share size={22} /> : <Smartphone size={22} />}
+    <div className="fixed inset-0 z-[90] bg-black/55 grid place-items-center p-4">
+      <section className="panel-card w-full max-w-lg relative shadow-2xl" role="dialog" aria-modal="true" aria-label="Instalar aplicativo">
+        <button onClick={fechar} className="absolute right-4 top-4 p-2 rounded-lg hover:bg-[var(--bg-main)]" aria-label="Fechar"><X size={20} /></button>
+        <div className="w-12 h-12 rounded-2xl grid place-items-center mb-4 bg-amber-100 text-amber-700">
+          {ehIOS() ? <Share size={24} /> : <Smartphone size={24} />}
         </div>
-        <div className="flex-1 min-w-0">
-          <h2 className="font-semibold leading-tight">Instale o app no seu celular</h2>
-          {ehIOS() ? (
-            <p className="mt-1 text-sm text-[var(--text-muted)] leading-relaxed">
-              Toque no ícone <strong className="text-[var(--text-main)]">Compartilhar</strong>
-              <span className="inline-flex align-middle text-amber-600 mx-1"><Share size={16} /></span>
-              e depois em <strong className="text-[var(--text-main)]">"Adicionar à Tela de Início"</strong> para acessar como aplicativo.
-            </p>
-          ) : (
-            <p className="mt-1 text-sm text-[var(--text-muted)] leading-relaxed">
-              Acesse mais rápido e sem digitar o endereço, com ícone na sua tela inicial.
-            </p>
+        <h2 className="text-xl font-bold pr-10">Instale o app no seu celular</h2>
+        <p className="mt-2 text-[var(--text-muted)] leading-relaxed">
+          Acesse o {window.location.hostname} mais rápido, com ícone na tela inicial e sem digitar o endereço.{' '}
+          {instrucoes()}
+        </p>
+        <div className="flex gap-3 mt-6">
+          <button onClick={fechar} className="flex-1 border border-[var(--border-color)] rounded-xl p-3">Agora não</button>
+          {temInstalacao && (
+            <button onClick={instalar} className="flex-1 bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white rounded-xl p-3 font-semibold">
+              Instalar
+            </button>
           )}
-          <div className="flex gap-2 mt-3">
-            <button onClick={fechar} className="border border-[var(--border-color)] rounded-xl px-3 py-2 text-sm">Agora não</button>
-            {!ehIOS() && (
-              <button onClick={instalar} className="flex-1 bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white rounded-xl px-3 py-2 text-sm font-semibold">
-                Instalar
-              </button>
-            )}
-          </div>
         </div>
-        <button onClick={fechar} className="shrink-0 p-1 rounded-lg hover:bg-[var(--bg-main)]" aria-label="Fechar"><X size={18} /></button>
       </section>
     </div>
   );
