@@ -15,6 +15,7 @@ import AvaliacaoLoginModal from './components/AvaliacaoLoginModal';
 import FerramentasAdmin from './pages/FerramentasAdmin';
 import Reclamacoes from './pages/Reclamacoes';
 import MipNotifications from './components/MipNotifications';
+import InstallPrompt from './components/InstallPrompt';
 
 function RotaPrivada({ children }) {
   const token = localStorage.getItem('token');
@@ -27,6 +28,7 @@ function RotaPrivada({ children }) {
 export default function App() {
   return (
     <BrowserRouter>
+      <InstallPrompt />
       <Routes>
         <Route path="/" element={<Login />} />
         <Route path="/avaliacoes/compartilhada/:token" element={<AvaliacaoCompartilhada />} />

@@ -1,0 +1,28 @@
+{
+  "name": "Portal de MIPs",
+  "short_name": "Portal MIPs",
+  "description": "Sistema de gestão de MIPs, manuais e avaliações",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#fcf8f5",
+  "theme_color": "#d97706",
+  "lang": "pt-BR",
+  "categories": ["business", "productivity"],
+  "icons": [
+    {
+      "src": "/nova-esperanca-logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/nova-esperanca-logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
