@@ -51,8 +51,18 @@ services:
   frontend:
     build: ./frontend
     container_name: portal_mips_frontend
+    entrypoint: >
+      sh -c 'if [ ! -f /etc/nginx/ssl/mips.local.pem ]; then
+        openssl req -x509 -nodes -newkey rsa:2048
+        -keyout /etc/nginx/ssl/mips.local-key.pem
+        -out /etc/nginx/ssl/mips.local.pem
+        -days 3650 -subj "/CN=mips.local" 2>/dev/null;
+      fi; exec nginx -g "daemon off;"'
     ports:
       - "7070:80"
+      - "443:443"
+    volumes:
+      - ./frontend/certs:/etc/nginx/ssl:ro
     networks:
       - mips-net
     depends_on:
@@ -65,6 +75,16 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+
+  dnsmasq:
+    image: jpillora/dnsmasq
+    container_name: portal_mips_dns
+    ports:
+      - "53:53/udp"
+      - "53:53/tcp"
+    volumes:
+      - ./frontend/dnsmasq.conf:/etc/dnsmasq.conf
+    restart: always
 
 volumes:
   pgdata:

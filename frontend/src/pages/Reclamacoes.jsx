@@ -3,6 +3,7 @@ import axios from 'axios';
 import { BarChart3, CheckCircle2, Clock3, Image, Paperclip, Pencil, Plus, RotateCcw, Trash2, X } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import LeitorTopbar from '../components/LeitorTopbar';
+import API from '../api';
 
 const cores={verde:{nome:'Não urgente',cor:'#15803d',fundo:'#dcfce7'},amarelo:{nome:'Média',cor:'#a16207',fundo:'#fef9c3'},vermelho:{nome:'Imediata',cor:'#b91c1c',fundo:'#fee2e2'}};
 const ehImagem=a=>String(a.tipo||'').startsWith('image/')||/\.(png|jpe?g|gif|webp)$/i.test(a.url||'');
@@ -10,7 +11,7 @@ const formatarPrazo=min=>min>=60&&min%60===0?`${min/60} hora${min/60===1?'':'s'}
 const restante=(fim,agora)=>{const ms=new Date(fim)-agora,atrasado=ms<0,total=Math.abs(ms),h=Math.floor(total/3600000),m=Math.floor((total%3600000)/60000);return{atrasado,texto:`${h}h ${String(m).padStart(2,'0')}min`};};
 
 export default function Reclamacoes(){
-  const api=`http://${window.location.hostname}:7001/api`,user=JSON.parse(localStorage.getItem('user')||'{}'),perfil=user.perfil?.toLowerCase(),headers={Authorization:`Bearer ${localStorage.getItem('token')}`};
+  const api=`${API}/api`,user=JSON.parse(localStorage.getItem('user')||'{}'),perfil=user.perfil?.toLowerCase(),headers={Authorization:`Bearer ${localStorage.getItem('token')}`};
   const podeRegistrar=['administrador','editor','gerente'].includes(perfil)||(user.permissoes||[]).includes('reclamacoes.registrar');
   const [catalogos,setCatalogos]=useState({clientes:[],tipos:[],lideres:[],prazos:{prazo_verde_min:1440,prazo_amarelo_min:180,prazo_vermelho_min:60}}),[metricas,setMetricas]=useState({por_tipo:[],por_lider:[],por_mes:[],por_cliente:[],por_prioridade:[]});
   const [itens,setItens]=useState([]),[formAberto,setFormAberto]=useState(false),[editandoId,setEditandoId]=useState(null),[salvando,setSalvando]=useState(false),[foto,setFoto]=useState(null),[agora,setAgora]=useState(new Date()),[filtro,setFiltro]=useState('todos');

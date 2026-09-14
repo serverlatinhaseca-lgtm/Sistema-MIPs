@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { ArrowLeft, Clock, User, Trash2, CheckCircle, XCircle, Pencil, History, Target } from 'lucide-react';
 import LeitorTopbar from '../components/LeitorTopbar';
+import API from '../api';
 
 export default function DetalheMIP() {
   const { id } = useParams();
@@ -20,7 +21,7 @@ export default function DetalheMIP() {
     const fetchMip = async () => {
       try {
         const token = localStorage.getItem('token');
-        const res = await axios.get(`http://${window.location.hostname}:7001/api/mips/${id}`, {
+        const res = await axios.get(`${API}/api/mips/${id}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         setMip(res.data);
@@ -32,7 +33,7 @@ export default function DetalheMIP() {
   const handleAprovar = async () => {
     try {
       const token = localStorage.getItem('token');
-      await axios.patch(`http://${window.location.hostname}:7001/api/mips/${id}/aprovar`, {}, {
+      await axios.patch(`${API}/api/mips/${id}/aprovar`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
       alert('MIP aprovada com sucesso!');
@@ -44,7 +45,7 @@ export default function DetalheMIP() {
     e.preventDefault();
     try {
       const token = localStorage.getItem('token');
-      const { data } = await axios.patch(`http://${window.location.hostname}:7001/api/mips/${id}/reprovar`, { orientacao }, {
+      const { data } = await axios.patch(`${API}/api/mips/${id}/reprovar`, { orientacao }, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setMip((atual) => ({ ...atual, status: 'Reprovado', orientacao_correcao: orientacao }));
@@ -57,7 +58,7 @@ export default function DetalheMIP() {
     if (!confirm('Deseja realmente excluir esta MIP?')) return;
     try {
       const token = localStorage.getItem('token');
-      await axios.delete(`http://${window.location.hostname}:7001/api/mips/${id}`, {
+      await axios.delete(`${API}/api/mips/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       navigate('/mips');
@@ -65,7 +66,7 @@ export default function DetalheMIP() {
   };
 
   const abrirHistorico = async () => {
-    try { const r=await axios.get(`http://${window.location.hostname}:7001/api/mips/${id}/versoes`,{headers:{Authorization:`Bearer ${localStorage.getItem('token')}`}});setVersoes(r.data);setMostrarVersoes(true); }
+    try { const r=await axios.get(`${API}/api/mips/${id}/versoes`,{headers:{Authorization:`Bearer ${localStorage.getItem('token')}`}});setVersoes(r.data);setMostrarVersoes(true); }
     catch { alert('Erro ao carregar histórico.'); }
   };
 

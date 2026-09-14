@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { BellRing, CheckCircle2, FileWarning, X } from 'lucide-react';
+import API from '../api';
 
 export default function MipNotifications() {
   const [avisos, setAvisos] = useState([]);
@@ -11,7 +12,7 @@ export default function MipNotifications() {
     let ativo = true;
     const carregar = async () => {
       try {
-        const { data } = await axios.get(`http://${window.location.hostname}:7001/api/mips-notificacoes`, {
+        const { data } = await axios.get(`${API}/api/mips-notificacoes`, {
           headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
         });
         const lidas = JSON.parse(localStorage.getItem('mips-notificacoes-lidas') || '[]');

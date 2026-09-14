@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { UserPlus, Trash2, KeyRound, Pencil, Copy, Wand2 } from "lucide-react";
 import Sidebar from "../components/Sidebar";
+import API from '../api';
 
 const nomePerfil = (perfil) => ({ leitor: "Funcionário", editor: "Líder", gerente: "Gerente", administrador: "Administrador" }[String(perfil || "").toLowerCase()] || perfil);
 
@@ -25,22 +26,20 @@ export default function Usuarios() {
 
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem("user") || "{}");
-  const host = window.location.hostname;
-
   const carregarUsuarios = async () => {
     try {
-      const res = await axios.get(`http://${host}:7001/api/usuarios`, {
+      const res = await axios.get(`${API}/api/usuarios`, {
         headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
       });
       setUsuarios(res.data);
       const modelosRes = await axios.get(
-        `http://${host}:7001/api/modelos-avaliacao`,
+        `${API}/api/modelos-avaliacao`,
         {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
         },
       );
       setModelos(modelosRes.data);
-      const categoriasRes = await axios.get(`http://${host}:7001/api/categorias-acesso`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
+      const categoriasRes = await axios.get(`${API}/api/categorias-acesso`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
       setCategorias(categoriasRes.data);
     } catch (err) {
       console.error(err);
@@ -59,7 +58,7 @@ export default function Usuarios() {
     e.preventDefault();
     try {
       await axios[editandoUsuarioId ? "put" : "post"](
-        `http://${host}:7001/api/usuarios${editandoUsuarioId ? `/${editandoUsuarioId}` : ""}`,
+        `${API}/api/usuarios${editandoUsuarioId ? `/${editandoUsuarioId}` : ""}`,
         {
           nome,
           email,
@@ -94,7 +93,7 @@ export default function Usuarios() {
   const handleExcluir = async (id) => {
     if (!confirm("Deseja realmente excluir este usuário?")) return;
     try {
-      await axios.delete(`http://${host}:7001/api/usuarios/${id}`, {
+      await axios.delete(`${API}/api/usuarios/${id}`, {
         headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
       });
       carregarUsuarios();
@@ -106,7 +105,7 @@ export default function Usuarios() {
   const redefinirSenha = async (e) => {
     e.preventDefault();
     try {
-      await axios.put(`http://${host}:7001/api/usuarios/${usuarioSenha.id}/redefinir-senha`, { senha_temporaria: senhaTemporaria }, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
+      await axios.put(`${API}/api/usuarios/${usuarioSenha.id}/redefinir-senha`, { senha_temporaria: senhaTemporaria }, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
       setSenhaRedefinida(true); carregarUsuarios();
     } catch (err) { alert(err.response?.data?.error || "Erro ao redefinir senha."); }
   };

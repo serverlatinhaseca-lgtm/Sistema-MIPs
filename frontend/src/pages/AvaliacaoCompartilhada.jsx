@@ -5,13 +5,14 @@ import { ArrowLeft, Printer, Share2 } from "lucide-react";
 import GraficoDesempenho from "../components/GraficoDesempenho";
 import { formatarMes } from "../avaliacoes";
 import useBranding from "../useBranding";
+import API from '../api';
 
 export default function AvaliacaoCompartilhada() {
   const { token } = useParams();
   const navigate = useNavigate();
   const [avaliacao, setAvaliacao] = useState(null);
   const [erro, setErro] = useState("");
-  const api = `http://${window.location.hostname}:7001/api`;
+  const api = `${API}/api`;
   const branding = useBranding();
 
   useEffect(() => {

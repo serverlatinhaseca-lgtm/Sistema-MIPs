@@ -4,26 +4,26 @@ import axios from 'axios';
 import { Search, PlusCircle } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import LeitorTopbar from '../components/LeitorTopbar';
+import API from '../api';
 
 export default function ListaMIPs() {
   const [mips, setMips] = useState([]);
   const [busca, setBusca] = useState('');
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user') || '{}');
-  const host = window.location.hostname;
   const isLeitor = user.perfil?.toLowerCase() === 'leitor';
   
   useEffect(() => {
     const fetchMips = async () => {
       try {
-        const res = await axios.get(`http://${host}:7001/api/mips`, {
+        const res = await axios.get(`${API}/api/mips`, {
           headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
         });
         setMips(res.data);
       } catch (err) { console.error(err); }
     };
     fetchMips();
-  }, [host]);
+  }, []);
 
   const mipsFiltradas = mips.filter(m => 
     m.titulo.toLowerCase().includes(busca.toLowerCase()) || 

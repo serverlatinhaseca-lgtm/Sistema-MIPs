@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { ClipboardCheck, X } from "lucide-react";
+import API from '../api';
 
 export default function AvaliacaoLoginModal() {
   const [aberto, setAberto] = useState(false);
@@ -15,7 +16,7 @@ export default function AvaliacaoLoginModal() {
     if (!['leitor','editor','gerente'].includes(perfil) || localStorage.getItem(chaveVisto) === '1' || sessionStorage.getItem('mostrar_avaliacoes_modal') !== '1') return;
     sessionStorage.removeItem('mostrar_avaliacoes_modal');
     localStorage.setItem(chaveVisto, '1');
-    axios.get(`http://${window.location.hostname}:7001/api/minhas-avaliacoes`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
+    axios.get(`${API}/api/minhas-avaliacoes`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
       .then(r => { setQuantidade(r.data.length); setAberto(true); })
       .catch(() => setAberto(true));
   }, [perfil, user.id]);

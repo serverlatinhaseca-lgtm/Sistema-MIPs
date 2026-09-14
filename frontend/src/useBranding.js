@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
+import API from './api';
 
 const padrao = { nome_site: "Portal MIPs", logo_site: "", logo_avaliacao: "" };
 
@@ -23,7 +24,7 @@ export default function useBranding() {
   });
 
   useEffect(() => {
-    axios.get(`http://${window.location.hostname}:7001/api/configuracoes-portal`)
+    axios.get(`${API}/api/configuracoes-portal`)
       .then(({ data }) => {
         const atual = { ...padrao, ...data };
         setBranding(atual);

@@ -4,6 +4,7 @@ import axios from 'axios';
 import { Calculator, Printer, Plus, Trash, ArrowLeft, Save, Search, Pencil, History } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import LeitorTopbar from '../components/LeitorTopbar';
+import API from '../api';
 
 export default function Receitas() {
   const [receitas, setReceitas] = useState([]);
@@ -20,12 +21,11 @@ export default function Receitas() {
   
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user') || '{}');
-  const host = window.location.hostname;
   const isLeitor = user.perfil?.toLowerCase() === 'leitor';
 
   const carregarReceitas = async () => {
     try {
-      const res = await axios.get(`http://${host}:7001/api/receitas`, {
+      const res = await axios.get(`${API}/api/receitas`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       });
       setReceitas(res.data);
@@ -44,7 +44,7 @@ export default function Receitas() {
   const handleSalvar = async (e) => {
     e.preventDefault();
     try {
-      await axios[editandoId ? 'put' : 'post'](`http://${host}:7001/api/receitas${editandoId ? `/${editandoId}` : ''}`, {
+      await axios[editandoId ? 'put' : 'post'](`${API}/api/receitas${editandoId ? `/${editandoId}` : ''}`, {
         titulo, rendimento_base: Number(rendimentoBase), ingredientes
       }, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
       setModoCriacao(false);
@@ -54,12 +54,12 @@ export default function Receitas() {
   };
 
   const iniciarEdicao = () => { setEditandoId(receitaAtiva.id); setTitulo(receitaAtiva.titulo); setRendimentoBase(String(receitaAtiva.rendimento_base)); setIngredientes(receitaAtiva.ingredientes.map(i=>({...i}))); setReceitaAtiva(null); setModoCriacao(true); };
-  const abrirHistorico = async () => { try { const r=await axios.get(`http://${host}:7001/api/receitas/${receitaAtiva.id}/versoes`,{headers:{Authorization:`Bearer ${localStorage.getItem('token')}`}});setVersoes(r.data);setMostrarVersoes(true); } catch { alert('Erro ao carregar histórico.'); } };
+  const abrirHistorico = async () => { try { const r=await axios.get(`${API}/api/receitas/${receitaAtiva.id}/versoes`,{headers:{Authorization:`Bearer ${localStorage.getItem('token')}`}});setVersoes(r.data);setMostrarVersoes(true); } catch { alert('Erro ao carregar histórico.'); } };
 
   const handleExcluirReceita = async (id) => {
     if (!confirm('Deseja realmente excluir esta receita? Esta ação não pode ser desfeita.')) return;
     try {
-      await axios.delete(`http://${host}:7001/api/receitas/${id}`, {
+      await axios.delete(`${API}/api/receitas/${id}`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       });
       setReceitaAtiva(null);

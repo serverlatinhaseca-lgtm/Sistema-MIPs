@@ -4,6 +4,7 @@ import axios from 'axios';
 import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
 import { Save, ArrowLeft } from 'lucide-react';
+import API from '../api';
 
 export default function CriarMIP() {
   const navigate = useNavigate();
@@ -22,7 +23,7 @@ export default function CriarMIP() {
 
   useEffect(() => {
     if (!id) return;
-    axios.get(`http://${window.location.hostname}:7001/api/mips/${id}`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
+    axios.get(`${API}/api/mips/${id}`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
       .then(({data}) => { setFormData({codigo:data.codigo,titulo:data.titulo,resumo:data.resumo||'',objetivo:data.objetivo||'',status:data.status}); setConteudo(data.conteudo||''); })
       .catch(() => setErro('Não foi possível carregar a MIP para edição.'));
   }, [id]);
@@ -42,9 +43,7 @@ export default function CriarMIP() {
 
       try {
         const token = localStorage.getItem('token');
-        // Usa a porta 7001 padrão do backend
-        const currentHost = window.location.hostname;
-        const res = await axios.post(`http://${currentHost}:7001/api/upload`, data, {
+        const res = await axios.post(`${API}/api/upload`, data, {
           headers: { 
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'multipart/form-data'
@@ -89,7 +88,7 @@ export default function CriarMIP() {
 
     try {
       const token = localStorage.getItem('token');
-      await axios[id ? 'put' : 'post'](`http://${window.location.hostname}:7001/api/mips${id ? `/${id}` : ''}`, { ...formData, conteudo }, {
+      await axios[id ? 'put' : 'post'](`${API}/api/mips${id ? `/${id}` : ''}`, { ...formData, conteudo }, {
         headers: { Authorization: `Bearer ${token}` }
       });
       navigate('/mips');

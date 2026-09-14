@@ -4,6 +4,7 @@ import axios from "axios";
 import { KeyRound } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 import LeitorTopbar from "../components/LeitorTopbar";
+import API from '../api';
 
 export default function AlterarSenha() {
   const [senhaAtual, setSenhaAtual] = useState("");
@@ -21,7 +22,7 @@ export default function AlterarSenha() {
     if (novaSenha !== confirmacao) return setErro("A confirmação não corresponde à nova senha.");
     setSalvando(true); setErro("");
     try {
-      await axios.put(`http://${window.location.hostname}:7001/api/usuarios/me/senha`, { senha_atual: senhaAtual, nova_senha: novaSenha }, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
+      await axios.put(`${API}/api/usuarios/me/senha`, { senha_atual: senhaAtual, nova_senha: novaSenha }, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
       const atualizado = { ...user, deve_alterar_senha: false };
       localStorage.setItem("user", JSON.stringify(atualizado));
       alert("Senha alterada com sucesso.");

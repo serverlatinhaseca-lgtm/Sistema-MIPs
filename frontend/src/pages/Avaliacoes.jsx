@@ -5,6 +5,7 @@ import Sidebar from "../components/Sidebar";
 import GraficoDesempenho from "../components/GraficoDesempenho";
 import { formatarMes } from "../avaliacoes";
 import LeitorTopbar from "../components/LeitorTopbar";
+import API from '../api';
 
 const mesAtual = new Date().toISOString().slice(0, 7);
 const semPrefixoSecao = (texto = "") => String(texto).replace(/^\s*SEÇÃO\s+\d+\s*:\s*/i, "");
@@ -21,7 +22,7 @@ async function copiarLink(url) {
   c.remove();
 }
 
-export function MinhasAvaliacoes({ api = `http://${window.location.hostname}:7001/api`, headers = { Authorization: `Bearer ${localStorage.getItem("token")}` } }) {
+export function MinhasAvaliacoes({ api = `${API}/api`, headers = { Authorization: `Bearer ${localStorage.getItem("token")}` } }) {
   const [itens, setItens] = useState([]);
   const perfil = JSON.parse(localStorage.getItem("user") || "{}").perfil?.toLowerCase();
   useEffect(() => {
@@ -91,7 +92,7 @@ export function MinhasAvaliacoes({ api = `http://${window.location.hostname}:700
 }
 
 export default function Avaliacoes() {
-  const api = `http://${window.location.hostname}:7001/api`,
+  const api = `${API}/api`,
     user = JSON.parse(localStorage.getItem("user") || "{}"),
     headers = { Authorization: `Bearer ${localStorage.getItem("token")}` };
   const [usuarios, setUsuarios] = useState([]),

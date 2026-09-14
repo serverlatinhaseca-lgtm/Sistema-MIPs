@@ -4,12 +4,12 @@ import axios from 'axios';
 import { BookOpen, Users, PlusCircle, Calculator, ClipboardCheck } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import useBranding from '../useBranding';
+import API from '../api';
 
 export default function Dashboard() {
   const [stats, setStats] = useState({ totalMips: 0, totalUsuarios: 0, totalReceitas: 0, avaliacoesPendentes: 0 });
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user') || '{}');
-  const host = window.location.hostname;
   const branding = useBranding();
 
   useEffect(() => {
@@ -20,17 +20,17 @@ export default function Dashboard() {
 
     const fetchStats = async () => {
       try {
-        const res = await axios.get(`http://${host}:7001/api/dashboard`, {
+        const res = await axios.get(`${API}/api/dashboard`, {
           headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
         });
-        const resRec = await axios.get(`http://${host}:7001/api/receitas`, {
+        const resRec = await axios.get(`${API}/api/receitas`, {
           headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
         });
         setStats({ ...res.data, totalReceitas: resRec.data.length });
       } catch (err) { console.error(err); }
     };
     fetchStats();
-  }, [host, navigate, user.perfil]);
+  }, [navigate, user.perfil]);
 
   return (
     <div className="min-h-screen bg-[var(--bg-main)] flex">

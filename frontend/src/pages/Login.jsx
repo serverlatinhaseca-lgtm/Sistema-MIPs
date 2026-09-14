@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Lock, User, LogIn } from 'lucide-react';
 import useBranding from '../useBranding';
+import API from '../api';
 
 export default function Login() {
   const [usuario, setUsuario] = useState('');
@@ -16,9 +17,7 @@ export default function Login() {
     setErro('');
 
     try {
-      // Aponta para a porta correta unificada do backend (7001)
-      const currentHost = window.location.hostname;
-      const response = await axios.post(`http://${currentHost}:7001/api/auth/login`, {
+      const response = await axios.post(`${API}/api/auth/login`, {
         usuario,
         senha
       });
