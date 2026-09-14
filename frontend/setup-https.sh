@@ -12,6 +12,10 @@ echo "==> Verificando o IP da LAN"
 if [ -z "$LAN_IP" ]; then
   LAN_IP="$(hostname -I | awk '{print $1}')"
 fi
+# Se a autodetecção falhar ou não vier como argumento, usa o IP fixo do servidor
+if [ -z "$LAN_IP" ]; then
+  LAN_IP="192.168.0.143"
+fi
 echo "    IP detectado/usado: $LAN_IP"
 
 echo "==> Instalando mkcert (se necessário)"
