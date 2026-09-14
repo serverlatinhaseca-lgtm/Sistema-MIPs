@@ -15,11 +15,20 @@ echo "    IP detectado/usado: $LAN_IP"
 
 echo "==> Instalando mkcert (se necessário)"
 if ! command -v mkcert >/dev/null 2>&1; then
-  apt-get update -qq
-  apt-get install -y -qq libnss3-tools
-  curl -sL https://dl.filippo.io/mkcert/latest?for=linux/amd64 -o /usr/local/bin/mkcert
-  chmod +x /usr/local/bin/mkcert
+  # Detecta a distro para instalar certo no Arch, Ubuntu ou Debian
+  if command -v pacman >/dev/null 2>&1; then
+    pacman -Sy --noconfirm mkcert
+  elif command -v apt-get >/dev/null 2>&1; then
+    apt-get update -qq
+    apt-get install -y -qq libnss3-tools
+    curl -sL https://dl.filippo.io/mkcert/latest?for=linux/amd64 -o /usr/local/bin/mkcert
+    chmod +x /usr/local/bin/mkcert
+  else
+    echo "    ERRO: não consegui detectar o gerenciador de pacotes. Instale o mkcert manualmente e rode de novo."
+    exit 1
+  fi
 fi
+echo "    mkcert OK: $(mkcert -version)"
 
 echo "==> Criando CA local (rootCA) e certificado para mips.local"
 mkcert -install || echo "    ATENÇÃO: não foi possível instalar a CA. Instale manualmente nos celulares."
@@ -30,6 +39,12 @@ cd ../..
 
 echo "==> Atualizando dnsmasq.conf com o IP $LAN_IP"
 sed -i "s|LAN_IP_PLACEHOLDER|$LAN_IP|g" frontend/dnsmasq.conf
+
+echo "==> Atualizando os arquivos de infraestrutura com o IP $LAN_IP"
+# substitui o IP fixo nos templates
+sed -i "s|192\.168\.0\.143|$LAN_IP|g" \
+  frontend/dnsmasq.conf \
+  docker-compose.yml
 
 echo "==> Subindo os containers com HTTPS e DNS"
 docker compose up -d --build
