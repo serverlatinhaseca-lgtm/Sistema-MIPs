@@ -62,7 +62,7 @@ services:
       - "7070:80"
       - "443:443"
     volumes:
-      - ./frontend/certs:/etc/nginx/ssl:ro
+      - ./frontend/certs:/etc/nginx/ssl
     networks:
       - mips-net
     depends_on:
