@@ -51,13 +51,7 @@ services:
   frontend:
     build: ./frontend
     container_name: portal_mips_frontend
-    entrypoint: >
-      sh -c 'if [ ! -f /etc/nginx/ssl/mips.lan.pem ]; then
-        openssl req -x509 -nodes -newkey rsa:2048
-        -keyout /etc/nginx/ssl/mips.lan-key.pem
-        -out /etc/nginx/ssl/mips.lan.pem
-        -days 3650 -subj "/CN=mips.lan" 2>/dev/null;
-      fi; exec nginx -g "daemon off;"'
+    entrypoint: sh -c 'if [ ! -f /etc/nginx/ssl/mips.lan.pem ]; then openssl req -x509 -nodes -newkey rsa:2048 -keyout /etc/nginx/ssl/mips.lan-key.pem -out /etc/nginx/ssl/mips.lan.pem -days 3650 -subj "/CN=mips.lan" 2>/dev/null; fi; exec nginx -g "daemon off;"'
     ports:
       - "80:80"
       - "443:443"
