@@ -35,8 +35,7 @@ cd ../..
 
 echo "==> Atualizando dnsmasq.conf com o IP $LAN_IP"
 # Regeneração idempotente: funciona na 1ª vez e nas seguintes
-cat > frontend/dnsmasq.conf <<EOF
-# Resolve mips.local → IP do servidor na LAN
+cat > frontend/dnsmasq.conf <<EOF# Resolve mips.local → IP do servidor na LAN
 # Gerado pelo setup-https.sh em $(date -u +%Y-%m-%dT%H:%M:%SZ) para $LAN_IP
 address=/mips.local/$LAN_IP
 
@@ -51,6 +50,9 @@ log-queries
 log-facility=/var/log/dnsmasq.log
 cache-size=100
 EOF
+
+echo "==> Ajustando bind da porta 53 no docker-compose.yml para $LAN_IP"
+sed -i -E "s|[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+:53:53|$LAN_IP:53:53|g" docker-compose.yml
 
 echo "==> Checando pré-requisitos"
 if [ ! -f .env ]; then

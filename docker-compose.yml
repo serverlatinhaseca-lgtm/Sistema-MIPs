@@ -80,8 +80,10 @@ services:
     image: jpillora/dnsmasq
     container_name: portal_mips_dns
     ports:
-      - "53:53/udp"
-      - "53:53/tcp"
+      # Bind no IP da LAN: evita conflito com o systemd-resolved (127.0.0.53:53).
+      # O setup-https.sh atualiza o IP automaticamente.
+      - "192.168.0.143:53:53/udp"
+      - "192.168.0.143:53:53/tcp"
     volumes:
       - ./frontend/dnsmasq.conf:/etc/dnsmasq.conf
     networks:
