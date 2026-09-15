@@ -35,7 +35,8 @@ cd ../..
 
 echo "==> Atualizando dnsmasq.conf com o IP $LAN_IP"
 # Regeneração idempotente: funciona na 1ª vez e nas seguintes
-cat > frontend/dnsmasq.conf <<EOF# Resolve mips.local → IP do servidor na LAN
+cat > frontend/dnsmasq.conf <<EOF
+# Resolve mips.local → IP do servidor na LAN
 # Gerado pelo setup-https.sh em $(date -u +%Y-%m-%dT%H:%M:%SZ) para $LAN_IP
 address=/mips.local/$LAN_IP
 
@@ -80,8 +81,8 @@ echo "              -> Ajustes > Geral > Sobre > Confiança de certificados"
 echo "   - Android: transfira o arquivo -> Configurações > Segurança"
 echo "              > Instalar certificado > CA"
 echo ""
-echo "3) ACESSO: https://mips.local  (prompt de instalação PWA funciona)"
-echo "   Obs.: http://$LAN_IP:7070 redireciona para HTTPS (cert só vale p/ mips.local)."
+echo "3) ACESSO HTTP (sem instalar nada nos celulares): http://mips.local"
+echo "   ACESSO HTTPS + PWA (após confiar na CA uma vez): https://mips.local"
 echo ""
 echo "Dica: no roteador, se não der para trocar o DNS do DHCP,"
 echo "configure manualmente o DNS de cada celular para $LAN_IP."
