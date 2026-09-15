@@ -95,6 +95,8 @@ services:
       - TZ=America/Sao_Paulo
     volumes:
       - ./backups:/backups
+      # Credencial do Drive: só existe no servidor (backup/rclone.conf, gitignored).
+      - ./backup/rclone.conf:/etc/rclone/rclone.conf:ro
     networks:
       - mips-net
     depends_on:
