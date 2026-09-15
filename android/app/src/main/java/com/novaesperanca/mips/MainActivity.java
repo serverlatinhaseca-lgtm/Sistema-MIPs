@@ -27,7 +27,8 @@ import android.widget.Toast;
 @SuppressWarnings("deprecation") // startActivityForResult/onBackPressed: sem androidx, API do framework
 public class MainActivity extends Activity {
 
-    private static final String HOME_URL = "http://mips.lan/";
+    // IP fixo do servidor na LAN: dispensa qualquer configuração de DNS no celular.
+    private static final String HOME_URL = "http://192.168.0.143/";
     private static final int REQ_FILE_CHOOSER = 1001;
     private static final int REQ_CAMERA = 1002;
 
