@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# setup-https.sh — configura HTTPS + DNS interno (mips.local) no restaurante.
+# setup-https.sh — configura HTTPS + DNS interno (mips.lan) no restaurante.
 # Rode UMA VEZ no servidor que hospeda o Docker, como usuário com sudo.
 #
 # Uso:         ./frontend/setup-https.sh [IP_DA_LAN]
@@ -26,19 +26,19 @@ if ! command -v mkcert >/dev/null 2>&1; then
 fi
 echo "    mkcert OK: $(mkcert -version)"
 
-echo "==> Criando CA local (rootCA) e certificado para mips.local"
+echo "==> Criando CA local (rootCA) e certificado para mips.lan"
 mkcert -install || echo "    ATENÇÃO: não foi possível instalar a CA. Instale manualmente nos celulares."
 mkdir -p frontend/certs
 cd frontend/certs
-mkcert -cert-file mips.local.pem -key-file mips.local-key.pem "mips.local" "localhost" "$LAN_IP" 127.0.0.1 ::1
+mkcert -cert-file mips.lan.pem -key-file mips.lan-key.pem "mips.lan" "localhost" "$LAN_IP" 127.0.0.1 ::1
 cd ../..
 
 echo "==> Atualizando dnsmasq.conf com o IP $LAN_IP"
 # Regeneração idempotente: funciona na 1ª vez e nas seguintes
 cat > frontend/dnsmasq.conf <<EOF
-# Resolve mips.local → IP do servidor na LAN
+# Resolve mips.lan → IP do servidor na LAN
 # Gerado pelo setup-https.sh em $(date -u +%Y-%m-%dT%H:%M:%SZ) para $LAN_IP
-address=/mips.local/$LAN_IP
+address=/mips.lan/$LAN_IP
 
 # DNS upstream (Google, Cloudflare)
 no-resolv
@@ -72,7 +72,7 @@ echo ""
 echo "================= CONFIGURAÇÃO COMPLETA ================="
 echo ""
 echo "1) ROTEADOR — aponte o DNS do DHCP para $LAN_IP"
-echo "   (assim todo celular resolve mips.local automaticamente)"
+echo "   (assim todo celular resolve mips.lan automaticamente)"
 echo ""
 echo "2) CELULARES — confie na CA local (UMA vez por aparelho):"
 echo "   O arquivo está em: $(mkcert -CAROOT)/rootCA.pem"
@@ -81,8 +81,8 @@ echo "              -> Ajustes > Geral > Sobre > Confiança de certificados"
 echo "   - Android: transfira o arquivo -> Configurações > Segurança"
 echo "              > Instalar certificado > CA"
 echo ""
-echo "3) ACESSO HTTP (sem instalar nada nos celulares): http://mips.local"
-echo "   ACESSO HTTPS + PWA (após confiar na CA uma vez): https://mips.local"
+echo "3) ACESSO HTTP (sem instalar nada nos celulares): http://mips.lan"
+echo "   ACESSO HTTPS + PWA (após confiar na CA uma vez): https://mips.lan"
 echo ""
 echo "Dica: no roteador, se não der para trocar o DNS do DHCP,"
 echo "configure manualmente o DNS de cada celular para $LAN_IP."
