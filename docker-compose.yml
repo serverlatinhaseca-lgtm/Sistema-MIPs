@@ -59,7 +59,7 @@ services:
         -days 3650 -subj "/CN=mips.local" 2>/dev/null;
       fi; exec nginx -g "daemon off;"'
     ports:
-      - "7070:80"
+      - "80:80"
       - "443:443"
     volumes:
       - ./frontend/certs:/etc/nginx/ssl
