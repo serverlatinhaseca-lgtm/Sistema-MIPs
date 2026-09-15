@@ -21,6 +21,7 @@ jobs:
       # O runner ubuntu já traz o Android SDK; só garante a plataforma 34.
       - name: Instalar plataforma SDK 34
         run: |
+          export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
           yes | sdkmanager --licenses > /dev/null
           sdkmanager "platforms;android-34" "build-tools;34.0.0"
 
