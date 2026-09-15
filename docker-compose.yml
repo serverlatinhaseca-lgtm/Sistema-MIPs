@@ -84,6 +84,8 @@ services:
       - "53:53/tcp"
     volumes:
       - ./frontend/dnsmasq.conf:/etc/dnsmasq.conf
+    networks:
+      - mips-net
     restart: always
 
 volumes:

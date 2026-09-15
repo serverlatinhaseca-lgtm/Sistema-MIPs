@@ -6,10 +6,6 @@
 # Exemplo:     ./frontend/setup-https.sh 192.168.1.100
 set -euo pipefail
 
-LAN_IP="${1:-}"
-
-echo "==> Verificando o IP da LAN"
-# Usa o argumento (ex.: ./setup-https.sh 192.168.1.100); senão, o IP fixo do servidor do restaurante
 LAN_IP="${1:-192.168.0.143}"
 echo "    IP detectado/usado: $LAN_IP"
 
@@ -34,18 +30,38 @@ echo "==> Criando CA local (rootCA) e certificado para mips.local"
 mkcert -install || echo "    ATENÇÃO: não foi possível instalar a CA. Instale manualmente nos celulares."
 mkdir -p frontend/certs
 cd frontend/certs
-mkcert -cert-file mips.local.pem -key-file mips.local-key.pem "mips.local" "$LAN_IP"
+mkcert -cert-file mips.local.pem -key-file mips.local-key.pem "mips.local" "localhost" "$LAN_IP" 127.0.0.1 ::1
 cd ../..
 
 echo "==> Atualizando dnsmasq.conf com o IP $LAN_IP"
-sed -i "s|LAN_IP_PLACEHOLDER|$LAN_IP|g" frontend/dnsmasq.conf
+# Regeneração idempotente: funciona na 1ª vez e nas seguintes
+cat > frontend/dnsmasq.conf <<EOF
+# Resolve mips.local → IP do servidor na LAN
+# Gerado pelo setup-https.sh em $(date -u +%Y-%m-%dT%H:%M:%SZ) para $LAN_IP
+address=/mips.local/$LAN_IP
 
-echo "==> Atualizando os arquivos de infraestrutura com o IP $LAN_IP"
-# substitui o IP fixo nos templates
-sed -i "s|192\.168\.0\.143|$LAN_IP|g" \
-  frontend/dnsmasq.conf \
-  docker-compose.yml
+# DNS upstream (Google, Cloudflare)
+no-resolv
+server=8.8.8.8
+server=8.8.4.4
+server=1.1.1.1
 
+# Logs (útil para debug)
+log-queries
+log-facility=/var/log/dnsmasq.log
+cache-size=100
+EOF
+
+echo "==> Checando pré-requisitos"
+if [ ! -f .env ]; then
+  echo "    ERRO: arquivo .env não encontrado. Rode antes:"
+  echo "      cp .env.example .env && nano .env"
+  exit 1
+fi
+if ss -lun 2>/dev/null | grep -q ':53 '; then
+  echo "    ATENÇÃO: algo já escuta na porta 53 (provável systemd-resolved)."
+  echo "    Se o dnsmasq não subir, libere a porta 53 ou ajuste o resolved."
+fi
 echo "==> Subindo os containers com HTTPS e DNS"
 docker compose up -d --build
 
@@ -63,7 +79,7 @@ echo "   - Android: transfira o arquivo -> Configurações > Segurança"
 echo "              > Instalar certificado > CA"
 echo ""
 echo "3) ACESSO: https://mips.local  (prompt de instalação PWA funciona)"
-echo "   Legado (sem HTTPS): http://$LAN_IP:7070"
+echo "   Obs.: http://$LAN_IP:7070 redireciona para HTTPS (cert só vale p/ mips.local)."
 echo ""
 echo "Dica: no roteador, se não der para trocar o DNS do DHCP,"
 echo "configure manualmente o DNS de cada celular para $LAN_IP."
