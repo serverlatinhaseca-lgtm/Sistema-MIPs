@@ -1,0 +1,30 @@
+plugins {
+    id("com.android.application")
+}
+
+android {
+    namespace = "com.novaesperanca.mips"
+    compileSdk = 34
+
+    defaultConfig {
+        applicationId = "com.novaesperanca.mips"
+        minSdk = 29
+        targetSdk = 34
+        versionCode = 1
+        versionName = "1.0.0"
+    }
+
+    buildTypes {
+        getByName("debug") {
+            applicationIdSuffix = ".debug"
+        }
+        getByName("release") {
+            isMinifyEnabled = false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+}
