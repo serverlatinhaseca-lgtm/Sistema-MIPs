@@ -70,7 +70,8 @@ services:
       retries: 5
       start_period: 10s
 
-  dnsmasq:    image: jpillora/dnsmasq
+  dnsmasq:
+    image: jpillora/dnsmasq
     container_name: portal_mips_dns
     ports:
       # Bind no IP da LAN: evita conflito com o systemd-resolved (127.0.0.53:53).
