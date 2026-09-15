@@ -22,12 +22,18 @@ function ehIOS() {
   return /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 }
 
+// WebView do APK próprio (Android marca o UA com "; wv"). Quem já está
+// dentro do app não precisa de convite para instalar nada.
+function ehAppNativo() {
+  return /;\s*wv[;)]/.test(navigator.userAgent);
+}
+
 export default function InstallPrompt() {
   const [visivel, setVisivel] = useState(false);
   const deferred = useRef(null);
 
   useEffect(() => {
-    if (jaInstalado() || haMenosDe(DIAS)) return;
+    if (ehAppNativo() || jaInstalado() || haMenosDe(DIAS)) return;
 
     let timer = null;
 

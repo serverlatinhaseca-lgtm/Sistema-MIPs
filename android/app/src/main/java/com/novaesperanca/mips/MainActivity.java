@@ -49,8 +49,10 @@ public class MainActivity extends Activity {
         s.setDatabaseEnabled(true);
         s.setAllowFileAccess(true);
         s.setMediaPlaybackRequiresUserGesture(false);
-        s.setLoadWithOverviewMode(true);
-        s.setUseWideViewPort(true);
+        // Viewport na largura real do aparelho: sem isso o WebView finge ter
+        // ~980px e o site aplica o layout desktop em vez do mobile.
+        s.setUseWideViewPort(false);
+        s.setLoadWithOverviewMode(false);
         s.setBuiltInZoomControls(false);
 
         CookieManager.getInstance().setAcceptCookie(true);
