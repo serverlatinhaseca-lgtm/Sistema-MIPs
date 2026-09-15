@@ -9,7 +9,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
@@ -25,6 +24,7 @@ import android.webkit.WebViewClient;
 import android.widget.Toast;
 
 /** Wrapper WebView do Portal MIPs (uso interno, rede local). */
+@SuppressWarnings("deprecation") // startActivityForResult/onBackPressed: sem androidx, API do framework
 public class MainActivity extends Activity {
 
     private static final String HOME_URL = "http://mips.lan/";
@@ -169,7 +169,6 @@ public class MainActivity extends Activity {
     }
 
     @Override
-    @SuppressWarnings("deprecation")
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode != REQ_FILE_CHOOSER || fileCallback == null) {
