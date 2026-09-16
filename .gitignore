@@ -1,0 +1,16 @@
+# Segredos / ambiente — nunca commitar
+.env
+backup/rclone.conf
+
+# Dados locais — nunca commitar
+*.dump
+backups/
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Certificados locais (gerados pelo setup-https.sh / entrypoint do Nginx)
+frontend/certs/*.pem
+
+# Build / dependências
+node_modules/
+frontend/dist/
