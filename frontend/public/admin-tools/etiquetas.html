@@ -449,6 +449,33 @@
       .settings-list-row.fixed-row {
         grid-template-columns: minmax(140px, 1fr) minmax(130px, 0.8fr) 75px auto auto;
       }
+      .fixed-toolbar {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 8px;
+      }
+      .fixed-toolbar input {
+        flex: 1;
+        min-height: 38px;
+        padding: 0 9px;
+        border: 1px solid #cfc4b8;
+        border-radius: 8px;
+        outline: none;
+        background: white;
+      }
+      .fixed-toolbar button {
+        min-height: 38px;
+        padding: 0 14px;
+        border-radius: 8px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .fixed-hint {
+        display: block;
+        margin: 0 0 8px;
+        font-size: 0.75rem;
+        opacity: 0.8;
+      }
       .settings-list-row strong {
         font-size: 0.7rem;
       }
@@ -1220,14 +1247,6 @@
               <p>Estas regras controlam fabricação, validades e turnos.</p>
               <div class="settings-rule-grid">
                 <label class="field"
-                  ><span>Etiquetas de validade</span
-                  ><input
-                    id="ruleValidityLabels"
-                    type="number"
-                    min="1"
-                    step="1"
-                /></label>
-                <label class="field"
                   ><span>Fabricação antes da entrega (dias)</span
                   ><input
                     id="ruleManufactureLead"
@@ -1257,17 +1276,6 @@
                 Salvar regras gerais
               </button>
               <small class="settings-message" id="rulesMessage"></small>
-              <div class="settings-section">
-                <div class="settings-section-title"><strong>Regras de etiquetas de validade</strong></div>
-                <div class="settings-list" id="validityRulesList"></div>
-                <div class="settings-add-row">
-                  <input id="newValidityName" type="text" maxlength="70" placeholder="Produto / regra" />
-                  <input id="newValidityDays" type="number" min="1" step="1" placeholder="Dias" />
-                  <input id="newValidityLabels" type="number" min="1" step="1" placeholder="Qtd. 1º turno" />
-                  <input id="newValidityCombinedLabels" type="number" min="1" step="1" placeholder="Qtd. 2º+3º" />
-                  <button id="addValidityRule" type="button">Adicionar regra</button>
-                </div>
-              </div>
             </section>
 
             <section class="settings-card">
@@ -1383,25 +1391,35 @@
       if (!portalToken || String(portalUser.perfil || "").toLowerCase() !== "administrador") {
         window.top.location.href = "/mips";
       }
-      const adminApi = `http://${window.location.hostname}:7001/api/ferramentas-admin/etiquetas`;
+      const adminApiBase = window.location.protocol === 'https:' ? '' : `http://${window.location.hostname}:7001`;
+      const adminApi = `${adminApiBase}/api/ferramentas-admin/etiquetas`;
       let salvamentoPendente;
+      async function enviarEtiquetasAoBanco(tentativa = 1) {
+        try {
+          const resposta = await fetch(adminApi, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${portalToken}` },
+            body: JSON.stringify({ dados: { orders: state.orders, settings: { rules: state.rules, products: state.products, destinations: state.destinations, fixed: state.fixed, validityRules: state.validityRules, archivedOrders: state.archivedOrders } } })
+          });
+          if (!resposta.ok) throw new Error(`HTTP ${resposta.status}`);
+          const badge = document.getElementById("pendingBadge");
+          if (badge && state.view === "settings") badge.textContent = "Alterações salvas no banco";
+          else if (badge && (badge.textContent === "Salvando no banco..." || badge.textContent === "Falha ao salvar no banco")) badge.textContent = "";
+        } catch (erro) {
+          if (tentativa < 2) {
+            await new Promise(res => setTimeout(res, 1500));
+            return enviarEtiquetasAoBanco(tentativa + 1);
+          }
+          console.error("Falha ao salvar etiquetas no banco:", erro);
+          const badge = document.getElementById("pendingBadge");
+          if (badge) badge.textContent = "Falha ao salvar no banco";
+        }
+      }
       function salvarEtiquetasNoBanco() {
         clearTimeout(salvamentoPendente);
-        salvamentoPendente = setTimeout(async () => {
-          try {
-            const resposta = await fetch(adminApi, {
-              method: "PUT",
-              headers: { "Content-Type": "application/json", Authorization: `Bearer ${portalToken}` },
-              body: JSON.stringify({ dados: { orders: state.orders, settings: { rules: state.rules, products: state.products, destinations: state.destinations, fixed: state.fixed, validityRules: state.validityRules, archivedOrders: state.archivedOrders } } })
-            });
-            if (!resposta.ok) throw new Error();
-            const badge = document.getElementById("pendingBadge");
-            if (badge && state.view === "settings") badge.textContent = "Alterações salvas no banco";
-          } catch {
-            const badge = document.getElementById("pendingBadge");
-            if (badge) badge.textContent = "Falha ao salvar no banco";
-          }
-        }, 250);
+        const badge = document.getElementById("pendingBadge");
+        if (badge && state.view === "settings") badge.textContent = "Salvando no banco...";
+        salvamentoPendente = setTimeout(() => { enviarEtiquetasAoBanco(); }, 250);
       }
       async function carregarEtiquetasDoBanco() {
         try {
@@ -1432,12 +1450,8 @@
           subtitle: "Setores, turnos e lanches com frios",
         },
         margarina: {
-          title: "Pão com margarina",
+          title: "Pão com margarina Johnson",
           subtitle: "Base diária da Johnson, separada por turno",
-        },
-        validade: {
-          title: "Validades",
-          subtitle: "Etiquetas de fabricação e validade por produto e turno",
         },
         genericas: {
           title: "Genéricas",
@@ -1505,15 +1519,25 @@
             id: "leite-margarina",
             name: "PÃO DE LEITE C/ MARGARINA",
             shortName: "Pão de leite com margarina",
-            packageSize: 1,
-            singleLabel: true,
+            packageSize: 50,
           },
           {
-            id: "leite-sem-recheio",
-            name: "PÃO DE LEITE SEM RECHEIO",
-            shortName: "Pão de leite sem recheio",
-            packageSize: 1,
-            singleLabel: true,
+            id: "frances-margarina",
+            name: "PÃO FRANCÊS C/ MARGARINA",
+            shortName: "Pão francês com margarina",
+            packageSize: 50,
+          },
+          {
+            id: "leite-sem-margarina",
+            name: "PÃO DE LEITE S/ MARGARINA",
+            shortName: "Pão de leite sem margarina",
+            packageSize: 50,
+          },
+          {
+            id: "frances-sem-margarina",
+            name: "PÃO FRANCÊS S/ MARGARINA",
+            shortName: "Pão francês sem margarina",
+            packageSize: 50,
           },
         ],
       };
@@ -1662,7 +1686,6 @@
         ["3º TURNO","WAREHOUSE ADM",2,"com"],
       ];
       const DEFAULT_RULES = {
-        validityLabels: 60,
         manufactureLeadDays: 1,
         friosValidityDays: 3,
         milkMargarineValidityDays: 3,
@@ -1747,7 +1770,7 @@
         margarina: Object.fromEntries(["1º TURNO","2º TURNO","3º TURNO"].map(shift => [
           shift,
           MARGARINE_BASE_ROWS.filter(row => row[0] === shift).map(row => ({
-            destination: row[1], quantity: row[2], productId: row[3],
+            destination: row[1], quantity: row[2], margarine: row[3],
           })),
         ])),
       };
@@ -1790,6 +1813,8 @@
         selectedOrderIds: new Set(),
         editingOrderId: null,
       };
+      // Filtro da base diária (só sessão, não é salvo).
+      let fixedFilterText = "";
 
       const el = (id) => document.getElementById(id);
       const normalizeName = (value) =>
@@ -1822,6 +1847,24 @@
       };
       const johnsonManufactureDate = (deliveryDate) =>
         addDays(deliveryDate, -Number(state.rules.manufactureLeadDays || 1));
+      // Pão da margarina pelo dia da entrega: dom/qui = leite,
+      // seg–qua = francês. Sex/sáb a margarina não produz (aba do lanche).
+      const margarinaBread = (date) => {
+        if (!date) return null;
+        const dow = new Date(`${date}T12:00:00`).getDay();
+        if (dow === 0 || dow === 4) return "leite";
+        if (dow >= 1 && dow <= 3) return "frances";
+        return null;
+      };
+      // Rótulo da margarina: pão do dia + com/sem definido na base.
+      const margarinaProduct = (bread, margarine) =>
+        productsFor("margarina").find(
+          (p) =>
+            p.id ===
+            `${bread === "frances" ? "frances" : "leite"}-${
+              margarine === "sem" ? "sem-" : ""
+            }margarina`
+        ) || productsFor("margarina")[0];
       const weekday = (date) =>
         date
           ? new Intl.DateTimeFormat("pt-BR", { weekday: "long" }).format(
@@ -1835,10 +1878,16 @@
           ? "integral"
           : "frances";
       const productsFor = (delivery) => state.products[delivery] || [];
-      const productById = (delivery, id) =>
-        productsFor(delivery).find((p) => p.id === id) ||
-        productsFor(delivery)[0];
-      const validityLabelCount = (rule, shift = state.validityShift) => Number(rule?.labelsByShift?.[shift] ?? rule?.labels ?? 0);
+      // Alias de migração: "sem recheio" era o sem margarina.
+      const PRODUCT_ALIASES = { "leite-sem-recheio": "frances-sem-margarina" };
+      const productById = (delivery, id) => {
+        const resolved = PRODUCT_ALIASES[id] || id;
+        return (
+          productsFor(delivery).find((p) => p.id === resolved) ||
+          productsFor(delivery).find((p) => p.id === id) ||
+          productsFor(delivery)[0]
+        );
+      };
 
       function fixedKey(date) {
         if (!date) return null;
@@ -1859,8 +1908,6 @@
             ? "JOHNSON"
             : state.delivery === "margarina"
             ? "JOHNSON_PAO_COM_MARGARINA"
-            : state.delivery === "validade"
-            ? "VALIDADES"
             : "GENERICAS";
         return `${place}_${fileDate(state.date)}.pdf`;
       }
@@ -1923,14 +1970,6 @@
               afternoon: o.afternoon,
             }))
           );
-        if (state.delivery === "validade") {
-          const orders=activeOrders().slice().sort((a,b)=>(a.shift==="1º TURNO"?0:1)-(b.shift==="1º TURNO"?0:1));
-          const first=orders.filter(o=>o.shift==="1º TURNO"), combined=orders.filter(o=>o.shift!=="1º TURNO");
-          const build=items=>items.flatMap(o=>Array.from({length:o.labelCount||o.total},(_,index)=>({id:`${o.id}-date-${index}`,kind:"date",manufacture:o.manufactureDate||o.date,expiry:addDays(o.manufactureDate||o.date,o.validityDays)})));
-          const firstLabels=build(first), combinedLabels=build(combined);
-          const separator=firstLabels.length&&combinedLabels.length?Array.from({length:((4-(firstLabels.length%4))%4)+4},(_,index)=>({id:`shift-separator-${index}`,kind:"blank"})):[];
-          return [...firstLabels,...separator,...combinedLabels];
-        }
         if (!["johnson", "margarina"].includes(state.delivery)) return packages;
         const johnsonOrders = activeOrders().filter((o) => !o.validityOnly);
         const shiftNames = ["1º TURNO", "2º TURNO", "3º TURNO"];
@@ -1966,8 +2005,73 @@
             }))
           )
         );
-        if (state.delivery === "margarina")
-          return joinShiftGroups(packageGroups, "margarina");
+        // Dias de validade do pão com margarina: francês e leite têm regras próprias.
+        const margarineValidityDays = (productId) =>
+          String(productId || "").includes("frances")
+            ? state.rules.frenchMargarineValidityDays
+            : state.rules.milkMargarineValidityDays;
+        if (state.delivery === "margarina") {
+          // Impressão em duas páginas: primeiro o pedido (pacotes), depois
+          // as validades. Uma linha em branco separa o 1º turno do bloco
+          // 2º + 3º, mantendo o layout.
+          const blankRow = (prefix) =>
+            Array.from({ length: 4 }, (_, blankIndex) => ({
+              id: `${prefix}-${blankIndex}`,
+              kind: "blank",
+            }));
+          const buildSection = (kind) => {
+            const first = [],
+              rest = [];
+            johnsonOrders.forEach((o) => {
+              const manufacture = johnsonManufactureDate(o.date);
+              const resolved =
+                productById("margarina", o.product?.id) || o.product;
+              const days = margarineValidityDays(resolved?.id);
+              o.parts.forEach((qty, index) => {
+                const target =
+                  (o.shift || "SEM TURNO") === "1º TURNO" ? first : rest;
+                target.push(
+                  kind === "package"
+                    ? {
+                        id: `${o.id}-${index}`,
+                        kind: "package",
+                        destination: o.destination,
+                        product: resolved.name,
+                        productId: resolved.id,
+                        quantity: qty,
+                        shift: o.shift,
+                        afternoon: o.afternoon,
+                      }
+                    : {
+                        id: `${o.id}-date-${index}`,
+                        kind: "date",
+                        manufacture,
+                        expiry: addDays(manufacture, days),
+                      }
+                );
+              });
+            });
+            return [
+              ...first,
+              ...(first.length && rest.length
+                ? blankRow(`margarina-${kind}-sep`)
+                : []),
+              ...rest,
+            ];
+          };
+          const packs = buildSection("package");
+          const dates = buildSection("date");
+          // Completa a página do pedido para as validades começarem em página nova.
+          const padCount = dates.length ? (80 - (packs.length % 80)) % 80 : 0;
+          return [
+            ...packs,
+            ...Array.from({ length: padCount }, (_, i) => ({
+              id: `margarina-pack-pad-${i}`,
+              kind: "blank",
+            })),
+            ...dates,
+          ];
+        }
         const dateGroups = presentShifts.map((shift) =>
           johnsonOrders.filter((o) => (o.shift || "SEM TURNO") === shift).flatMap((o) => {
             // Todo pedido Johnson gera automaticamente uma etiqueta de
@@ -2123,15 +2227,7 @@
                 } fixo${fixedCount === 1 ? "" : "s"} de ${weekday(state.date)}`
           }</button></fieldset>`;
           el("fixedIgarata").onclick = addIgarataFixed;
-        } else if (state.delivery === "validade") {
-          const options = state.validityRules.map(r => `<option value="${r.id}">${escapeHtml(r.name)} • ${r.days} dias</option>`).join("");
-          el("deliveryFields").innerHTML = `<label class="field"><span>Regra de validade</span><select id="validityRule">${options}</select></label><div class="two-column-fields">${dateInput("Data base / entrega")}<label class="field"><span>Lote de impressão</span><select id="validityShift"><option>1º TURNO</option><option>2º E 3º TURNOS</option></select></label></div>`;
-          el("validityRule").value = state.validityRuleId;
-          el("validityRule").onchange = e => { state.validityRuleId = e.target.value; state.validityQuantityOverride=null; render(); };
-          el("validityShift").value = state.validityShift;
-          el("validityShift").onchange = e => { state.validityShift = e.target.value; state.validityQuantityOverride=null; render(); };
         } else if (["johnson", "margarina"].includes(state.delivery)) {
-          const validityOnly = false;
           const baseItems = state.delivery === "margarina" ? state.fixed.margarina[state.shift] : [];
           const baseAdded = state.delivery === "margarina" && activeOrders().some(o => o.source === "base-margarina" && o.shift === state.shift);
           const secondThirdItems = state.delivery === "margarina"
@@ -2140,18 +2236,13 @@
           const secondThirdAdded = state.delivery === "margarina" && ["2º TURNO","3º TURNO"].every(shift =>
             activeOrders().some(o => o.source === "base-margarina" && o.shift === shift)
           );
+          const margarinaDayBread = state.delivery === "margarina" ? margarinaBread(state.date) : null;
           el(
             "deliveryFields"
-          ).innerHTML = `<div class="${
-            validityOnly ? "" : "two-column-fields"
-          }">${dateInput(
-            validityOnly ? "Data de fabricação" : "Data da entrega"
-          )}${
-            validityOnly
-              ? ""
-              : `<label class="field"><span>Turno</span><select id="shift"><option>1º TURNO</option><option>2º TURNO</option><option>3º TURNO</option></select></label>`
-          }</div>${state.delivery === "margarina" ? `<button class="fixed-button" id="fixedMargarinaSecondThird" type="button" ${!state.date || secondThirdAdded || !secondThirdItems.length ? "disabled" : ""}>${!state.date ? "Selecione a data para carregar o 2º e o 3º turnos" : secondThirdAdded ? "Bases do 2º e do 3º turnos já adicionadas" : `Adicionar 2º e 3º turnos juntos • ${secondThirdItems.length} etiquetas`}</button><button class="fixed-button" id="fixedMargarina" type="button" ${!state.date || baseAdded || !baseItems.length ? "disabled" : ""}>${!state.date ? "Selecione a data para carregar a base diária" : baseAdded ? `Base do ${state.shift.toLowerCase()} já adicionada` : !baseItems.length ? `Nenhum item configurado para o ${state.shift.toLowerCase()}` : `Adicionar somente o ${state.shift.toLowerCase()} • ${baseItems.length} etiquetas`}</button>` : ""}`;
-          if (!validityOnly) {
+          ).innerHTML = `<div class="two-column-fields">${dateInput(
+            "Data da entrega"
+          )}<label class="field"><span>Turno</span><select id="shift"><option>1º TURNO</option><option>2º TURNO</option><option>3º TURNO</option></select></label></div>${state.delivery === "margarina" ? (state.date && !margarinaDayBread ? `<p class="fixed-hint">Sex/sáb a margarina não produz — usar a aba do lanche.</p>` : `<button class="fixed-button" id="fixedMargarinaSecondThird" type="button" ${!state.date || secondThirdAdded || !secondThirdItems.length ? "disabled" : ""}>${!state.date ? "Selecione a data para carregar o 2º e o 3º turnos" : secondThirdAdded ? "Bases do 2º e do 3º turnos já adicionadas" : `Adicionar 2º e 3º turnos juntos • ${secondThirdItems.length} etiquetas`}</button><button class="fixed-button" id="fixedMargarina" type="button" ${!state.date || baseAdded || !baseItems.length ? "disabled" : ""}>${!state.date ? "Selecione a data para carregar a base diária" : baseAdded ? `Base do ${state.shift.toLowerCase()} já adicionada` : !baseItems.length ? `Nenhum item configurado para o ${state.shift.toLowerCase()}` : `Adicionar somente o ${state.shift.toLowerCase()} • ${baseItems.length} etiquetas`}</button>`) : ""}`;
+          {
             el("shift").value = state.shift;
             el("shift").onchange = (e) => {
               state.shift = e.target.value;
@@ -2159,8 +2250,8 @@
             };
           }
           if (state.delivery === "margarina") {
-            el("fixedMargarina").onclick = () => addMargarineFixed([state.shift]);
-            el("fixedMargarinaSecondThird").onclick = () => addMargarineFixed(["2º TURNO","3º TURNO"]);
+            if (el("fixedMargarina")) el("fixedMargarina").onclick = () => addMargarineFixed([state.shift]);
+            if (el("fixedMargarinaSecondThird")) el("fixedMargarinaSecondThird").onclick = () => addMargarineFixed(["2º TURNO","3º TURNO"]);
           }
         } else {
           el("deliveryFields").innerHTML = dateInput("Data do arquivo");
@@ -2174,9 +2265,7 @@
       }
 
       function renderProducts() {
-        const validityOnly =
-          state.delivery === "validade";
-        el("productField").hidden = validityOnly;
+        el("productField").hidden = state.delivery === "margarina";
         el("breadOptions").innerHTML = productsFor(state.delivery)
           .map(
             (p) =>
@@ -2200,8 +2289,6 @@
       }
 
       function renderDestinations() {
-        const validityOnly =
-          state.delivery === "validade";
         const generic = state.delivery === "genericas";
         const list =
           state.delivery === "igarata"
@@ -2223,35 +2310,19 @@
           : ["johnson", "margarina"].includes(state.delivery)
           ? "Digite o setor, ex.: Agulhas"
           : "Digite ou selecione";
-        el("destinationField").hidden = validityOnly;
+        el("destinationField").hidden = state.delivery === "margarina";
         el("afternoonField").hidden = state.delivery !== "igarata";
         el("dateLabelsField").hidden = true;
         el("saveGenericField").hidden = !generic;
-        el("johnsonRule").hidden = !["johnson","validade"].includes(state.delivery);
+        el("johnsonRule").hidden = !["johnson", "margarina"].includes(state.delivery);
         el("quantityLabel").textContent = generic
           ? "Quantidade total de pães"
-          : validityOnly
-          ? "Quantidade de etiquetas para este dia"
           : "Quantidade total";
-        el("quantity").placeholder = generic
-          ? "Ex.: 110"
-          : validityOnly
-          ? "Ex.: 48"
-          : "Ex.: 110";
-        el("quantityField").hidden = false;
-        el("addButton").textContent = validityOnly
-          ? "Adicionar etiquetas de validade"
-          : "Adicionar etiquetas";
-        if (state.delivery === "validade") {
-          const rule = state.validityRules.find(r => r.id === state.validityRuleId) || state.validityRules[0];
-          const dailyQuantity = state.validityQuantityOverride ?? validityLabelCount(rule);
-          el("quantity").value = dailyQuantity;
-          const offset = state.validityShift === "2º E 3º TURNOS" ? state.rules.secondShiftManufactureDays : 0;
-          const manufacture = state.date ? addDays(state.date, offset) : "";
-          el("johnsonRule").innerHTML = state.date
-            ? `<strong>${dailyQuantity} etiquetas • ${escapeHtml(rule.name)} • ${rule.days} dias</strong><span>${state.validityShift} • Fab.: ${formatDate(manufacture)} • Val.: ${formatDate(addDays(manufacture, rule.days))}</span>`
-            : `<strong>${dailyQuantity} etiquetas • ${escapeHtml(rule.name)}</strong><span>Informe a data base.</span>`;
-        } else if (state.delivery === "johnson") {
+        el("quantity").placeholder = "Ex.: 110";
+        el("quantityField").hidden = state.delivery === "margarina";
+        el("addButton").hidden = state.delivery === "margarina";
+        el("addButton").textContent = "Adicionar etiquetas";
+        if (state.delivery === "johnson") {
           el("johnsonRule").innerHTML = state.date
             ? `<strong>Fabricação e validade automáticas</strong><span>Fab.: ${formatDate(
                 johnsonManufactureDate(state.date)
@@ -2262,25 +2333,35 @@
                 )
               )}</span><small>Todos os turnos: fabricação antes da entrega</small>`
             : "<strong>Fabricação e validade automáticas</strong><span>Informe a entrega para calcular as datas.</span>";
+        } else if (state.delivery === "margarina") {
+          const bread = margarinaBread(state.date);
+          const manufacture = state.date && bread ? johnsonManufactureDate(state.date) : "";
+          el("johnsonRule").innerHTML = !state.date
+            ? "<strong>Fabricação e validade automáticas</strong><span>Informe a entrega para calcular as datas.</span>"
+            : !bread
+            ? "<strong>Sex/sáb a margarina não produz</strong><span>Usar a aba do lanche.</span>"
+            : `<strong>Fabricação e validade automáticas • ${
+                bread === "frances" ? "Pão francês" : "Pão de leite"
+              } (com e sem)</strong><span>Fab.: ${formatDate(
+                manufacture
+              )} • Val.: ${formatDate(
+                addDays(
+                  manufacture,
+                  bread === "frances"
+                    ? state.rules.frenchMargarineValidityDays
+                    : state.rules.milkMargarineValidityDays
+                )
+              )}</span><small>Dom/qui = leite • Seg–qua = francês</small>`;
         }
       }
 
       function updateSplit() {
         const total = Number(el("quantity").value),
           product = productById(state.delivery, state.productId);
-        const validityOnly =
-          state.delivery === "validade";
         const generic = state.delivery === "genericas";
-        if (validityOnly) {
-          el(
-            "splitPreview"
-          ).innerHTML = Number.isInteger(total) && total > 0 ? `<span>Este arquivo terá <strong>${total} etiquetas de validade</strong>.</span>` : "<span>Informe uma quantidade inteira maior que zero.</span>";
-          return;
-        }
         if (state.delivery === "margarina") {
-          el("splitPreview").innerHTML = Number.isInteger(total) && total > 0
-            ? `<span>Será gerada <strong>1 etiqueta</strong> com a quantidade ${total}.</span>`
-            : "<span>Digite uma quantidade inteira maior que zero.</span>";
+          el("splitPreview").innerHTML =
+            "<span>Tudo definido na base — selecione a data e carregue o turno.</span>";
           return;
         }
         el("splitPreview").innerHTML =
@@ -2297,15 +2378,13 @@
 
       function addOrder(event) {
         event.preventDefault();
-        const validityOnly =
-          state.delivery === "validade";
+        // Margarina: tudo vem da base (só data + turno). Sem pedido manual.
+        if (state.delivery === "margarina") return;
         const generic = state.delivery === "genericas";
         const destination = normalizeName(el("destination").value),
-          total = validityOnly
-            ? Number(el("quantity").value)
-            : Number(el("quantity").value),
+          total = Number(el("quantity").value),
           product = productById(state.delivery, state.productId);
-        if (!validityOnly && !destination)
+        if (!destination)
           return showError(
             generic || ["johnson", "margarina"].includes(state.delivery)
               ? "Informe o nome do setor."
@@ -2317,8 +2396,6 @@
           return showError(
             generic
               ? "Informe a data que será usada no nome do arquivo."
-              : validityOnly
-              ? "Informe a data de fabricação."
               : "Informe a data da entrega."
           );
         if (generic) {
@@ -2333,25 +2410,6 @@
             date: state.date,
             source: "manual",
           });
-        } else if (validityOnly) {
-          const rule = state.validityRules.find(r=>r.id===state.validityRuleId)||state.validityRules[0];
-          const offset = state.validityShift === "2º E 3º TURNOS" ? state.rules.secondShiftManufactureDays : 0;
-          state.orders.push({
-            id: Date.now(),
-            delivery: "validade",
-            destination: "ETIQUETAS DE VALIDADE",
-            product: { id: rule.id, name: rule.name, shortName: rule.name, packageSize: 1 },
-            total,
-            parts: [],
-            date: state.date,
-            manufactureDate: addDays(state.date, offset),
-            shift: state.validityShift,
-            validityOnly: true,
-            validityDays: rule.days,
-            labelCount: total,
-            validityMode: rule.id,
-            source: "manual",
-          });
         } else {
           state.orders.push({
             id: Date.now(),
@@ -2360,7 +2418,7 @@
             destination,
             product,
             total,
-            parts: state.delivery === "margarina" ? [total] : divide(total, product.packageSize),
+            parts: divide(total, product.packageSize),
             date: state.date,
             shift: ["johnson", "margarina"].includes(state.delivery) ? state.shift : null,
             includeDateLabels: state.delivery === "johnson",
@@ -2371,7 +2429,6 @@
         }
         el("destination").value = "";
         el("quantity").value = "";
-        if(validityOnly) state.validityQuantityOverride=null;
         el("afternoon").checked = false;
         hideError();
         saveLocal();
@@ -2423,19 +2480,21 @@
 
       function addMargarineFixed(shifts = [state.shift]) {
         if (!state.date) return;
+        const bread = margarinaBread(state.date);
+        if (!bread) return;
         const now = Date.now();
         let index = 0;
         shifts.forEach(shift => {
           if (activeOrders().some(o => o.source === "base-margarina" && o.shift === shift)) return;
           (state.fixed.margarina[shift] || []).forEach(item => {
-            const product = productById("margarina", item.productId);
+            const product = margarinaProduct(bread, item.margarine);
             state.orders.push({
               id: now + index++,
               delivery: "margarina",
               destination: item.destination,
               product: { ...product },
               total: item.quantity,
-              parts: [item.quantity],
+              parts: divide(item.quantity, product.packageSize),
               date: state.date,
               shift,
               source: "base-margarina",
@@ -2453,18 +2512,13 @@
       }
 
       function renderSettings(message = "") {
-        el("ruleValidityLabels").value = state.rules.validityLabels;
         el("ruleManufactureLead").value = state.rules.manufactureLeadDays;
         el("ruleFriosValidity").value = state.rules.friosValidityDays;
         el("ruleMilkValidity").value = state.rules.milkMargarineValidityDays;
         el("ruleFrenchValidity").value =
           state.rules.frenchMargarineValidityDays;
         el("ruleSecondShiftLead").value = state.rules.secondShiftManufactureDays;
-        el("validityRulesList").innerHTML = state.validityRules.map((rule,index)=>`<div class="settings-section"><div class="settings-list-row fixed-row"><input type="text" value="${escapeHtml(rule.name)}" data-validity-name="${index}" aria-label="Nome da regra"><label><small>Dias de validade</small><input type="number" min="1" step="1" value="${rule.days}" data-validity-days="${index}"></label><label><small>Qtd. 1º turno</small><input type="number" min="1" step="1" value="${validityLabelCount(rule,"1º TURNO")}" data-validity-first="${index}"></label><label><small>Qtd. 2º+3º</small><input type="number" min="1" step="1" value="${validityLabelCount(rule,"2º E 3º TURNOS")}" data-validity-combined="${index}"></label><button type="button" data-save-validity="${index}">Salvar</button><button class="remove-setting" type="button" data-remove-validity="${index}">Remover</button></div></div>`).join("");
-        document.querySelectorAll("[data-save-validity]").forEach(button=>button.onclick=()=>saveValidityRule(Number(button.dataset.saveValidity)));
-        document.querySelectorAll("[data-remove-validity]").forEach(button => button.onclick=()=>{ if(state.validityRules.length<=1){el("rulesMessage").textContent="Mantenha pelo menos uma regra de validade.";return;} state.validityRules.splice(Number(button.dataset.removeValidity),1); if(!state.validityRules.some(r=>r.id===state.validityRuleId)) state.validityRuleId=state.validityRules[0].id; saveLocal(); renderSettings("Regra removida."); });
-        el("addValidityRule").onclick = addValidityRule;
-        el("settingsDeliveryTabs").innerHTML = Object.keys(DELIVERY_META).filter(key=>key!=="validade")
+        el("settingsDeliveryTabs").innerHTML = Object.keys(DELIVERY_META)
           .map(
             (key) =>
               `<button type="button" data-settings-delivery="${key}" class="${
@@ -2577,6 +2631,12 @@
               })
           );
           const fixedItems = currentFixedSettings(),
+            isMargarinaBase = state.settingsDelivery === "margarina",
+            fixedToolbar = isMargarinaBase
+              ? `<div class="fixed-toolbar"><input type="search" id="fixedFilter" placeholder="Filtrar por setor..." value="${escapeHtml(
+                  fixedFilterText
+                )}"><button type="button" id="saveAllFixed">Salvar tudo</button></div><small class="fixed-hint">Duas linhas por setor: com e sem margarina, cada uma com sua quantidade. O pão (leite ou francês) vem do dia da semana na hora de gerar.</small>`
+              : "",
             productOptions = products
               .map(
                 (product) =>
@@ -2585,28 +2645,52 @@
                   )}</option>`
               )
               .join("");
-          el("settingsFixedList").innerHTML = fixedItems.length
+          el("settingsFixedList").innerHTML = fixedToolbar + (fixedItems.length
             ? fixedItems
                 .map(
-                  (item, index) =>
-                    `<div class="settings-list-row fixed-row"><input type="text" value="${escapeHtml(
+                  (item, index) => {
+                    const optionSelect = isMargarinaBase
+                      ? ["com", "sem"]
+                          .map(
+                            (m) =>
+                              `<option value="${m}" ${
+                                (item.margarine || "com") === m ? "selected" : ""
+                              }>${m === "com" ? "Com margarina" : "Sem margarina"}</option>`
+                          )
+                          .join("")
+                      : products
+                          .map(
+                            (product) =>
+                              `<option value="${product.id}" ${
+                                product.id === item.productId ? "selected" : ""
+                              }>${escapeHtml(product.shortName)}</option>`
+                          )
+                          .join("");
+                    return `<div class="settings-list-row fixed-row"><input type="text" value="${escapeHtml(
                       item.destination
-                    )}" aria-label="Setor do pedido fixo" data-fixed-destination="${index}"><select data-fixed-product="${index}">${products
-                      .map(
-                        (product) =>
-                          `<option value="${product.id}" ${
-                            product.id === item.productId ? "selected" : ""
-                          }>${escapeHtml(product.shortName)}</option>`
-                      )
-                      .join(
-                        ""
-                      )}</select><input type="number" min="1" step="1" value="${
+                    )}" aria-label="Setor do pedido fixo" data-fixed-destination="${index}"><select data-fixed-product="${index}" aria-label="${
+                      isMargarinaBase ? "Com ou sem margarina" : "Tipo de pão"
+                    }">${optionSelect}</select><input type="number" min="1" step="1" value="${
                       item.quantity
-                    }" aria-label="Quantidade fixa" data-fixed-quantity="${index}"><button type="button" data-save-fixed="${index}">Salvar</button><button class="remove-setting" type="button" data-remove-fixed="${index}">Remover</button></div>`
+                    }" aria-label="Quantidade fixa" data-fixed-quantity="${index}"><button type="button" data-save-fixed="${index}">Salvar</button><button class="remove-setting" type="button" data-remove-fixed="${index}">Remover</button></div>`;
+                  }
                 )
                 .join("")
-            : '<div class="empty-state"><p>Nenhum pedido fixo cadastrado para este grupo.</p></div>';
-          el("newFixedProduct").innerHTML = productOptions;
+            : '<div class="empty-state"><p>Nenhum pedido fixo cadastrado para este grupo.</p></div>');
+          if (isMargarinaBase) {
+            el("fixedFilter").oninput = (e) => {
+              fixedFilterText = e.target.value;
+              applyFixedFilter();
+            };
+            el("saveAllFixed").onclick = saveAllFixed;
+            applyFixedFilter();
+          }
+          if (isMargarinaBase) {
+            el("newFixedProduct").innerHTML =
+              `<option value="com">Com margarina</option><option value="sem">Sem margarina</option>`;
+          } else {
+            el("newFixedProduct").innerHTML = productOptions;
+          }
           document
             .querySelectorAll("[data-save-fixed]")
             .forEach(
@@ -2641,13 +2725,26 @@
           : state.fixed.paraibunaCidade;
       }
 
+      function pushDestinationIfMissing(destination) {
+        const sectorKey = settingsSectorKey();
+        if (
+          state.destinations[sectorKey] &&
+          !state.destinations[sectorKey].some(
+            (name) =>
+              name.toLocaleLowerCase("pt-BR") ===
+              destination.toLocaleLowerCase("pt-BR")
+          )
+        )
+          state.destinations[sectorKey].push(destination);
+      }
+
       function saveSettingFixed(index) {
         const items = currentFixedSettings(),
           destination = normalizeName(
             document.querySelector(`[data-fixed-destination="${index}"]`)
               ?.value || ""
           ),
-          productId = document.querySelector(
+          rawOption = document.querySelector(
             `[data-fixed-product="${index}"]`
           )?.value,
           quantity = Number(
@@ -2658,6 +2755,20 @@
             "Informe o setor ou local do pedido fixo.";
           return;
         }
+        if (state.settingsDelivery === "margarina") {
+          const margarine = rawOption === "sem" ? "sem" : "com";
+          if (!Number.isInteger(quantity) || quantity <= 0) {
+            el("settingsCatalogMessage").textContent =
+              "Informe uma quantidade fixa maior que zero.";
+            return;
+          }
+          items[index] = { destination, margarine, quantity };
+          pushDestinationIfMissing(destination);
+          saveLocal();
+          renderSettings("Pedido fixo atualizado.");
+          return;
+        }
+        const productId = rawOption;
         if (!productById(state.settingsDelivery, productId)) {
           el("settingsCatalogMessage").textContent =
             "Selecione um tipo de pão válido.";
@@ -2676,6 +2787,80 @@
         renderSettings("Pedido fixo atualizado.");
       }
 
+      function applyFixedFilter() {
+        const term = String(fixedFilterText || "").toLocaleLowerCase("pt-BR");
+        document
+          .querySelectorAll('#settingsFixedList [data-fixed-destination]')
+          .forEach((input) => {
+            const row = input.closest(".fixed-row");
+            if (row)
+              row.style.display =
+                !term ||
+                String(input.value || "")
+                  .toLocaleLowerCase("pt-BR")
+                  .includes(term)
+                  ? ""
+                  : "none";
+          });
+      }
+
+      function saveAllFixed() {
+        const items = currentFixedSettings(),
+          isMargarina = state.settingsDelivery === "margarina",
+          next = [];
+        for (let index = 0; index < items.length; index++) {
+          const destination = normalizeName(
+            document.querySelector(`[data-fixed-destination="${index}"]`)
+              ?.value || ""
+          ),
+            rawOption = document.querySelector(
+              `[data-fixed-product="${index}"]`
+            )?.value,
+            quantity = Number(
+              document.querySelector(`[data-fixed-quantity="${index}"]`)?.value
+            );
+          if (!destination) {
+            el("settingsCatalogMessage").textContent =
+              `Linha ${index + 1}: informe o setor.`;
+            return;
+          }
+          if (isMargarina) {
+            const margarine = rawOption === "sem" ? "sem" : "com";
+            if (!Number.isInteger(quantity) || quantity <= 0) {
+              el("settingsCatalogMessage").textContent =
+                `Linha ${index + 1}: informe uma quantidade maior que zero.`;
+              return;
+            }
+            const same = next.find(
+              (item) =>
+                item.destination.toLocaleLowerCase("pt-BR") ===
+                  destination.toLocaleLowerCase("pt-BR") &&
+                item.margarine === margarine
+            );
+            if (same) same.quantity += quantity;
+            else next.push({ destination, margarine, quantity });
+            continue;
+          }
+          const productId = rawOption;
+          if (!productById(state.settingsDelivery, productId)) {
+            el("settingsCatalogMessage").textContent =
+              `Linha ${index + 1}: selecione um tipo de pão válido.`;
+            return;
+          }
+          if (!Number.isInteger(quantity) || quantity <= 0) {
+            el("settingsCatalogMessage").textContent =
+              `Linha ${index + 1}: informe uma quantidade maior que zero.`;
+            return;
+          }
+          next.push({ destination, productId, quantity });
+        }
+        items.length = 0;
+        next.forEach((item) => items.push(item));
+        next.forEach((item) => pushDestinationIfMissing(item.destination));
+        saveLocal();
+        renderSettings("Base diária atualizada.");
+      }
+
       function addSettingFixed() {
         const destination = normalizeName(el("newFixedDestination").value),
           productId = el("newFixedProduct").value,
@@ -2690,6 +2875,30 @@
             "Informe uma quantidade fixa maior que zero.";
           return;
         }
+        if (state.settingsDelivery === "margarina") {
+          const margarine = productId === "sem" ? "sem" : "com";
+          const sameKey =
+            `${destination.toLocaleLowerCase("pt-BR")}||${margarine}`;
+          const existing = currentFixedSettings().find(
+            (item) =>
+              `${String(item.destination || "").trim().toLocaleLowerCase("pt-BR")}||${item.margarine || "com"}` ===
+              sameKey
+          );
+          if (existing) {
+            existing.margarine = margarine;
+            existing.quantity = Number(existing.quantity || 0) + quantity;
+            saveLocal();
+            renderSettings("Quantidade somada ao setor existente.");
+            return;
+          }
+          currentFixedSettings().push({ destination, margarine, quantity });
+          const sectorKey = settingsSectorKey();
+          if (state.destinations[sectorKey] && !state.destinations[sectorKey].some(name => name.toLocaleLowerCase("pt-BR") === destination.toLocaleLowerCase("pt-BR")))
+            state.destinations[sectorKey].push(destination);
+          saveLocal();
+          renderSettings("Pedido fixo adicionado.");
+          return;
+        }
         currentFixedSettings().push({ destination, productId, quantity });
         const sectorKey = settingsSectorKey();
         if (state.destinations[sectorKey] && !state.destinations[sectorKey].some(name => name.toLocaleLowerCase("pt-BR") === destination.toLocaleLowerCase("pt-BR")))
@@ -2700,7 +2909,6 @@
 
       function saveGeneralRules() {
         const values = {
-          validityLabels: Number(el("ruleValidityLabels").value),
           manufactureLeadDays: Number(el("ruleManufactureLead").value),
           friosValidityDays: Number(el("ruleFriosValidity").value),
           milkMargarineValidityDays: Number(el("ruleMilkValidity").value),
@@ -2720,25 +2928,6 @@
         state.rules = values;
         saveLocal();
         el("rulesMessage").textContent = "Regras gerais salvas.";
-      }
-
-      function addValidityRule() {
-        const name=titleName(el("newValidityName").value), days=Number(el("newValidityDays").value), labels=Number(el("newValidityLabels").value), combined=Number(el("newValidityCombinedLabels").value);
-        if(!name || !Number.isInteger(days) || days<1 || !Number.isInteger(labels) || labels<1 || !Number.isInteger(combined) || combined<1){ el("rulesMessage").textContent="Informe nome, dias e as duas quantidades de etiquetas."; return; }
-        if(state.validityRules.some(r=>r.name.toLocaleLowerCase("pt-BR")===name.toLocaleLowerCase("pt-BR"))){ el("rulesMessage").textContent="Essa regra já existe."; return; }
-        state.validityRules.push({id:`validity-${Date.now()}`,name,days,labels,labelsByShift:{"1º TURNO":labels,"2º E 3º TURNOS":combined}});
-        saveLocal(); renderSettings("Nova regra de validade adicionada.");
-      }
-
-      function saveValidityRule(index) {
-        const rule=state.validityRules[index]; if(!rule)return;
-        const name=titleName(document.querySelector(`[data-validity-name="${index}"]`)?.value||""),
-          days=Number(document.querySelector(`[data-validity-days="${index}"]`)?.value),
-          first=Number(document.querySelector(`[data-validity-first="${index}"]`)?.value),
-          combined=Number(document.querySelector(`[data-validity-combined="${index}"]`)?.value);
-        if(!name || ![days,first,combined].every(value=>Number.isInteger(value)&&value>0)){el("rulesMessage").textContent="Revise o nome, os dias e as quantidades da regra.";return;}
-        rule.name=name; rule.days=days; rule.labels=first; rule.labelsByShift={"1º TURNO":first,"2º E 3º TURNOS":combined};
-        state.validityQuantityOverride=null; saveLocal(); renderSettings("Regra de validade atualizada.");
       }
 
       function addSettingSector() {
@@ -2786,7 +2975,10 @@
         products.splice(index,1);
         if(state.settingsDelivery==="igarata") Object.values(state.fixed.igarata).forEach(items=>items.splice(0,items.length,...items.filter(i=>i.productId!==id)));
         if(state.settingsDelivery==="paraibuna") state.fixed.paraibunaCidade=state.fixed.paraibunaCidade.filter(i=>i.productId!==id);
-        if(state.settingsDelivery==="margarina") Object.values(state.fixed.margarina).forEach(items=>items.splice(0,items.length,...items.filter(i=>i.productId!==id)));
+        if(state.settingsDelivery==="margarina"&&!String(id).startsWith("custom-")){
+          const flag=String(id).includes("-sem-")?"sem":"com";
+          if(Object.values(state.fixed.margarina).some(items=>items.some(i=>(i.margarine||"com")===flag))){el("settingsCatalogMessage").textContent="A base diária ainda usa esse tipo (com/sem). Ajuste a base antes de remover.";return;}
+        }
         if(state.productId===id) state.productId=products[0].id;
         saveLocal(); renderSettings("Tipo de pão removido.");
       }
@@ -2815,7 +3007,6 @@
           name,
           shortName: name,
           packageSize: size,
-          singleLabel: state.settingsDelivery === "margarina",
         });
         saveLocal();
         renderSettings(`${name} adicionado.`);
@@ -3105,7 +3296,7 @@
         } else {
           const destination=normalizeName(el("editOrderDestination").value), product=productById(order.delivery,el("editOrderProduct").value);
           if(!destination||!product){el("editOrderError").textContent="Informe o setor/local e selecione um tipo de pão.";el("editOrderError").hidden=false;return;}
-          order.destination=destination;order.product={...product};order.total=quantity;order.parts=order.delivery==="margarina"?[quantity]:divide(quantity,product.packageSize);
+          order.destination=destination;order.product={...product};order.total=quantity;order.parts=divide(quantity,product.packageSize);
           const destinationKey=order.delivery==="paraibuna"?(order.route||"cidade"):order.delivery;
           if(state.destinations[destinationKey]&&!state.destinations[destinationKey].some(name=>name.toLocaleLowerCase("pt-BR")===destination.toLocaleLowerCase("pt-BR")))state.destinations[destinationKey].push(destination);
         }
@@ -3120,8 +3311,11 @@
         if(target===null)return;
         if(!validCopyDate(target)){alert("Data inválida. Use o formato AAAA-MM-DD.");return;}
         if(target===sourceDate&&!confirm("A data de destino é igual à original. Deseja duplicar mesmo assim?"))return;
-        const now=Date.now();items.forEach((item,index)=>{const copy={...item,id:now+index,date:target,product:item.product?{...item.product}:item.product,parts:Array.isArray(item.parts)?[...item.parts]:item.parts,source:"copia"};delete copy.archivedAt;if(copy.validityOnly){const offset=copy.shift==="2º E 3º TURNOS"?state.rules.secondShiftManufactureDays:0;copy.manufactureDate=addDays(target,offset);}state.orders.push(copy);});
-        state.date=target;saveLocal();render();alert(`${items.length} pedido(s) copiado(s) para ${formatDate(target)}.`);
+        // Sex/sáb a margarina não produz: não copia esses itens para o destino.
+        const copiaveis=margarinaBread(target)?items:items.filter(o=>o.delivery!=="margarina");
+        if(!copiaveis.length){alert("Sex/sáb a margarina não produz — nada a copiar para essa data.");return;}
+        const now=Date.now();copiaveis.forEach((item,index)=>{const copy={...item,id:now+index,date:target,product:item.product?{...item.product}:item.product,parts:Array.isArray(item.parts)?[...item.parts]:item.parts,source:"copia"};delete copy.archivedAt;if(copy.validityOnly){const offset=copy.shift==="2º E 3º TURNOS"?state.rules.secondShiftManufactureDays:0;copy.manufactureDate=addDays(target,offset);}state.orders.push(copy);});
+        state.date=target;saveLocal();render();alert(`${copiaveis.length} pedido(s) copiado(s) para ${formatDate(target)}.`);
       }
 
       function copyActiveDay() { copyOrdersToDate(activeOrders(),state.date); }
@@ -3328,6 +3522,31 @@
         } catch {}
         salvarEtiquetasNoBanco();
       }
+      // Junta setores repetidos da base da margarina somando as quantidades
+      // (chave: setor + com/sem). Migra linhas legadas (com productId):
+      // "leite-sem-recheio", "frances" e ids com "-sem-" eram o sem; o resto era o com.
+      function consolidateMargarinaBase() {
+        ["1º TURNO", "2º TURNO", "3º TURNO"].forEach((shift) => {
+          const rows = state.fixed.margarina[shift];
+          if (!Array.isArray(rows)) return;
+          const merged = new Map();
+          rows.forEach((item) => {
+            const destination = String(item.destination || "").trim();
+            const pid = String(item.productId || "");
+            const margarine =
+              item.margarine === "sem" || item.margarine === "com"
+                ? item.margarine
+                : pid === "leite-sem-recheio" || pid === "frances" || /(^|-)sem(-|$)/.test(pid)
+                ? "sem"
+                : "com";
+            const key = `${destination.toLocaleLowerCase("pt-BR")}||${margarine}`;
+            const quantity = Number(item.quantity) || 0;
+            if (merged.has(key)) merged.get(key).quantity += quantity;
+            else merged.set(key, { destination, margarine, quantity });
+          });
+          state.fixed.margarina[shift] = [...merged.values()];
+        });
+      }
       function loadLocal() {
         try {
           const saved = JSON.parse(
@@ -3349,6 +3568,28 @@
                 if (Array.isArray(settings.products[key]) && settings.products[key].length)
                   state.products[key] = settings.products[key];
               });
+            // Migração: "sem recheio" era o sem margarina (idem PRODUCT_ALIASES)
+            // e o pacote da margarina passou a 50 (era etiqueta única).
+            const margarinaDefaults = Object.fromEntries(
+              PRODUCTS.margarina.map((d) => [d.id, d])
+            );
+            state.products.margarina = state.products.margarina
+              .map((p) => {
+                if (p.id === "leite-sem-recheio")
+                  return { ...margarinaDefaults["frances-sem-margarina"] };
+                if (p.id in margarinaDefaults)
+                  return { ...margarinaDefaults[p.id] };
+                const fixed = { ...p };
+                delete fixed.singleLabel;
+                if (!Number.isInteger(fixed.packageSize) || fixed.packageSize < 2)
+                  fixed.packageSize = 50;
+                return fixed;
+              })
+              .filter((p, index, arr) => p && p.id && arr.findIndex(q => q && q.id === p.id) === index);
+            Object.values(margarinaDefaults).forEach((d) => {
+              if (!state.products.margarina.some((p) => p.id === d.id))
+                state.products.margarina.push({ ...d });
+            });
             if (settings.destinations && typeof settings.destinations === "object")
               Object.keys(state.destinations).forEach(key => {
                 if (Array.isArray(settings.destinations[key]))
@@ -3388,6 +3629,7 @@
               }));
           }
         } catch {}
+        consolidateMargarinaBase();
       }
 
       function render() {
@@ -3445,7 +3687,7 @@
       }
 
       el("orderForm").onsubmit = addOrder;
-      el("quantity").oninput = () => { if(state.delivery==="validade") state.validityQuantityOverride=Number(el("quantity").value); updateSplit(); };
+      el("quantity").oninput = () => { updateSplit(); };
       el("clearButton").onclick = clearActive;
       el("archiveSelectedButton").onclick = archiveSelected;
       el("copyActiveDayButton").onclick = copyActiveDay;
