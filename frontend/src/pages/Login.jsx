@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Navigate } from 'react-router-dom';
 import axios from 'axios';
 import { Lock, User, LogIn } from 'lucide-react';
 import useBranding from '../useBranding';
 import API from '../api';
+
+import { obterSessao } from '../auth';
 
 export default function Login() {
   const [usuario, setUsuario] = useState('');
@@ -11,6 +13,13 @@ export default function Login() {
   const [erro, setErro] = useState('');
   const navigate = useNavigate();
   const branding = useBranding();
+
+  // Se já existe sessão válida (token não expirado), não exibe o login.
+  const sessaoAtiva = obterSessao();
+  if (sessaoAtiva) {
+    const perfil = String(sessaoAtiva.perfil || '').toLowerCase();
+    return <Navigate to={sessaoAtiva.user?.deve_alterar_senha ? '/alterar-senha' : (perfil === 'leitor' ? '/avaliacoes' : '/dashboard')} replace />;
+  }
 
   const handleLogin = async (e) => {
     e.preventDefault();

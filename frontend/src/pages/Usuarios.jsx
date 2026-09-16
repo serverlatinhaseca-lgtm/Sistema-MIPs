@@ -47,8 +47,8 @@ export default function Usuarios() {
   };
 
   useEffect(() => {
-    if (user.perfil !== "Administrador") {
-      navigate("/dashboard");
+    if (String(user.perfil || '').toLowerCase() !== "administrador") {
+      navigate("/dashboard", { replace: true });
       return;
     }
     carregarUsuarios();

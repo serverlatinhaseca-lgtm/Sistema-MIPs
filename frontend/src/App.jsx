@@ -18,11 +18,17 @@ import MipNotifications from './components/MipNotifications';
 import InstallPrompt from './components/InstallPrompt';
 import MobileNav from './components/MobileNav';
 
-function RotaPrivada({ children }) {
-  const token = localStorage.getItem('token');
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
-  if (!token) return <Navigate to="/" />;
-  if (user.deve_alterar_senha && window.location.pathname !== '/alterar-senha') return <Navigate to="/alterar-senha" />;
+import { obterSessao } from './auth';
+
+function RotaPrivada({ children, perfisPermitidos }) {
+  const sessao = obterSessao();
+  if (!sessao) return <Navigate to="/" replace />;
+  const perfil = String(sessao.perfil || '').toLowerCase();
+  if (perfisPermitidos && !perfisPermitidos.map((p) => String(p).toLowerCase()).includes(perfil)) {
+    return <Navigate to="/dashboard" replace />;
+  }
+  const user = sessao.user || {};
+  if (user.deve_alterar_senha && window.location.pathname !== '/alterar-senha') return <Navigate to="/alterar-senha" replace />;
   return <><AvaliacaoLoginModal /><MipNotifications />{children}</>;
 }
 
@@ -39,15 +45,16 @@ export default function App() {
         <Route path="/mips/nova" element={<RotaPrivada><CriarMIP /></RotaPrivada>} />
         <Route path="/mips/:id/editar" element={<RotaPrivada><CriarMIP /></RotaPrivada>} />
         <Route path="/mips/:id" element={<RotaPrivada><DetalheMIP /></RotaPrivada>} />
-        <Route path="/usuarios" element={<RotaPrivada><Usuarios /></RotaPrivada>} />
+        <Route path="/usuarios" element={<RotaPrivada perfisPermitidos={['administrador']}><Usuarios /></RotaPrivada>} />
         <Route path="/receitas" element={<RotaPrivada><Receitas /></RotaPrivada>} />
         <Route path="/avaliacoes" element={<RotaPrivada><Avaliacoes /></RotaPrivada>} />
         <Route path="/alterar-senha" element={<RotaPrivada><AlterarSenha /></RotaPrivada>} />
-        <Route path="/configuracoes" element={<RotaPrivada><Configuracoes /></RotaPrivada>} />
+        <Route path="/configuracoes" element={<RotaPrivada perfisPermitidos={['administrador']}><Configuracoes /></RotaPrivada>} />
         <Route path="/meu-desempenho" element={<RotaPrivada><MeuDesempenho /></RotaPrivada>} />
         <Route path="/reclamacoes" element={<RotaPrivada><Reclamacoes /></RotaPrivada>} />
-        <Route path="/ferramentas/etiquetas" element={<RotaPrivada><FerramentasAdmin /></RotaPrivada>} />
-        <Route path="/ferramentas/caixas" element={<RotaPrivada><FerramentasAdmin /></RotaPrivada>} />
+        <Route path="/ferramentas/etiquetas" element={<RotaPrivada perfisPermitidos={['administrador']}><FerramentasAdmin /></RotaPrivada>} />
+        <Route path="/ferramentas/caixas" element={<RotaPrivada perfisPermitidos={['administrador']}><FerramentasAdmin /></RotaPrivada>} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );

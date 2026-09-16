@@ -667,7 +667,7 @@ app.delete('/api/mips/:id', verificarToken, async (req, res) => {
 
 // USUÁRIOS
 app.get('/api/usuarios', verificarToken, async (req, res) => {
-  if (req.usuarioPerfil !== 'Administrador') return res.status(403).json({ error: 'Acesso negado' });
+  if (String(req.usuarioPerfil || '').toLowerCase() !== 'administrador') return res.status(403).json({ error: 'Acesso negado' });
   try {
     const result = await pool.query(`SELECT u.id,u.nome,u.email,u.perfil,u.setor,u.cargo,u.lider_id,l.nome AS lider_nome,u.modelo_avaliacao_id,m.nome AS modelo_avaliacao_nome,u.categoria_acesso_id,ca.nome AS categoria_acesso_nome,u.deve_alterar_senha,u.criado_em FROM usuarios u LEFT JOIN usuarios l ON l.id=u.lider_id LEFT JOIN modelos_avaliacao m ON m.id=u.modelo_avaliacao_id LEFT JOIN categorias_acesso ca ON ca.id=u.categoria_acesso_id ORDER BY u.nome`);
     res.json(result.rows);
@@ -675,7 +675,7 @@ app.get('/api/usuarios', verificarToken, async (req, res) => {
 });
 
 app.post('/api/usuarios', verificarToken, async (req, res) => {
-  if (req.usuarioPerfil !== 'Administrador') return res.status(403).json({ error: 'Acesso negado' });
+  if (String(req.usuarioPerfil || '').toLowerCase() !== 'administrador') return res.status(403).json({ error: 'Acesso negado' });
   const { nome, email, senha, perfil, lider_id = null, modelo_avaliacao_id = null, categoria_acesso_id = null } = req.body;
   if (['leitor','editor','gerente'].includes(normalizarPerfil(perfil)) && !lider_id) return res.status(400).json({ error: 'Selecione o responsável pela avaliação deste usuário' });
   try {
@@ -722,9 +722,9 @@ app.put('/api/usuarios/:id', verificarToken, async (req, res) => {
 });
 
 app.delete('/api/usuarios/:id', verificarToken, async (req, res) => {
-  if (req.usuarioPerfil !== 'Administrador') return res.status(403).json({ error: 'Acesso negado' });
+  if (String(req.usuarioPerfil || '').toLowerCase() !== 'administrador') return res.status(403).json({ error: 'Acesso negado' });
   try {
-    if (req.params.id === req.usuarioId) return res.status(400).json({ error: 'Não exclua a si mesmo' });
+    if (String(req.params.id) === String(req.usuarioId)) return res.status(400).json({ error: 'Não exclua a si mesmo' });
     await pool.query('DELETE FROM usuarios WHERE id = $1', [req.params.id]);
     res.json({ mensagem: 'Excluído!' });
   } catch (err) { res.status(500).json({ error: 'Erro' }); }
