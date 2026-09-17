@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import { BarChart3, CheckCircle2, Clock3, Download, Image, Paperclip, Pencil, Plus, RotateCcw, Trash2, X } from 'lucide-react';
+import { BarChart3, CheckCircle2, Clock3, Printer, Image, Paperclip, Pencil, Plus, RotateCcw, Trash2, X } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import LeitorTopbar from '../components/LeitorTopbar';
 import API from '../api';
@@ -117,11 +117,21 @@ export default function Reclamacoes(){
     ${tabela('Detalhamento por cliente',metricas.por_cliente)}
     ${podeRegistrar?`<div class="bloco"><h2>Reclamações do período (${(itens||[]).length})</h2><table><thead><tr><th>#</th><th>Data</th><th>Cliente</th><th>Tipo</th><th>Setor</th><th>Líder</th><th>Prioridade</th><th>Status</th></tr></thead><tbody>${linhasDetalhe||'<tr><td colspan="8">Nenhuma reclamação neste filtro.</td></tr>'}</tbody></table></div>`:''}
     <p class="rodape">Gerado em ${esc(new Date().toLocaleString('pt-BR'))} por ${esc(user.nome||'')} · Sistema MIPs — Nova Esperança</p>
-    <script>window.onload=()=>window.print()</script></body></html>`;
-    const w=window.open('','_blank','width=1000,height=800');
-    if(!w){alert('Permita pop-ups para exportar o PDF.');return;}
-    w.document.write(html);
-    w.document.close();
+    </body></html>`;
+    const frame=document.getElementById('relatorio-print');
+    if(frame){frame.remove();}
+    const f=document.createElement('iframe');
+    f.id='relatorio-print';
+    f.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
+    document.body.appendChild(f);
+    const doc=f.contentDocument||f.contentWindow.document;
+    doc.open();doc.write(html);doc.close();
+    const imprimir=()=>{f.contentWindow.focus();f.contentWindow.print();};
+    if(doc.readyState==='complete'){setTimeout(imprimir,250);}
+    else{f.onload=()=>setTimeout(imprimir,250);}
+    const limpar=()=>{const el=document.getElementById('relatorio-print');if(el)el.remove();};
+    if('onafterprint' in f.contentWindow){f.contentWindow.onafterprint=limpar;}
+    setTimeout(limpar,60000);
   }
   const maior=lista=>Math.max(1,...lista.map(x=>x.total)),visiveis=itens.filter(x=>filtro==='todos'||x.status===filtro);
   const Barras=({dados,prioridade=false})=><div className="space-y-3">{dados.map(x=><div key={x.nome}><div className="flex justify-between gap-3 text-sm mb-1"><span className="truncate">{cores[x.nome]?.nome||x.nome}</span><strong>{x.total}</strong></div><div className="h-3 bg-[var(--bg-main)] rounded-full overflow-hidden"><div className="h-full rounded-full" style={{width:`${x.total/maior(dados)*100}%`,background:prioridade?(cores[x.nome]?.cor||'#a65526'):'#d97706'}}/></div></div>)}{!dados.length&&<p className="text-[var(--text-muted)]">Sem dados.</p>}</div>;
@@ -129,12 +139,12 @@ export default function Reclamacoes(){
     <header className="flex flex-col sm:flex-row justify-between gap-4 mb-7">
       <div><p className="section-label">Qualidade e atendimento</p><h1 className="text-3xl font-bold">Reclamações</h1><p className="text-[var(--text-muted)]">Prazos, ocorrências e indicadores de atendimento.</p></div>
       <div className="flex flex-wrap gap-2 items-start">
-        {podeRegistrar&&<button onClick={exportarPDF} className="border border-[var(--border-color)] bg-[var(--bg-card)] px-5 py-3 rounded-xl font-bold flex items-center h-fit"><Download size={18} className="mr-2"/>Exportar PDF</button>}
+        {podeRegistrar&&<button onClick={exportarPDF} className="border border-[var(--border-color)] bg-[var(--bg-card)] px-5 py-3 rounded-xl font-bold flex items-center h-fit"><Printer size={18} className="mr-2"/>Imprimir</button>}
         {podeRegistrar&&<button onClick={()=>{setEditandoId(null);setForm(formVazio());setFormAberto(true);}} className="bg-[var(--primary)] text-white px-5 py-3 rounded-xl font-bold flex items-center h-fit"><Plus className="mr-2"/>Nova reclamação</button>}
       </div>
     </header>
     {podeRegistrar&&<section className="panel-card mb-5">
-      <h2 className="section-title mb-3">Filtros (valem para métricas, lista e PDF)</h2>
+      <h2 className="section-title mb-3">Filtros (valem para métricas, lista e impressão)</h2>
       <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-3">
         <label className="font-semibold text-sm">Mês<input type="month" className="field" value={filtros.mes} onChange={e=>setFiltros(v=>({...v,mes:e.target.value}))}/></label>
         <label className="font-semibold text-sm">Setor (busca parcial)<input list="filtro-setores" className="field" placeholder="Ex.: embalagem" value={filtros.setor} onChange={e=>setFiltros(v=>({...v,setor:e.target.value}))}/><datalist id="filtro-setores">{(catalogos.setores||[]).map(x=><option key={x.id} value={x.nome}/>)}</datalist></label>
