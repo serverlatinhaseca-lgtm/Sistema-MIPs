@@ -6,7 +6,7 @@
 # Exemplo:     ./frontend/setup-https.sh 192.168.1.100
 set -euo pipefail
 
-LAN_IP="${1:-192.168.0.143}"
+LAN_IP="${1:-192.168.0.150}"
 echo "    IP detectado/usado: $LAN_IP"
 
 echo "==> Instalando mkcert (se necessário)"

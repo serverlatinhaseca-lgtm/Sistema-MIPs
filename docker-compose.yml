@@ -76,8 +76,8 @@ services:
     ports:
       # Bind no IP da LAN: evita conflito com o systemd-resolved (127.0.0.53:53).
       # O setup-https.sh atualiza o IP automaticamente.
-      - "192.168.0.143:53:53/udp"
-      - "192.168.0.143:53:53/tcp"
+      - "192.168.0.150:53:53/udp"
+      - "192.168.0.150:53:53/tcp"
     volumes:
       - ./frontend/dnsmasq.conf:/etc/dnsmasq.conf
     networks:

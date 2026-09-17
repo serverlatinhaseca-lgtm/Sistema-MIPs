@@ -28,7 +28,7 @@ import android.widget.Toast;
 public class MainActivity extends Activity {
 
     // IP fixo do servidor na LAN: dispensa qualquer configuração de DNS no celular.
-    private static final String HOME_URL = "http://192.168.0.143/";
+    private static final String HOME_URL = "http://192.168.0.150/";
     private static final int REQ_FILE_CHOOSER = 1001;
     private static final int REQ_CAMERA = 1002;
 
