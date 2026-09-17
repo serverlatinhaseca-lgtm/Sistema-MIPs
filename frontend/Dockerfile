@@ -7,13 +7,7 @@ COPY . .
 RUN npm run build
 
 FROM nginx:alpine
-RUN apk add --no-cache openssl
 COPY --from=build /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
-RUN mkdir -p /etc/nginx/ssl \
-    && openssl req -x509 -nodes -newkey rsa:2048 \
-       -keyout /etc/nginx/ssl/mips.lan-key.pem \
-       -out /etc/nginx/ssl/mips.lan.pem \
-       -days 3650 -subj "/CN=mips.lan" 2>/dev/null
-EXPOSE 80 443
+EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]

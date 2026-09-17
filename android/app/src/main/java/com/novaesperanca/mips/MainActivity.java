@@ -12,7 +12,6 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
-import android.security.KeyChain;
 import android.webkit.CookieManager;
 import android.webkit.DownloadListener;
 import android.webkit.URLUtil;
@@ -23,11 +22,6 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
-
-import java.io.ByteArrayOutputStream;
-import java.io.InputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
 
 /** Wrapper WebView do Portal MIPs (uso interno, rede local). */
 @SuppressWarnings("deprecation") // startActivityForResult/onBackPressed: sem androidx, API do framework
@@ -103,12 +97,6 @@ public class MainActivity extends Activity {
             @Override
             public void onDownloadStart(String url, String userAgent, String contentDisposition,
                                         String mimeType, long contentLength) {
-                String baixo = url.toLowerCase();
-                if (baixo.endsWith(".crt") || baixo.endsWith(".pem") || baixo.endsWith(".cer")
-                        || baixo.contains("/ca/")) {
-                    instalarCertificado(url); // abre a tela de instalação direto
-                    return;
-                }
                 try {
                     DownloadManager.Request req = new DownloadManager.Request(Uri.parse(url));
                     req.setMimeType(mimeType);
@@ -130,49 +118,6 @@ public class MainActivity extends Activity {
         } else {
             webView.loadUrl(HOME_URL);
         }
-    }
-
-    /** Baixa o certificado do servidor e abre a tela de instalação do sistema.
-     *  Evita o caminho manual por Configurações (no Android novo, tocar no
-     *  arquivo baixado só redireciona para as Configurações). */
-    private void instalarCertificado(String certUrl) {
-        Toast.makeText(this, "Baixando certificado...", Toast.LENGTH_SHORT).show();
-        new Thread(() -> {
-            try {
-                HttpURLConnection con = (HttpURLConnection) new URL(certUrl).openConnection();
-                con.setConnectTimeout(10000);
-                con.setReadTimeout(10000);
-                con.connect();
-                if (con.getResponseCode() != 200) {
-                    throw new Exception("HTTP " + con.getResponseCode());
-                }
-                InputStream in = con.getInputStream();
-                ByteArrayOutputStream buf = new ByteArrayOutputStream();
-                byte[] tmp = new byte[4096];
-                int n;
-                while ((n = in.read(tmp)) != -1) {
-                    buf.write(tmp, 0, n);
-                }
-                in.close();
-                final byte[] cert = buf.toByteArray();
-                if (cert.length < 100) {
-                    throw new Exception("certificado inválido");
-                }
-                runOnUiThread(() -> {
-                    try {
-                        Intent i = KeyChain.createInstallIntent();
-                        i.putExtra(KeyChain.EXTRA_CERTIFICATE, cert);
-                        i.putExtra(KeyChain.EXTRA_NAME, "MIPs Nova Esperanca");
-                        startActivity(i);
-                    } catch (ActivityNotFoundException e) {
-                        Toast.makeText(MainActivity.this, "Instalador de certificado indisponível", Toast.LENGTH_LONG).show();
-                    }
-                });
-            } catch (Exception e) {
-                runOnUiThread(() -> Toast.makeText(MainActivity.this,
-                        "Falha ao baixar o certificado. Confira a rede.", Toast.LENGTH_LONG).show());
-            }
-        }).start();
     }
 
     private void openChooser() {

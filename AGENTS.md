@@ -8,7 +8,7 @@ Stack: React 18 + Vite 8 + Tailwind 3 + React Router 7 | Node.js 22 + Express 5 
 - `backend/` — API Express em arquivo único `index.js` + `avaliacoes.js` (regras) + seeds `modelos-avaliacao.json`, `clientes-iniciais.json` + `init.sql`. Testes com `node --test` (`avaliacoes.test.js`). Uploads em `backend/uploads/`.
 - `frontend/src/` — app React (`App.jsx`, `pages/`, `components/`, `api.js`). Ferramenta Etiquetas tem parte legada em JS vanilla: `frontend/public/admin-tools/etiquetas.html` e `caixas.html` — edite esses HTMLs direto, não procure componente React equivalente.
 - `frontend/` — build Vite servido via Nginx (`nginx.conf`, `Dockerfile`). Certificados locais em `frontend/certs/` (gitignored via `frontend/.gitignore`).
-- `docker-compose.yml` — serviços `db`, `backend`, `frontend`, `dnsmasq`, `backup`. Portal em `80/443`, API em `7001` (`/api/health`).
+- `docker-compose.yml` — serviços `db`, `backend`, `frontend`, `dnsmasq`, `backup`. Portal só em `80` (HTTP; sem HTTPS por decisão — `mips.lan` resolve via `dnsmasq`), API em `7001` (`/api/health`).
 - `backup/` — dump diário do Postgres (`backup.sh`, `crontab` 02:30, retenção 30 dias). Credencial `backup/rclone.conf` existe só no servidor (gitignored) — nunca commitar.
 - `android/` — WebView para `http://mips.lan`, build do APK via GitHub Actions (`.github/workflows/build-apk.yml`).
 - `backups/`, `backend/uploads/`, `*.dump` — dados locais, nunca commitar.

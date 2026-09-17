@@ -51,12 +51,8 @@ services:
   frontend:
     build: ./frontend
     container_name: portal_mips_frontend
-    entrypoint: sh -c 'if [ ! -f /etc/nginx/ssl/mips.lan.pem ]; then openssl req -x509 -nodes -newkey rsa:2048 -keyout /etc/nginx/ssl/mips.lan-key.pem -out /etc/nginx/ssl/mips.lan.pem -days 3650 -subj "/CN=mips.lan" -addext "subjectAltName=DNS:mips.lan,DNS:localhost,IP:192.168.0.150,IP:127.0.0.1" 2>/dev/null; fi; exec nginx -g "daemon off;"'
     ports:
       - "80:80"
-      - "443:443"
-    volumes:
-      - ./frontend/certs:/etc/nginx/ssl
     networks:
       - mips-net
     depends_on:
@@ -64,7 +60,7 @@ services:
         condition: service_healthy
     restart: always
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "--no-check-certificate", "https://localhost/"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -75,7 +71,6 @@ services:
     container_name: portal_mips_dns
     ports:
       # Bind no IP da LAN: evita conflito com o systemd-resolved (127.0.0.53:53).
-      # O setup-https.sh atualiza o IP automaticamente.
       - "192.168.0.150:53:53/udp"
       - "192.168.0.150:53:53/tcp"
     volumes:
