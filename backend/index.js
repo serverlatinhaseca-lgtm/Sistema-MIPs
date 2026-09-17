@@ -1069,30 +1069,41 @@ app.get('/api/reclamacoes/catalogos', verificarToken, async (_req,res) => {
   res.json({clientes:clientes.rows,tipos:tipos.rows,lideres:lideres.rows,setores:setores.rows,prazos:prazos.rows[0]});
 });
 
+function montarFiltrosReclamacoes(query, alias) {
+  const conds = [], params = [];
+  const col = c => alias ? `${alias}.${c}` : c;
+  const mes = /^\d{4}-\d{2}$/.test(String(query.mes || '')) ? String(query.mes) : null;
+  if (mes) { params.push(mes); conds.push(`TO_CHAR(${col('criado_em')},'YYYY-MM')=$${params.length}`); }
+  for (const [q, c] of [['lider_id', 'lider_responsavel_id'], ['tipo_id', 'tipo_id'], ['cliente_id', 'cliente_id']]) {
+    const v = Number(query[q]);
+    if (Number.isInteger(v) && v > 0) { params.push(v); conds.push(`${col(c)}=$${params.length}`); }
+  }
+  const setor = String(query.setor || '').trim();
+  if (setor) { params.push(`%${setor}%`); conds.push(`EXISTS (SELECT 1 FROM setores_reclamacao s WHERE s.id=${col('setor_id')} AND s.nome ILIKE $${params.length})`); }
+  return { where: conds.length ? `WHERE ${conds.join(' AND ')}` : '', params, mes, setor };
+}
+
 app.get('/api/reclamacoes/metricas', verificarToken, async (req,res) => {
-  const mesFiltro = /^\d{4}-\d{2}$/.test(String(req.query.mes || '')) ? String(req.query.mes) : null;
-  const where = mesFiltro ? `WHERE TO_CHAR(r.criado_em,'YYYY-MM')=$1` : '';
-  const whereSimples = mesFiltro ? `WHERE TO_CHAR(criado_em,'YYYY-MM')=$1` : '';
-  const params = mesFiltro ? [mesFiltro] : [];
+  const f = montarFiltrosReclamacoes(req.query, 'r');
+  const fs = montarFiltrosReclamacoes(req.query, '');
   const [total,tipo,lider,setor,mes,cliente,prioridade,status,prazos]=await Promise.all([
-    pool.query(`SELECT COUNT(*)::int AS total FROM reclamacoes r ${where}`, params),
-    pool.query(`SELECT t.nome,COUNT(*)::int AS total FROM reclamacoes r JOIN tipos_reclamacao t ON t.id=r.tipo_id ${where} GROUP BY t.id,t.nome ORDER BY total DESC,t.nome`, params),
-    pool.query(`SELECT u.nome,COUNT(*)::int AS total FROM reclamacoes r JOIN usuarios u ON u.id=r.lider_responsavel_id ${where} GROUP BY u.id,u.nome ORDER BY total DESC,u.nome`, params),
-    pool.query(`SELECT COALESCE(s.nome,'Sem setor') AS nome,COUNT(*)::int AS total FROM reclamacoes r LEFT JOIN setores_reclamacao s ON s.id=r.setor_id ${where} GROUP BY s.nome ORDER BY total DESC,s.nome`, params),
+    pool.query(`SELECT COUNT(*)::int AS total FROM reclamacoes r ${f.where}`, f.params),
+    pool.query(`SELECT t.nome,COUNT(*)::int AS total FROM reclamacoes r JOIN tipos_reclamacao t ON t.id=r.tipo_id ${f.where} GROUP BY t.id,t.nome ORDER BY total DESC,t.nome`, f.params),
+    pool.query(`SELECT u.nome,COUNT(*)::int AS total FROM reclamacoes r JOIN usuarios u ON u.id=r.lider_responsavel_id ${f.where} GROUP BY u.id,u.nome ORDER BY total DESC,u.nome`, f.params),
+    pool.query(`SELECT COALESCE(s.nome,'Sem setor') AS nome,COUNT(*)::int AS total FROM reclamacoes r LEFT JOIN setores_reclamacao s ON s.id=r.setor_id ${f.where} GROUP BY s.nome ORDER BY total DESC,s.nome`, f.params),
     pool.query(`SELECT TO_CHAR(DATE_TRUNC('month',criado_em),'YYYY-MM') AS mes,COUNT(*)::int AS total FROM reclamacoes GROUP BY 1 ORDER BY 1`),
-    pool.query(`SELECT c.nome,COUNT(*)::int AS total FROM reclamacoes r JOIN clientes_reclamacao c ON c.id=r.cliente_id ${where} GROUP BY c.id,c.nome ORDER BY total DESC,c.nome LIMIT 12`, params),
-    pool.query(`SELECT r.prioridade AS nome,COUNT(*)::int AS total FROM reclamacoes r ${where} GROUP BY r.prioridade ORDER BY CASE r.prioridade WHEN 'vermelho' THEN 1 WHEN 'amarelo' THEN 2 ELSE 3 END`, params),
-    pool.query(`SELECT r.status AS nome,COUNT(*)::int AS total FROM reclamacoes r ${where} GROUP BY r.status`, params),
-    pool.query(`SELECT COUNT(*) FILTER (WHERE status='aberto')::int AS abertas,COUNT(*) FILTER (WHERE status='aberto' AND prazo_em<NOW())::int AS atrasadas,COUNT(*) FILTER (WHERE status='concluido')::int AS concluidas,COALESCE(ROUND((AVG(EXTRACT(EPOCH FROM (concluido_em-criado_em))/3600) FILTER (WHERE concluido_em IS NOT NULL))::numeric,1),0) AS media_horas FROM reclamacoes ${whereSimples}`, params)
+    pool.query(`SELECT c.nome,COUNT(*)::int AS total FROM reclamacoes r JOIN clientes_reclamacao c ON c.id=r.cliente_id ${f.where} GROUP BY c.id,c.nome ORDER BY total DESC,c.nome LIMIT 12`, f.params),
+    pool.query(`SELECT r.prioridade AS nome,COUNT(*)::int AS total FROM reclamacoes r ${f.where} GROUP BY r.prioridade ORDER BY CASE r.prioridade WHEN 'vermelho' THEN 1 WHEN 'amarelo' THEN 2 ELSE 3 END`, f.params),
+    pool.query(`SELECT r.status AS nome,COUNT(*)::int AS total FROM reclamacoes r ${f.where} GROUP BY r.status`, f.params),
+    pool.query(`SELECT COUNT(*) FILTER (WHERE status='aberto')::int AS abertas,COUNT(*) FILTER (WHERE status='aberto' AND prazo_em<NOW())::int AS atrasadas,COUNT(*) FILTER (WHERE status='concluido')::int AS concluidas,COALESCE(ROUND((AVG(EXTRACT(EPOCH FROM (concluido_em-criado_em))/3600) FILTER (WHERE concluido_em IS NOT NULL))::numeric,1),0) AS media_horas FROM reclamacoes ${fs.where}`, fs.params)
   ]);
-  res.json({mes:mesFiltro,total:total.rows[0].total,por_tipo:tipo.rows,por_lider:lider.rows,por_setor:setor.rows,por_mes:mes.rows,por_cliente:cliente.rows,por_prioridade:prioridade.rows,por_status:status.rows,...prazos.rows[0]});
+  res.json({mes:f.mes,filtros:{mes:f.mes,setor:f.setor,lider_id:Number(req.query.lider_id)||null,tipo_id:Number(req.query.tipo_id)||null,cliente_id:Number(req.query.cliente_id)||null},total:total.rows[0].total,por_tipo:tipo.rows,por_lider:lider.rows,por_setor:setor.rows,por_mes:mes.rows,por_cliente:cliente.rows,por_prioridade:prioridade.rows,por_status:status.rows,...prazos.rows[0]});
 });
 
 app.get('/api/reclamacoes', verificarToken, async (req,res) => {
   if (!(await podeRegistrarReclamacao(req))) return res.status(403).json({error:'Seu perfil possui acesso apenas às métricas'});
-  const mesFiltro = /^\d{4}-\d{2}$/.test(String(req.query.mes || '')) ? String(req.query.mes) : null;
-  const params = mesFiltro ? [mesFiltro] : [];
-  const r=await pool.query(`SELECT r.*,c.nome AS cliente_nome,t.nome AS tipo_nome,l.nome AS lider_nome,s.nome AS setor_nome,u.nome AS criado_por_nome FROM reclamacoes r JOIN clientes_reclamacao c ON c.id=r.cliente_id JOIN tipos_reclamacao t ON t.id=r.tipo_id JOIN usuarios l ON l.id=r.lider_responsavel_id LEFT JOIN setores_reclamacao s ON s.id=r.setor_id LEFT JOIN usuarios u ON u.id=r.criado_por ${mesFiltro ? `WHERE TO_CHAR(r.criado_em,'YYYY-MM')=$1` : ''} ORDER BY r.criado_em DESC`, params);
+  const f = montarFiltrosReclamacoes(req.query, 'r');
+  const r=await pool.query(`SELECT r.*,c.nome AS cliente_nome,t.nome AS tipo_nome,l.nome AS lider_nome,s.nome AS setor_nome,u.nome AS criado_por_nome FROM reclamacoes r JOIN clientes_reclamacao c ON c.id=r.cliente_id JOIN tipos_reclamacao t ON t.id=r.tipo_id JOIN usuarios l ON l.id=r.lider_responsavel_id LEFT JOIN setores_reclamacao s ON s.id=r.setor_id LEFT JOIN usuarios u ON u.id=r.criado_por ${f.where} ORDER BY r.criado_em DESC`, f.params);
   res.json(r.rows);
 });
 

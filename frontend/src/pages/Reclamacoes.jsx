@@ -14,10 +14,22 @@ export default function Reclamacoes(){
   const api=`${API}/api`,user=JSON.parse(localStorage.getItem('user')||'{}'),perfil=user.perfil?.toLowerCase(),headers={Authorization:`Bearer ${localStorage.getItem('token')}`};
   const podeRegistrar=['administrador','editor','gerente'].includes(perfil)||(user.permissoes||[]).includes('reclamacoes.registrar');
   const [catalogos,setCatalogos]=useState({clientes:[],tipos:[],lideres:[],setores:[],prazos:{prazo_verde_min:1440,prazo_amarelo_min:180,prazo_vermelho_min:60}}),[metricas,setMetricas]=useState({por_tipo:[],por_lider:[],por_setor:[],por_mes:[],por_cliente:[],por_prioridade:[]});
-  const [itens,setItens]=useState([]),[formAberto,setFormAberto]=useState(false),[editandoId,setEditandoId]=useState(null),[salvando,setSalvando]=useState(false),[foto,setFoto]=useState(null),[agora,setAgora]=useState(new Date()),[filtro,setFiltro]=useState('todos'),[mesFiltro,setMesFiltro]=useState('');
+  const [itens,setItens]=useState([]),[formAberto,setFormAberto]=useState(false),[editandoId,setEditandoId]=useState(null),[salvando,setSalvando]=useState(false),[foto,setFoto]=useState(null),[agora,setAgora]=useState(new Date()),[filtro,setFiltro]=useState('todos');
+  const filtrosVazios=()=>({mes:'',setor:'',lider_id:'',tipo_id:'',cliente_id:''});
+  const [filtros,setFiltros]=useState(filtrosVazios);
   const [form,setForm]=useState({cliente_id:'',cliente_busca:'',tipo_id:'',tipo_busca:'',lider_responsavel_id:'',setor_id:'',descricao:'',anexos:[],prioridade:'verde'});
-  async function carregar(mes){
-    const q=mes?`?mes=${encodeURIComponent(mes)}`:'';
+  function queryFiltros(f){
+    const p=new URLSearchParams();
+    if(f.mes)p.set('mes',f.mes);
+    if(f.setor.trim())p.set('setor',f.setor.trim());
+    if(f.lider_id)p.set('lider_id',f.lider_id);
+    if(f.tipo_id)p.set('tipo_id',f.tipo_id);
+    if(f.cliente_id)p.set('cliente_id',f.cliente_id);
+    const s=p.toString();
+    return s?`?${s}`:'';
+  }
+  async function carregar(f){
+    const q=queryFiltros(f||filtros);
     const chamadas=[axios.get(`${api}/reclamacoes/catalogos`,{headers}),axios.get(`${api}/reclamacoes/metricas${q}`,{headers})];
     if(podeRegistrar)chamadas.push(axios.get(`${api}/reclamacoes${q}`,{headers}));
     const[c,m,r]=await Promise.all(chamadas);
@@ -25,20 +37,88 @@ export default function Reclamacoes(){
     setMetricas(m.data);
     if(r)setItens(r.data);
   }
-  useEffect(()=>{carregar(mesFiltro).catch(()=>{});},[mesFiltro]);
+  useEffect(()=>{const t=setTimeout(()=>{carregar(filtros).catch(()=>{});},filtros.setor?400:0);return()=>clearTimeout(t);},[filtros.mes,filtros.setor,filtros.lider_id,filtros.tipo_id,filtros.cliente_id]);
   useEffect(()=>{const i=setInterval(()=>setAgora(new Date()),30000);return()=>clearInterval(i);},[]);
   async function anexar(arquivos){const novos=[];for(const arquivo of [...arquivos].slice(0,10-form.anexos.length)){const dados=new FormData();dados.append('image',arquivo);const r=await axios.post(`${api}/upload`,dados,{headers});novos.push({nome:arquivo.name,url:r.data.url,tipo:arquivo.type});}setForm(v=>({...v,anexos:[...v.anexos,...novos]}));}
   function formVazio(){return {cliente_id:'',cliente_busca:'',tipo_id:'',tipo_busca:'',lider_responsavel_id:'',setor_id:'',descricao:'',anexos:[],prioridade:'verde'};}
-  async function salvar(e){e.preventDefault();setSalvando(true);try{if(editandoId)await axios.put(`${api}/reclamacoes/${editandoId}`,form,{headers});else await axios.post(`${api}/reclamacoes`,form,{headers});setForm(formVazio());setEditandoId(null);setFormAberto(false);await carregar(mesFiltro);}catch(err){alert(err.response?.data?.error||'Erro ao salvar reclamação.');}finally{setSalvando(false);}}
-  async function mudarStatus(id,status){try{await axios.post(`${api}/reclamacoes/${id}/${status==='concluido'?'concluir':'reabrir'}`,{},{headers});setItens(v=>v.map(x=>x.id===id?{...x,status,concluido_em:status==='concluido'?new Date().toISOString():null}:x));await carregar(mesFiltro);}catch(err){alert(err.response?.data?.error||'Não foi possível alterar a reclamação.');}}
+  async function salvar(e){e.preventDefault();setSalvando(true);try{if(editandoId)await axios.put(`${api}/reclamacoes/${editandoId}`,form,{headers});else await axios.post(`${api}/reclamacoes`,form,{headers});setForm(formVazio());setEditandoId(null);setFormAberto(false);await carregar(filtros);}catch(err){alert(err.response?.data?.error||'Erro ao salvar reclamação.');}finally{setSalvando(false);}}
+  async function mudarStatus(id,status){try{await axios.post(`${api}/reclamacoes/${id}/${status==='concluido'?'concluir':'reabrir'}`,{},{headers});setItens(v=>v.map(x=>x.id===id?{...x,status,concluido_em:status==='concluido'?new Date().toISOString():null}:x));await carregar(filtros);}catch(err){alert(err.response?.data?.error||'Não foi possível alterar a reclamação.');}}
   function editar(r){setEditandoId(r.id);setForm({cliente_id:String(r.cliente_id),cliente_busca:r.cliente_nome||'',tipo_id:String(r.tipo_id),tipo_busca:r.tipo_nome||'',lider_responsavel_id:String(r.lider_responsavel_id),setor_id:r.setor_id?String(r.setor_id):'',descricao:r.descricao||'',anexos:Array.isArray(r.anexos)?r.anexos:[],prioridade:r.prioridade||'verde'});setFormAberto(true);}
-  async function excluir(id){if(confirm('Excluir definitivamente esta reclamação?')){await axios.delete(`${api}/reclamacoes/${id}`,{headers});carregar(mesFiltro);}}
+  async function excluir(id){if(confirm('Excluir definitivamente esta reclamação?')){await axios.delete(`${api}/reclamacoes/${id}`,{headers});carregar(filtros);}}
   function exportarPDF(){
-    const periodo=mesFiltro?mesFiltro.split('-').reverse().join('/'):'Todos os meses';
-    const linha=(nome,total)=>`<tr><td>${nome}</td><td style="text-align:right"><strong>${total}</strong></td></tr>`;
-    const secao=(titulo,lista)=>`<h2>${titulo}</h2><table><tbody>${(lista||[]).map(x=>linha(x.nome, x.total)).join('')||'<tr><td>Sem dados.</td><td></td></tr>'}</tbody></table>`;
-    const html=`<html><head><meta charset="utf-8"><title>Métricas de reclamações — ${periodo}</title><style>body{font-family:Arial,sans-serif;padding:32px;color:#222}h1{font-size:22px}h2{font-size:16px;margin:24px 0 8px;color:#7c3f12}table{width:100%;border-collapse:collapse;margin-bottom:12px}td{border-bottom:1px solid #ddd;padding:6px 4px;font-size:13px}.resumo{display:flex;gap:12px;flex-wrap:wrap}.card{border:1px solid #ddd;border-radius:8px;padding:10px 14px;min-width:130px}.card strong{font-size:20px;display:block}</style></head><body><h1>Métricas de reclamações — ${periodo}</h1><p>Total: <strong>${metricas.total||0}</strong> · Em aberto: <strong>${metricas.abertas||0}</strong> · Atrasadas: <strong>${metricas.atrasadas||0}</strong> · Concluídas: <strong>${metricas.concluidas||0}</strong> · Tempo médio: <strong>${metricas.media_horas||0}h</strong></p>${secao('Por setor',metricas.por_setor)}${secao('Por líder responsável',metricas.por_lider)}${secao('Tipos de reclamação',metricas.por_tipo)}${secao('Clientes',metricas.por_cliente)}${secao('Por prioridade',(metricas.por_prioridade||[]).map(x=>({nome:(cores[x.nome]?.nome||x.nome),total:x.total})))}<p style="font-size:11px;color:#888">Gerado em ${new Date().toLocaleString('pt-BR')}</p><script>window.onload=()=>window.print()</script></body></html>`;
-    const w=window.open('','_blank','width=900,height=700');
+    const esc=s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    const periodo=filtros.mes?filtros.mes.split('-').reverse().join('/'):'Todos os meses';
+    const nomeDe=(lista,id)=>lista.find(x=>String(x.id)===String(id))?.nome||'';
+    const partesFiltro=[];
+    if(filtros.mes)partesFiltro.push(`Mês: ${periodo}`);
+    if(filtros.setor.trim())partesFiltro.push(`Setor contém: "${filtros.setor.trim()}"`);
+    if(filtros.lider_id)partesFiltro.push(`Líder: ${nomeDe(catalogos.lideres,filtros.lider_id)}`);
+    if(filtros.tipo_id)partesFiltro.push(`Tipo: ${nomeDe(catalogos.tipos,filtros.tipo_id)}`);
+    if(filtros.cliente_id)partesFiltro.push(`Cliente: ${nomeDe(catalogos.clientes,filtros.cliente_id)}`);
+    const total=Number(metricas.total||0),concl=Number(metricas.concluidas||0);
+    const taxa=total?Math.round(concl/total*100):0;
+    const maxBar=d=>Math.max(1,...(d||[]).map(x=>x.total));
+    const svgBarras=(dados,corFn)=>{
+      const lista=(dados||[]).slice(0,12),m=maxBar(lista),H=Math.max(40,lista.length*30);
+      const linhas=lista.map((x,i)=>{
+        const y=8+i*30,w=Math.max(2,Math.round(x.total/m*430));
+        return `<text x="0" y="${y+11}" font-size="11" fill="#444">${esc(String(x.nome).slice(0,32))}</text><rect x="150" y="${y}" width="${w}" height="16" rx="4" fill="${corFn(x)}"/><text x="${156+w}" y="${y+12}" font-size="11" font-weight="bold" fill="#222">${x.total}</text>`;
+      }).join('');
+      return `<svg width="620" height="${H}" xmlns="http://www.w3.org/2000/svg">${linhas||'<text x="0" y="20" font-size="12" fill="#888">Sem dados.</text>'}</svg>`;
+    };
+    const svgMeses=()=>{
+      const lista=(metricas.por_mes||[]).slice(-12),m=maxBar(lista),W=620,bw=Math.min(46,Math.floor((W-20)/Math.max(1,lista.length))-8);
+      const cols=lista.map((x,i)=>{
+        const h=Math.max(4,Math.round(x.total/m*150)),x0=10+i*(bw+8);
+        return `<text x="${x0+bw/2}" y="${170-h-6}" font-size="10" font-weight="bold" text-anchor="middle" fill="#222">${x.total}</text><rect x="${x0}" y="${170-h}" width="${bw}" height="${h}" rx="3" fill="#a65526"/><text x="${x0+bw/2}" y="186" font-size="9" text-anchor="middle" fill="#666">${esc(x.mes.slice(5))}/${esc(x.mes.slice(2,4))}</text>`;
+      }).join('');
+      return `<svg width="620" height="195" xmlns="http://www.w3.org/2000/svg"><line x1="0" y1="170" x2="620" y2="170" stroke="#ccc"/>${cols||'<text x="0" y="20" font-size="12" fill="#888">Sem dados.</text>'}</svg>`;
+    };
+    const blocoGraf=(titulo,svg)=>`<div class="graf"><h2>${titulo}</h2>${svg}</div>`;
+    const tabela=(titulo,lista,mapNome)=>`<div class="bloco"><h2>${titulo}</h2><table><thead><tr><th>Item</th><th class="num">Qtd</th><th class="num">%</th></tr></thead><tbody>${(lista||[]).map(x=>{const p=total?Math.round(x.total/total*100):0;return `<tr><td>${esc(mapNome?mapNome(x):x.nome)}</td><td class="num"><strong>${x.total}</strong></td><td class="num">${p}%</td></tr>`;}).join('')||'<tr><td colspan="3">Sem dados.</td></tr>'}</tbody></table></div>`;
+    const nomePri=x=>(cores[x.nome]?.nome||x.nome);
+    const corPri=x=>(cores[x.nome]?.cor||'#a65526');
+    const linhasDetalhe=(podeRegistrar?itens:[]).map((r,i)=>{
+      const aberta=r.status==='aberto',atrasada=aberta&&r.prazo_em&&new Date(r.prazo_em)<new Date();
+      return `<tr class="${atrasada?'atrasada':''}"><td>${i+1}</td><td>${esc(new Date(r.criado_em).toLocaleDateString('pt-BR'))}</td><td>${esc(r.cliente_nome||'')}</td><td>${esc(r.tipo_nome||'')}</td><td>${esc(r.setor_nome||'—')}</td><td>${esc(r.lider_nome||'')}</td><td>${esc(nomePri({nome:r.prioridade}))}</td><td>${aberta?(atrasada?'Em aberto (atrasada)':'Em aberto'):'Concluída'}</td></tr>`;
+    }).join('');
+    const html=`<html><head><meta charset="utf-8"><title>Relatório de reclamações — ${esc(periodo)}</title><style>
+      body{font-family:Arial,sans-serif;padding:28px 32px;color:#222;font-size:13px}
+      h1{font-size:22px;margin:0 0 4px}h2{font-size:15px;margin:0 0 8px;color:#7c3f12}
+      .sub{color:#666;margin:0 0 12px}.kpis{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}
+      .kpi{border:1px solid #ddd;border-left:5px solid #a65526;border-radius:8px;padding:8px 14px;min-width:120px}
+      .kpi small{color:#666;text-transform:uppercase;font-size:10px}.kpi strong{font-size:22px;display:block}
+      .kpi.verde{border-left-color:#15803d}.kpi.amarelo{border-left-color:#d97706}.kpi.vermelho{border-left-color:#b91c1c}.kpi.azul{border-left-color:#2563eb}
+      .graf,.bloco{margin:18px 0;page-break-inside:avoid}
+      table{width:100%;border-collapse:collapse;margin-bottom:10px}
+      th{background:#f5f0e8;text-align:left;padding:6px;font-size:12px}td{border-bottom:1px solid #e5e5e5;padding:5px 6px;font-size:12px}
+      .num{text-align:right}.atrasada td{background:#fef2f2}.rodape{font-size:11px;color:#888;margin-top:16px}
+      @media print{.graf,.bloco{page-break-inside:avoid}}
+    </style></head><body>
+    <h1>Relatório de reclamações</h1>
+    <p class="sub">Período: <strong>${esc(periodo)}</strong>${partesFiltro.length?` · Filtros: ${esc(partesFiltro.join(' · '))}`:' · Sem filtros (base completa)'}</p>
+    <div class="kpis">
+      <div class="kpi"><small>Total</small><strong>${total}</strong></div>
+      <div class="kpi amarelo"><small>Em aberto</small><strong>${metricas.abertas||0}</strong></div>
+      <div class="kpi vermelho"><small>Atrasadas</small><strong>${metricas.atrasadas||0}</strong></div>
+      <div class="kpi verde"><small>Concluídas</small><strong>${concl}</strong></div>
+      <div class="kpi azul"><small>Taxa de conclusão</small><strong>${taxa}%</strong></div>
+      <div class="kpi"><small>Tempo médio</small><strong>${metricas.media_horas||0}h</strong></div>
+    </div>
+    ${blocoGraf('Reclamações por setor',svgBarras(metricas.por_setor,()=>'#b45309'))}
+    ${blocoGraf('Por líder responsável',svgBarras(metricas.por_lider,()=>'#1d4ed8'))}
+    ${blocoGraf('Por tipo de reclamação',svgBarras(metricas.por_tipo,()=>'#0f766e'))}
+    ${blocoGraf('Por cliente',svgBarras(metricas.por_cliente,()=>'#6d28d9'))}
+    ${blocoGraf('Por prioridade',svgBarras(metricas.por_prioridade.map(x=>({nome:nomePri(x),total:x.total,cor:corPri(x)})),x=>x.cor||'#a65526'))}
+    ${blocoGraf('Evolução mensal (últimos 12 meses)',svgMeses())}
+    ${tabela('Detalhamento por setor',metricas.por_setor)}
+    ${tabela('Detalhamento por líder',metricas.por_lider)}
+    ${tabela('Detalhamento por tipo',metricas.por_tipo)}
+    ${tabela('Detalhamento por cliente',metricas.por_cliente)}
+    ${podeRegistrar?`<div class="bloco"><h2>Reclamações do período (${(itens||[]).length})</h2><table><thead><tr><th>#</th><th>Data</th><th>Cliente</th><th>Tipo</th><th>Setor</th><th>Líder</th><th>Prioridade</th><th>Status</th></tr></thead><tbody>${linhasDetalhe||'<tr><td colspan="8">Nenhuma reclamação neste filtro.</td></tr>'}</tbody></table></div>`:''}
+    <p class="rodape">Gerado em ${esc(new Date().toLocaleString('pt-BR'))} por ${esc(user.nome||'')} · Sistema MIPs — Nova Esperança</p>
+    <script>window.onload=()=>window.print()</script></body></html>`;
+    const w=window.open('','_blank','width=1000,height=800');
     if(!w){alert('Permita pop-ups para exportar o PDF.');return;}
     w.document.write(html);
     w.document.close();
@@ -53,10 +133,19 @@ export default function Reclamacoes(){
         {podeRegistrar&&<button onClick={()=>{setEditandoId(null);setForm(formVazio());setFormAberto(true);}} className="bg-[var(--primary)] text-white px-5 py-3 rounded-xl font-bold flex items-center h-fit"><Plus className="mr-2"/>Nova reclamação</button>}
       </div>
     </header>
-    <section className="panel-card mb-5 flex flex-col sm:flex-row gap-3 sm:items-center">
-      <label className="font-semibold text-sm">Filtrar por mês<input type="month" className="field sm:max-w-[220px]" value={mesFiltro} onChange={e=>setMesFiltro(e.target.value)}/></label>
-      {mesFiltro&&<button onClick={()=>setMesFiltro('')} className="px-4 py-2 rounded-xl bg-[var(--bg-main)] font-bold text-sm h-fit sm:mt-5">Limpar (todos os meses)</button>}
-      {mesFiltro&&<p className="text-sm text-[var(--text-muted)] sm:mt-5">Exibindo métricas e lista de <strong>{mesFiltro.split('-').reverse().join('/')}</strong>.</p>}
+    <section className="panel-card mb-5">
+      <h2 className="section-title mb-3">Filtros (valem para métricas, lista e PDF)</h2>
+      <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        <label className="font-semibold text-sm">Mês<input type="month" className="field" value={filtros.mes} onChange={e=>setFiltros(v=>({...v,mes:e.target.value}))}/></label>
+        <label className="font-semibold text-sm">Setor (busca parcial)<input list="filtro-setores" className="field" placeholder="Ex.: embalagem" value={filtros.setor} onChange={e=>setFiltros(v=>({...v,setor:e.target.value}))}/><datalist id="filtro-setores">{(catalogos.setores||[]).map(x=><option key={x.id} value={x.nome}/>)}</datalist></label>
+        <label className="font-semibold text-sm">Líder<select className="field" value={filtros.lider_id} onChange={e=>setFiltros(v=>({...v,lider_id:e.target.value}))}><option value="">Todos</option>{(catalogos.lideres||[]).map(x=><option key={x.id} value={x.id}>{x.nome}</option>)}</select></label>
+        <label className="font-semibold text-sm">Tipo<select className="field" value={filtros.tipo_id} onChange={e=>setFiltros(v=>({...v,tipo_id:e.target.value}))}><option value="">Todos</option>{(catalogos.tipos||[]).map(x=><option key={x.id} value={x.id}>{x.nome}</option>)}</select></label>
+        <label className="font-semibold text-sm">Cliente<select className="field" value={filtros.cliente_id} onChange={e=>setFiltros(v=>({...v,cliente_id:e.target.value}))}><option value="">Todos</option>{(catalogos.clientes||[]).map(x=><option key={x.id} value={x.id}>{x.nome}</option>)}</select></label>
+      </div>
+      <div className="flex flex-wrap items-center gap-3 mt-3">
+        <button onClick={()=>setFiltros(filtrosVazios())} className="px-4 py-2 rounded-xl bg-[var(--bg-main)] font-bold text-sm">Limpar filtros</button>
+        <p className="text-sm text-[var(--text-muted)]">{filtros.mes||filtros.setor.trim()||filtros.lider_id||filtros.tipo_id||filtros.cliente_id?<>Exibindo <strong>{metricas.total||0}</strong> reclamação(ões) no filtro atual.</>:'Sem filtros — base completa.'}</p>
+      </div>
     </section>
     <section className="grid sm:grid-cols-2 xl:grid-cols-5 gap-4 mb-5"><Metrica titulo="Total" valor={metricas.total||0}/><Metrica titulo="Em aberto" valor={metricas.abertas||0} cor="text-amber-600"/><Metrica titulo="Atrasadas" valor={metricas.atrasadas||0} cor="text-red-600"/><Metrica titulo="Concluídas" valor={metricas.concluidas||0} cor="text-emerald-600"/><Metrica titulo="Tempo médio" valor={`${metricas.media_horas||0}h`} cor="text-blue-600"/></section>
     <section className="grid lg:grid-cols-2 xl:grid-cols-3 gap-5 mb-5">
