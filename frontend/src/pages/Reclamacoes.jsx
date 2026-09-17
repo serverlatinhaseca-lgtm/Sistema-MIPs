@@ -129,11 +129,11 @@ export default function Reclamacoes(){
     <header className="flex flex-col sm:flex-row justify-between gap-4 mb-7">
       <div><p className="section-label">Qualidade e atendimento</p><h1 className="text-3xl font-bold">Reclamações</h1><p className="text-[var(--text-muted)]">Prazos, ocorrências e indicadores de atendimento.</p></div>
       <div className="flex flex-wrap gap-2 items-start">
-        <button onClick={exportarPDF} className="border border-[var(--border-color)] bg-[var(--bg-card)] px-5 py-3 rounded-xl font-bold flex items-center h-fit"><Download size={18} className="mr-2"/>Exportar PDF</button>
+        {podeRegistrar&&<button onClick={exportarPDF} className="border border-[var(--border-color)] bg-[var(--bg-card)] px-5 py-3 rounded-xl font-bold flex items-center h-fit"><Download size={18} className="mr-2"/>Exportar PDF</button>}
         {podeRegistrar&&<button onClick={()=>{setEditandoId(null);setForm(formVazio());setFormAberto(true);}} className="bg-[var(--primary)] text-white px-5 py-3 rounded-xl font-bold flex items-center h-fit"><Plus className="mr-2"/>Nova reclamação</button>}
       </div>
     </header>
-    <section className="panel-card mb-5">
+    {podeRegistrar&&<section className="panel-card mb-5">
       <h2 className="section-title mb-3">Filtros (valem para métricas, lista e PDF)</h2>
       <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-3">
         <label className="font-semibold text-sm">Mês<input type="month" className="field" value={filtros.mes} onChange={e=>setFiltros(v=>({...v,mes:e.target.value}))}/></label>
@@ -146,7 +146,7 @@ export default function Reclamacoes(){
         <button onClick={()=>setFiltros(filtrosVazios())} className="px-4 py-2 rounded-xl bg-[var(--bg-main)] font-bold text-sm">Limpar filtros</button>
         <p className="text-sm text-[var(--text-muted)]">{filtros.mes||filtros.setor.trim()||filtros.lider_id||filtros.tipo_id||filtros.cliente_id?<>Exibindo <strong>{metricas.total||0}</strong> reclamação(ões) no filtro atual.</>:'Sem filtros — base completa.'}</p>
       </div>
-    </section>
+    </section>}
     <section className="grid sm:grid-cols-2 xl:grid-cols-5 gap-4 mb-5"><Metrica titulo="Total" valor={metricas.total||0}/><Metrica titulo="Em aberto" valor={metricas.abertas||0} cor="text-amber-600"/><Metrica titulo="Atrasadas" valor={metricas.atrasadas||0} cor="text-red-600"/><Metrica titulo="Concluídas" valor={metricas.concluidas||0} cor="text-emerald-600"/><Metrica titulo="Tempo médio" valor={`${metricas.media_horas||0}h`} cor="text-blue-600"/></section>
     <section className="grid lg:grid-cols-2 xl:grid-cols-3 gap-5 mb-5">
       <Grafico titulo="Por setor"><Barras dados={metricas.por_setor||[]}/></Grafico>
