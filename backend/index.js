@@ -213,6 +213,17 @@ async function inicializarBancoEAdmin() {
         ativo BOOLEAN NOT NULL DEFAULT TRUE,
         criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+      CREATE TABLE IF NOT EXISTS setores_reclamacao (
+        id SERIAL PRIMARY KEY,
+        nome VARCHAR(150) UNIQUE NOT NULL,
+        ativo BOOLEAN NOT NULL DEFAULT TRUE,
+        criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE TABLE IF NOT EXISTS usuario_setores (
+        usuario_id INT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+        setor_id INT NOT NULL REFERENCES setores_reclamacao(id) ON DELETE CASCADE,
+        PRIMARY KEY (usuario_id, setor_id)
+      );
       CREATE TABLE IF NOT EXISTS configuracao_reclamacoes (
         id BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (id),
         prazo_verde_min INT NOT NULL DEFAULT 1440,
@@ -244,6 +255,7 @@ async function inicializarBancoEAdmin() {
       ALTER TABLE reclamacoes ADD COLUMN IF NOT EXISTS status VARCHAR(15) NOT NULL DEFAULT 'aberto';
       ALTER TABLE reclamacoes ADD COLUMN IF NOT EXISTS concluido_em TIMESTAMP;
       ALTER TABLE reclamacoes ADD COLUMN IF NOT EXISTS concluido_por INT REFERENCES usuarios(id) ON DELETE SET NULL;
+      ALTER TABLE reclamacoes ADD COLUMN IF NOT EXISTS setor_id INT REFERENCES setores_reclamacao(id) ON DELETE SET NULL;
       UPDATE reclamacoes SET prazo_em = criado_em + INTERVAL '24 hours' WHERE prazo_em IS NULL;
       CREATE TABLE IF NOT EXISTS categorias_acesso (
         id SERIAL PRIMARY KEY,
@@ -291,6 +303,8 @@ async function inicializarReclamacoes() {
   const tipos = ['Pão duro','Pão esfarelado','Pão com aspecto velho','Pão mofado','Produto sem validade','Entrega atrasada','Falta de itens','Entrega não realizada'];
   for (const nome of tipos) await pool.query('INSERT INTO tipos_reclamacao (nome) VALUES ($1) ON CONFLICT (nome) DO NOTHING', [nome]);
   for (const nome of CLIENTES_INICIAIS) await pool.query('INSERT INTO clientes_reclamacao (nome) VALUES ($1) ON CONFLICT (nome) DO NOTHING', [nome]);
+  const setores = ['Embalagem Manhã','Embalagem Tarde','Produção','Logística','Produção e Logística'];
+  for (const nome of setores) await pool.query('INSERT INTO setores_reclamacao (nome) VALUES ($1) ON CONFLICT (nome) DO NOTHING', [nome]);
 }
 
 async function inicializarModelosAvaliacao() {
@@ -666,17 +680,27 @@ app.delete('/api/mips/:id', verificarToken, async (req, res) => {
 });
 
 // USUÁRIOS
+async function salvarSetoresUsuario(usuarioId, setorIds) {
+  const ids = Array.isArray(setorIds) ? [...new Set(setorIds.map(Number).filter(Number.isInteger))] : [];
+  if (ids.length) {
+    const conf = await pool.query('SELECT COUNT(*)::int AS total FROM setores_reclamacao WHERE id=ANY($1::int[]) AND ativo=TRUE', [ids]);
+    if (Number(conf.rows[0].total) !== ids.length) throw Object.assign(new Error('Selecione setores válidos'), { status: 400 });
+  }
+  await pool.query('DELETE FROM usuario_setores WHERE usuario_id=$1', [usuarioId]);
+  for (const id of ids) await pool.query('INSERT INTO usuario_setores (usuario_id,setor_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [usuarioId, id]);
+}
 app.get('/api/usuarios', verificarToken, async (req, res) => {
   if (String(req.usuarioPerfil || '').toLowerCase() !== 'administrador') return res.status(403).json({ error: 'Acesso negado' });
   try {
-    const result = await pool.query(`SELECT u.id,u.nome,u.email,u.perfil,u.setor,u.cargo,u.lider_id,l.nome AS lider_nome,u.modelo_avaliacao_id,m.nome AS modelo_avaliacao_nome,u.categoria_acesso_id,ca.nome AS categoria_acesso_nome,u.deve_alterar_senha,u.criado_em FROM usuarios u LEFT JOIN usuarios l ON l.id=u.lider_id LEFT JOIN modelos_avaliacao m ON m.id=u.modelo_avaliacao_id LEFT JOIN categorias_acesso ca ON ca.id=u.categoria_acesso_id ORDER BY u.nome`);
-    res.json(result.rows);
+    const result = await pool.query(`SELECT u.id,u.nome,u.email,u.perfil,u.setor,u.cargo,u.lider_id,l.nome AS lider_nome,u.modelo_avaliacao_id,m.nome AS modelo_avaliacao_nome,u.categoria_acesso_id,ca.nome AS categoria_acesso_nome,u.deve_alterar_senha,u.criado_em,COALESCE((SELECT JSON_AGG(JSON_BUILD_OBJECT('id',s.id,'nome',s.nome) ORDER BY s.nome) FROM usuario_setores us JOIN setores_reclamacao s ON s.id=us.setor_id WHERE us.usuario_id=u.id),'[]'::json) AS setores FROM usuarios u LEFT JOIN usuarios l ON l.id=u.lider_id LEFT JOIN modelos_avaliacao m ON m.id=u.modelo_avaliacao_id LEFT JOIN categorias_acesso ca ON ca.id=u.categoria_acesso_id ORDER BY u.nome`);
+    const linhas = result.rows.map(r => ({ ...r, setor_ids: Array.isArray(r.setores) ? r.setores.map(s => s.id) : [] }));
+    res.json(linhas);
   } catch (error) { res.status(500).json({ error: 'Erro' }); }
 });
 
 app.post('/api/usuarios', verificarToken, async (req, res) => {
   if (String(req.usuarioPerfil || '').toLowerCase() !== 'administrador') return res.status(403).json({ error: 'Acesso negado' });
-  const { nome, email, senha, perfil, lider_id = null, modelo_avaliacao_id = null, categoria_acesso_id = null } = req.body;
+  const { nome, email, senha, perfil, lider_id = null, modelo_avaliacao_id = null, categoria_acesso_id = null, setor_ids = [] } = req.body;
   if (['leitor','editor','gerente'].includes(normalizarPerfil(perfil)) && !lider_id) return res.status(400).json({ error: 'Selecione o responsável pela avaliação deste usuário' });
   try {
     const hash = await bcrypt.hash(senha, 10);
@@ -691,6 +715,8 @@ app.post('/api/usuarios', verificarToken, async (req, res) => {
     if(['leitor','editor','gerente'].includes(normalizarPerfil(perfil)) && !modelo_avaliacao_id) return res.status(400).json({error:'Selecione a função/modelo de avaliação'});
     const recebeAvaliacao = ['leitor','editor','gerente'].includes(normalizarPerfil(perfil));
     const result = await pool.query('INSERT INTO usuarios (nome,email,senha,perfil,setor,cargo,lider_id,modelo_avaliacao_id,categoria_acesso_id,deve_alterar_senha) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,TRUE) RETURNING id', [nome,email,hash,perfil,nomeModelo,nomeModelo,recebeAvaliacao?Number(lider_id):null,recebeAvaliacao&&modelo_avaliacao_id?Number(modelo_avaliacao_id):null,categoria_acesso_id?Number(categoria_acesso_id):null]);
+    try { await salvarSetoresUsuario(result.rows[0].id, setor_ids); }
+    catch (e) { return res.status(e.status || 500).json({ error: e.message }); }
     res.status(201).json({ id: result.rows[0].id, mensagem: 'Criado!' });
   } catch (err) {
     if (err.code === '23505') return res.status(409).json({ error: 'Este usuário de acesso já está cadastrado' });
@@ -700,7 +726,7 @@ app.post('/api/usuarios', verificarToken, async (req, res) => {
 
 app.put('/api/usuarios/:id', verificarToken, async (req, res) => {
   if (String(req.usuarioPerfil).toLowerCase() !== 'administrador') return res.status(403).json({ error: 'Acesso negado' });
-  const { nome, email, perfil, lider_id = null, modelo_avaliacao_id = null, categoria_acesso_id = null } = req.body;
+  const { nome, email, perfil, lider_id = null, modelo_avaliacao_id = null, categoria_acesso_id = null, setor_ids = null } = req.body;
   const perfilNormalizado = String(perfil || '').toLowerCase();
   if (String(req.params.id) === String(req.usuarioId) && perfilNormalizado !== 'administrador') return res.status(400).json({ error: 'O Administrador não pode remover o próprio acesso administrativo' });
   if (!String(nome || '').trim() || !String(email || '').trim() || !['leitor','editor','gerente','administrador'].includes(perfilNormalizado)) return res.status(400).json({ error: 'Preencha nome, login e perfil corretamente' });
@@ -717,6 +743,10 @@ app.put('/api/usuarios/:id', verificarToken, async (req, res) => {
     const recebeAvaliacao=['leitor','editor','gerente'].includes(perfilNormalizado);
     const result=await pool.query('UPDATE usuarios SET nome=$1,email=$2,perfil=$3,setor=$4,cargo=$4,lider_id=$5,modelo_avaliacao_id=$6,categoria_acesso_id=$7 WHERE id=$8 RETURNING id',[nome.trim(),email.trim(),perfil,nomeModelo,recebeAvaliacao?Number(lider_id):null,recebeAvaliacao&&modelo_avaliacao_id?Number(modelo_avaliacao_id):null,categoria_acesso_id?Number(categoria_acesso_id):null,req.params.id]);
     if(!result.rows.length)return res.status(404).json({error:'Usuário não encontrado'});
+    if (setor_ids !== null && setor_ids !== undefined) {
+      try { await salvarSetoresUsuario(Number(req.params.id), setor_ids); }
+      catch (e) { return res.status(e.status || 500).json({ error: e.message }); }
+    }
     res.json({mensagem:'Perfil atualizado com sucesso.'});
   } catch (error) { if(error.code==='23505')return res.status(409).json({error:'Este login já está sendo utilizado'});res.status(500).json({error:'Erro ao atualizar usuário'}); }
 });
@@ -1029,61 +1059,85 @@ const podeRegistrarReclamacao = async (req) => {
 };
 
 app.get('/api/reclamacoes/catalogos', verificarToken, async (_req,res) => {
-  const [clientes,tipos,lideres,prazos]=await Promise.all([
+  const [clientes,tipos,lideres,setores,prazos]=await Promise.all([
     pool.query('SELECT id,nome FROM clientes_reclamacao WHERE ativo=TRUE ORDER BY nome'),
     pool.query('SELECT id,nome FROM tipos_reclamacao WHERE ativo=TRUE ORDER BY nome'),
-    pool.query("SELECT id,nome FROM usuarios WHERE LOWER(perfil)='editor' ORDER BY nome"),
+    pool.query(`SELECT u.id,u.nome,COALESCE((SELECT JSON_AGG(JSON_BUILD_OBJECT('id',s.id,'nome',s.nome) ORDER BY s.nome) FROM usuario_setores us JOIN setores_reclamacao s ON s.id=us.setor_id WHERE us.usuario_id=u.id),'[]'::json) AS setores FROM usuarios u WHERE LOWER(u.perfil)='editor' ORDER BY u.nome`),
+    pool.query('SELECT id,nome FROM setores_reclamacao WHERE ativo=TRUE ORDER BY nome'),
     pool.query('SELECT prazo_verde_min,prazo_amarelo_min,prazo_vermelho_min FROM configuracao_reclamacoes WHERE id=TRUE')
   ]);
-  res.json({clientes:clientes.rows,tipos:tipos.rows,lideres:lideres.rows,prazos:prazos.rows[0]});
+  res.json({clientes:clientes.rows,tipos:tipos.rows,lideres:lideres.rows,setores:setores.rows,prazos:prazos.rows[0]});
 });
 
-app.get('/api/reclamacoes/metricas', verificarToken, async (_req,res) => {
-  const [total,tipo,lider,mes,cliente,prioridade,status,prazos]=await Promise.all([
-    pool.query('SELECT COUNT(*)::int AS total FROM reclamacoes'),
-    pool.query(`SELECT t.nome,COUNT(*)::int AS total FROM reclamacoes r JOIN tipos_reclamacao t ON t.id=r.tipo_id GROUP BY t.id ORDER BY total DESC,t.nome`),
-    pool.query(`SELECT u.nome,COUNT(*)::int AS total FROM reclamacoes r JOIN usuarios u ON u.id=r.lider_responsavel_id GROUP BY u.id ORDER BY total DESC,u.nome`),
+app.get('/api/reclamacoes/metricas', verificarToken, async (req,res) => {
+  const mesFiltro = /^\d{4}-\d{2}$/.test(String(req.query.mes || '')) ? String(req.query.mes) : null;
+  const where = mesFiltro ? `WHERE TO_CHAR(r.criado_em,'YYYY-MM')=$1` : '';
+  const whereSimples = mesFiltro ? `WHERE TO_CHAR(criado_em,'YYYY-MM')=$1` : '';
+  const params = mesFiltro ? [mesFiltro] : [];
+  const [total,tipo,lider,setor,mes,cliente,prioridade,status,prazos]=await Promise.all([
+    pool.query(`SELECT COUNT(*)::int AS total FROM reclamacoes r ${where}`, params),
+    pool.query(`SELECT t.nome,COUNT(*)::int AS total FROM reclamacoes r JOIN tipos_reclamacao t ON t.id=r.tipo_id ${where} GROUP BY t.id,t.nome ORDER BY total DESC,t.nome`, params),
+    pool.query(`SELECT u.nome,COUNT(*)::int AS total FROM reclamacoes r JOIN usuarios u ON u.id=r.lider_responsavel_id ${where} GROUP BY u.id,u.nome ORDER BY total DESC,u.nome`, params),
+    pool.query(`SELECT COALESCE(s.nome,'Sem setor') AS nome,COUNT(*)::int AS total FROM reclamacoes r LEFT JOIN setores_reclamacao s ON s.id=r.setor_id ${where} GROUP BY s.nome ORDER BY total DESC,s.nome`, params),
     pool.query(`SELECT TO_CHAR(DATE_TRUNC('month',criado_em),'YYYY-MM') AS mes,COUNT(*)::int AS total FROM reclamacoes GROUP BY 1 ORDER BY 1`),
-    pool.query(`SELECT c.nome,COUNT(*)::int AS total FROM reclamacoes r JOIN clientes_reclamacao c ON c.id=r.cliente_id GROUP BY c.id ORDER BY total DESC,c.nome LIMIT 12`),
-    pool.query(`SELECT prioridade AS nome,COUNT(*)::int AS total FROM reclamacoes GROUP BY prioridade ORDER BY CASE prioridade WHEN 'vermelho' THEN 1 WHEN 'amarelo' THEN 2 ELSE 3 END`),
-    pool.query(`SELECT status AS nome,COUNT(*)::int AS total FROM reclamacoes GROUP BY status`),
-    pool.query(`SELECT COUNT(*) FILTER (WHERE status='aberto')::int AS abertas,COUNT(*) FILTER (WHERE status='aberto' AND prazo_em<NOW())::int AS atrasadas,COUNT(*) FILTER (WHERE status='concluido')::int AS concluidas,COALESCE(ROUND((AVG(EXTRACT(EPOCH FROM (concluido_em-criado_em))/3600) FILTER (WHERE concluido_em IS NOT NULL))::numeric,1),0) AS media_horas FROM reclamacoes`)
+    pool.query(`SELECT c.nome,COUNT(*)::int AS total FROM reclamacoes r JOIN clientes_reclamacao c ON c.id=r.cliente_id ${where} GROUP BY c.id,c.nome ORDER BY total DESC,c.nome LIMIT 12`, params),
+    pool.query(`SELECT r.prioridade AS nome,COUNT(*)::int AS total FROM reclamacoes r ${where} GROUP BY r.prioridade ORDER BY CASE r.prioridade WHEN 'vermelho' THEN 1 WHEN 'amarelo' THEN 2 ELSE 3 END`, params),
+    pool.query(`SELECT r.status AS nome,COUNT(*)::int AS total FROM reclamacoes r ${where} GROUP BY r.status`, params),
+    pool.query(`SELECT COUNT(*) FILTER (WHERE status='aberto')::int AS abertas,COUNT(*) FILTER (WHERE status='aberto' AND prazo_em<NOW())::int AS atrasadas,COUNT(*) FILTER (WHERE status='concluido')::int AS concluidas,COALESCE(ROUND((AVG(EXTRACT(EPOCH FROM (concluido_em-criado_em))/3600) FILTER (WHERE concluido_em IS NOT NULL))::numeric,1),0) AS media_horas FROM reclamacoes ${whereSimples}`, params)
   ]);
-  res.json({total:total.rows[0].total,por_tipo:tipo.rows,por_lider:lider.rows,por_mes:mes.rows,por_cliente:cliente.rows,por_prioridade:prioridade.rows,por_status:status.rows,...prazos.rows[0]});
+  res.json({mes:mesFiltro,total:total.rows[0].total,por_tipo:tipo.rows,por_lider:lider.rows,por_setor:setor.rows,por_mes:mes.rows,por_cliente:cliente.rows,por_prioridade:prioridade.rows,por_status:status.rows,...prazos.rows[0]});
 });
 
 app.get('/api/reclamacoes', verificarToken, async (req,res) => {
   if (!(await podeRegistrarReclamacao(req))) return res.status(403).json({error:'Seu perfil possui acesso apenas às métricas'});
-  const r=await pool.query(`SELECT r.*,c.nome AS cliente_nome,t.nome AS tipo_nome,l.nome AS lider_nome,u.nome AS criado_por_nome FROM reclamacoes r JOIN clientes_reclamacao c ON c.id=r.cliente_id JOIN tipos_reclamacao t ON t.id=r.tipo_id JOIN usuarios l ON l.id=r.lider_responsavel_id LEFT JOIN usuarios u ON u.id=r.criado_por ORDER BY r.criado_em DESC`);
+  const mesFiltro = /^\d{4}-\d{2}$/.test(String(req.query.mes || '')) ? String(req.query.mes) : null;
+  const params = mesFiltro ? [mesFiltro] : [];
+  const r=await pool.query(`SELECT r.*,c.nome AS cliente_nome,t.nome AS tipo_nome,l.nome AS lider_nome,s.nome AS setor_nome,u.nome AS criado_por_nome FROM reclamacoes r JOIN clientes_reclamacao c ON c.id=r.cliente_id JOIN tipos_reclamacao t ON t.id=r.tipo_id JOIN usuarios l ON l.id=r.lider_responsavel_id LEFT JOIN setores_reclamacao s ON s.id=r.setor_id LEFT JOIN usuarios u ON u.id=r.criado_por ${mesFiltro ? `WHERE TO_CHAR(r.criado_em,'YYYY-MM')=$1` : ''} ORDER BY r.criado_em DESC`, params);
   res.json(r.rows);
 });
 
+async function resolverSetorReclamacao(setor_id, liderId) {
+  if (setor_id) {
+    const s = await pool.query('SELECT id FROM setores_reclamacao WHERE id=$1 AND ativo=TRUE', [Number(setor_id)]);
+    if (!s.rows.length) throw Object.assign(new Error('Selecione um setor válido'), { status: 400 });
+    return Number(setor_id);
+  }
+  const primeiro = await pool.query('SELECT setor_id FROM usuario_setores WHERE usuario_id=$1 ORDER BY setor_id LIMIT 1', [Number(liderId)]);
+  return primeiro.rows.length ? Number(primeiro.rows[0].setor_id) : null;
+}
+
 app.post('/api/reclamacoes', verificarToken, async (req,res) => {
   if (!(await podeRegistrarReclamacao(req))) return res.status(403).json({error:'Acesso negado'});
-  const {cliente_id,tipo_id,lider_responsavel_id,descricao,anexos=[],prioridade='verde'}=req.body;
+  const {cliente_id,tipo_id,lider_responsavel_id,setor_id,descricao,anexos=[],prioridade='verde'}=req.body;
   if(!cliente_id||!tipo_id||!lider_responsavel_id||!String(descricao||'').trim())return res.status(400).json({error:'Preencha todos os campos obrigatórios'});
   if(!Array.isArray(anexos)||anexos.length>10)return res.status(400).json({error:'Envie no máximo 10 anexos'});
   if(!['verde','amarelo','vermelho'].includes(prioridade))return res.status(400).json({error:'Selecione uma prioridade válida'});
   const lider=await pool.query("SELECT id FROM usuarios WHERE id=$1 AND LOWER(perfil)='editor'",[Number(lider_responsavel_id)]);
   if(!lider.rows.length)return res.status(400).json({error:'Selecione um usuário com perfil Líder'});
+  let setorFinal=null;
+  try { setorFinal = await resolverSetorReclamacao(setor_id, Number(lider_responsavel_id)); }
+  catch (e) { return res.status(e.status || 500).json({ error: e.message }); }
   const cfg=(await pool.query('SELECT prazo_verde_min,prazo_amarelo_min,prazo_vermelho_min FROM configuracao_reclamacoes WHERE id=TRUE')).rows[0];
   const minutos={verde:cfg.prazo_verde_min,amarelo:cfg.prazo_amarelo_min,vermelho:cfg.prazo_vermelho_min}[prioridade];
-  const r=await pool.query(`INSERT INTO reclamacoes (cliente_id,assunto,tipo_id,lider_responsavel_id,descricao,anexos,prioridade,prazo_em,status,criado_por) VALUES ($1,'',$2,$3,$4,$5,$6,NOW()+($7||' minutes')::interval,'aberto',$8) RETURNING id`,[Number(cliente_id),Number(tipo_id),Number(lider_responsavel_id),String(descricao).trim(),JSON.stringify(anexos),prioridade,String(minutos),req.usuarioId]);
+  const r=await pool.query(`INSERT INTO reclamacoes (cliente_id,assunto,tipo_id,lider_responsavel_id,setor_id,descricao,anexos,prioridade,prazo_em,status,criado_por) VALUES ($1,'',$2,$3,$4,$5,$6,$7,NOW()+($8||' minutes')::interval,'aberto',$9) RETURNING id`,[Number(cliente_id),Number(tipo_id),Number(lider_responsavel_id),setorFinal,String(descricao).trim(),JSON.stringify(anexos),prioridade,String(minutos),req.usuarioId]);
   res.status(201).json(r.rows[0]);
 });
 
 app.put('/api/reclamacoes/:id', verificarToken, async (req,res)=>{
   if(!(await podeRegistrarReclamacao(req)))return res.status(403).json({error:'Acesso negado'});
-  const {cliente_id,tipo_id,lider_responsavel_id,descricao,anexos=[],prioridade}=req.body;
+  const {cliente_id,tipo_id,lider_responsavel_id,setor_id,descricao,anexos=[],prioridade}=req.body;
   if(!cliente_id||!tipo_id||!lider_responsavel_id||!String(descricao||'').trim())return res.status(400).json({error:'Preencha todos os campos obrigatórios'});
   if(!Array.isArray(anexos)||anexos.length>10)return res.status(400).json({error:'Envie no máximo 10 anexos'});
   if(!['verde','amarelo','vermelho'].includes(prioridade))return res.status(400).json({error:'Selecione uma prioridade válida'});
   const lider=await pool.query("SELECT id FROM usuarios WHERE id=$1 AND LOWER(perfil)='editor'",[Number(lider_responsavel_id)]);
   if(!lider.rows.length)return res.status(400).json({error:'Selecione um usuário com perfil Líder'});
+  let setorFinal=null;
+  try { setorFinal = await resolverSetorReclamacao(setor_id, Number(lider_responsavel_id)); }
+  catch (e) { return res.status(e.status || 500).json({ error: e.message }); }
   const cfg=(await pool.query('SELECT prazo_verde_min,prazo_amarelo_min,prazo_vermelho_min FROM configuracao_reclamacoes WHERE id=TRUE')).rows[0];
   const minutos={verde:cfg.prazo_verde_min,amarelo:cfg.prazo_amarelo_min,vermelho:cfg.prazo_vermelho_min}[prioridade];
-  const r=await pool.query(`UPDATE reclamacoes SET cliente_id=$1,tipo_id=$2,lider_responsavel_id=$3,descricao=$4,anexos=$5,prioridade=$6,
-    prazo_em=CASE WHEN status='aberto' THEN criado_em+($7||' minutes')::interval ELSE prazo_em END WHERE id=$8 RETURNING *`,[Number(cliente_id),Number(tipo_id),Number(lider_responsavel_id),String(descricao).trim(),JSON.stringify(anexos),prioridade,String(minutos),req.params.id]);
+  const r=await pool.query(`UPDATE reclamacoes SET cliente_id=$1,tipo_id=$2,lider_responsavel_id=$3,setor_id=$4,descricao=$5,anexos=$6,prioridade=$7,
+    prazo_em=CASE WHEN status='aberto' THEN criado_em+($8||' minutes')::interval ELSE prazo_em END WHERE id=$9 RETURNING *`,[Number(cliente_id),Number(tipo_id),Number(lider_responsavel_id),setorFinal,String(descricao).trim(),JSON.stringify(anexos),prioridade,String(minutos),req.params.id]);
   if(!r.rows.length)return res.status(404).json({error:'Reclamação não encontrada'});res.json(r.rows[0]);
 });
 
@@ -1111,7 +1165,7 @@ app.delete('/api/reclamacoes/:id', verificarToken, async (req,res) => {
   await pool.query('DELETE FROM reclamacoes WHERE id=$1',[req.params.id]);res.json({mensagem:'Reclamação excluída.'});
 });
 
-for (const [rota,tabela] of [['clientes','clientes_reclamacao'],['tipos','tipos_reclamacao']]) {
+for (const [rota,tabela] of [['clientes','clientes_reclamacao'],['tipos','tipos_reclamacao'],['setores','setores_reclamacao']]) {
   app.post(`/api/configuracoes/reclamacoes/${rota}`,verificarToken,async(req,res)=>{if(normalizarPerfil(req.usuarioPerfil)!=='administrador')return res.status(403).json({error:'Acesso negado'});const nome=String(req.body?.nome||'').trim();if(nome.length<2)return res.status(400).json({error:'Informe um nome válido'});try{const r=await pool.query(`INSERT INTO ${tabela} (nome,ativo) VALUES ($1,TRUE) ON CONFLICT (nome) DO UPDATE SET ativo=TRUE RETURNING *`,[nome]);res.status(201).json(r.rows[0]);}catch(e){res.status(500).json({error:'Erro ao salvar cadastro'});}});
   app.delete(`/api/configuracoes/reclamacoes/${rota}/:id`,verificarToken,async(req,res)=>{if(normalizarPerfil(req.usuarioPerfil)!=='administrador')return res.status(403).json({error:'Acesso negado'});await pool.query(`UPDATE ${tabela} SET ativo=FALSE WHERE id=$1`,[req.params.id]);res.json({mensagem:'Cadastro desativado.'});});
   app.put(`/api/configuracoes/reclamacoes/${rota}/:id`,verificarToken,async(req,res)=>{if(normalizarPerfil(req.usuarioPerfil)!=='administrador')return res.status(403).json({error:'Acesso negado'});const nome=String(req.body?.nome||'').trim();if(nome.length<2)return res.status(400).json({error:'Informe um nome válido'});try{const r=await pool.query(`UPDATE ${tabela} SET nome=$1 WHERE id=$2 AND ativo=TRUE RETURNING *`,[nome,req.params.id]);if(!r.rows.length)return res.status(404).json({error:'Cadastro não encontrado'});res.json(r.rows[0]);}catch(e){if(e.code==='23505')return res.status(409).json({error:'Já existe um cadastro com esse nome'});res.status(500).json({error:'Erro ao editar cadastro'});}});

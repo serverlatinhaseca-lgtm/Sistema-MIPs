@@ -11,6 +11,8 @@ export default function Usuarios() {
   const [usuarios, setUsuarios] = useState([]);
   const [modelos, setModelos] = useState([]);
   const [categorias, setCategorias] = useState([]);
+  const [setores, setSetores] = useState([]);
+  const [setorIds, setSetorIds] = useState([]);
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
@@ -41,6 +43,10 @@ export default function Usuarios() {
       setModelos(modelosRes.data);
       const categoriasRes = await axios.get(`${API}/api/categorias-acesso`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
       setCategorias(categoriasRes.data);
+      try {
+        const setoresRes = await axios.get(`${API}/api/reclamacoes/catalogos`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
+        setSetores(setoresRes.data.setores || []);
+      } catch { setSetores([]); }
     } catch (err) {
       console.error(err);
     }
@@ -67,6 +73,7 @@ export default function Usuarios() {
           lider_id: ["Leitor", "Editor", "Gerente"].includes(perfil) ? Number(liderId) : null,
           modelo_avaliacao_id: modeloId ? Number(modeloId) : null,
           categoria_acesso_id: categoriaId ? Number(categoriaId) : null,
+          setor_ids: setorIds.map(Number),
         },
         {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
@@ -80,6 +87,7 @@ export default function Usuarios() {
       setLiderId("");
       setModeloId("");
       setCategoriaId("");
+      setSetorIds([]);
       setEditandoUsuarioId(null);
       carregarUsuarios();
     } catch (err) {
@@ -87,8 +95,8 @@ export default function Usuarios() {
     }
   };
 
-  const abrirNovo = () => { setEditandoUsuarioId(null);setNome("");setEmail("");setSenha("");setPerfil("Leitor");setLiderId("");setModeloId("");setCategoriaId("");setMostrarModal(true); };
-  const abrirEdicao = (u) => { setEditandoUsuarioId(u.id);setNome(u.nome||"");setEmail(u.email||"");setSenha("");setPerfil(u.perfil||"Leitor");setLiderId(String(u.lider_id||""));setModeloId(String(u.modelo_avaliacao_id||""));setCategoriaId(String(u.categoria_acesso_id||""));setMostrarModal(true); };
+  const abrirNovo = () => { setEditandoUsuarioId(null);setNome("");setEmail("");setSenha("");setPerfil("Leitor");setLiderId("");setModeloId("");setCategoriaId("");setSetorIds([]);setMostrarModal(true); };
+  const abrirEdicao = (u) => { setEditandoUsuarioId(u.id);setNome(u.nome||"");setEmail(u.email||"");setSenha("");setPerfil(u.perfil||"Leitor");setLiderId(String(u.lider_id||""));setModeloId(String(u.modelo_avaliacao_id||""));setCategoriaId(String(u.categoria_acesso_id||""));setSetorIds(Array.isArray(u.setor_ids)?u.setor_ids.map(String):(Array.isArray(u.setores)?u.setores.map(s=>String(s.id)):[]));setMostrarModal(true); };
 
   const handleExcluir = async (id) => {
     if (!confirm("Deseja realmente excluir este usuário?")) return;
@@ -236,6 +244,16 @@ export default function Usuarios() {
                   </select>
                 </div>}
                 <div><label className="block text-sm font-medium mb-1 text-[var(--text-muted)]">Categoria adicional de acesso</label><select value={categoriaId} onChange={e=>setCategoriaId(e.target.value)} className="w-full p-3 rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)] text-[var(--text-main)]"><option value="">Somente permissões do perfil</option>{categorias.map(c=><option key={c.id} value={c.id}>{c.nome}</option>)}</select><p className="text-xs text-[var(--text-muted)] mt-1">Categorias são criadas na Central de configurações.</p></div>
+                <div>
+                  <label className="block text-sm font-medium mb-1 text-[var(--text-muted)]">
+                    Setores (pode selecionar mais de um)
+                  </label>
+                  <div className="max-h-36 overflow-auto border border-[var(--border-color)] rounded-xl p-2 space-y-1 bg-[var(--bg-main)]">
+                    {setores.map(s=><label key={s.id} className="flex items-center gap-2 text-sm p-1.5 rounded-lg hover:bg-black/5 cursor-pointer"><input type="checkbox" checked={setorIds.includes(String(s.id))} onChange={e=>setSetorIds(v=>e.target.checked?[...v,String(s.id)]:v.filter(x=>x!==String(s.id)))}/>{s.nome}</label>)}
+                    {!setores.length&&<p className="text-xs text-[var(--text-muted)] p-1">Nenhum setor cadastrado. Cadastre na Central de configurações → Reclamações.</p>}
+                  </div>
+                  {!!setorIds.length&&<p className="text-xs text-[var(--text-muted)] mt-1">{setorIds.length} setor(es) selecionado(s).</p>}
+                </div>
                 <div className="flex gap-3 pt-2">
                   <button
                     type="button"
@@ -274,11 +292,9 @@ export default function Usuarios() {
                 <th className="p-4 font-bold text-[var(--text-muted)] text-sm">
                   Função / modelo
                 </th>
+                <th className="p-4 font-bold text-[var(--text-muted)] text-sm">Setores</th>
                 <th className="p-4 font-bold text-[var(--text-muted)] text-sm">
                   Líder
-                </th>
-                <th className="p-4 font-bold text-[var(--text-muted)] text-sm">
-                  Modelo
                 </th>
                 <th className="p-4 font-bold text-[var(--text-muted)] text-sm">Categoria de acesso</th>
                 <th className="p-4 font-bold text-[var(--text-muted)] text-sm text-right">
@@ -302,13 +318,13 @@ export default function Usuarios() {
                   <td className="p-4 text-[var(--text-muted)]">
                     {u.modelo_avaliacao_nome || "—"}
                   </td>
-                  <td className="p-4 text-[var(--text-muted)]">{u.categoria_acesso_nome || "—"}</td>
+                  <td className="p-4 text-[var(--text-muted)]">
+                    {(Array.isArray(u.setores) && u.setores.length ? u.setores.map(s=>s.nome).join(', ') : "—")}
+                  </td>
                   <td className="p-4 text-[var(--text-muted)]">
                     {u.lider_nome || "—"}
                   </td>
-                  <td className="p-4 text-[var(--text-muted)]">
-                    {u.modelo_avaliacao_nome || "—"}
-                  </td>
+                  <td className="p-4 text-[var(--text-muted)]">{u.categoria_acesso_nome || "—"}</td>
                   <td className="p-4 text-right">
                     <button title="Editar usuário" onClick={() => abrirEdicao(u)} className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/30 rounded-lg transition-colors"><Pencil size={18} /></button>
                     <button title="Redefinir senha" onClick={() => {setUsuarioSenha(u);setSenhaTemporaria("");setSenhaRedefinida(false);}} className="p-2 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30 rounded-lg transition-colors"><KeyRound size={18} /></button>
