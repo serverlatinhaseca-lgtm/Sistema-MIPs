@@ -78,6 +78,12 @@ services:
     networks:
       - mips-net
     restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "nslookup mips.lan 127.0.0.1 >/dev/null 2>&1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   backup:
     build: ./backup
@@ -90,8 +96,6 @@ services:
       - TZ=America/Sao_Paulo
     volumes:
       - ./backups:/backups
-      # Credencial do Drive: só existe no servidor (backup/rclone.conf, gitignored).
-      - ./backup/rclone.conf:/etc/rclone/rclone.conf:ro
     networks:
       - mips-net
     depends_on:
