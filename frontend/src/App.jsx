@@ -13,12 +13,15 @@ import Configuracoes from './pages/Configuracoes';
 import MeuDesempenho from './pages/MeuDesempenho';
 import AvaliacaoLoginModal from './components/AvaliacaoLoginModal';
 import NotificationBell from './components/NotificationBell';
+import NotificationPopup from './components/NotificationPopup';
 import LinoChat from './components/LinoChat';
 import FerramentasAdmin from './pages/FerramentasAdmin';
 import Reclamacoes from './pages/Reclamacoes';
 import ASO from './pages/ASO';
 import LocaisExame from './pages/LocaisExame';
-import AgendamentosASO from './pages/AgendamentosASO';
+import Atendimento from './pages/Atendimento';
+import Comunicados from './pages/Comunicados';
+import Notificacoes from './pages/Notificacoes';
 import InstallPrompt from './components/InstallPrompt';
 import MobileNav from './components/MobileNav';
 
@@ -33,7 +36,7 @@ function RotaPrivada({ children, perfisPermitidos }) {
   }
   const user = sessao.user || {};
   if (user.deve_alterar_senha && window.location.pathname !== '/alterar-senha') return <Navigate to="/alterar-senha" replace />;
-  return <><AvaliacaoLoginModal /><NotificationBell modo="fixo" /><LinoChat />{children}</>;
+  return <><AvaliacaoLoginModal /><NotificationBell modo="fixo" /><NotificationPopup /><LinoChat />{children}</>;
 }
 
 export default function App() {
@@ -58,7 +61,9 @@ export default function App() {
         <Route path="/reclamacoes" element={<RotaPrivada><Reclamacoes /></RotaPrivada>} />
         <Route path="/aso" element={<RotaPrivada><ASO /></RotaPrivada>} />
         <Route path="/locais-exame" element={<RotaPrivada perfisPermitidos={['administrador', 'gerente']}><LocaisExame /></RotaPrivada>} />
-        <Route path="/agendamentos-aso" element={<RotaPrivada perfisPermitidos={['administrador', 'gerente']}><AgendamentosASO /></RotaPrivada>} />
+        <Route path="/atendimento" element={<RotaPrivada><Atendimento /></RotaPrivada>} />
+        <Route path="/comunicados" element={<RotaPrivada><Comunicados /></RotaPrivada>} />
+        <Route path="/notificacoes" element={<RotaPrivada><Notificacoes /></RotaPrivada>} />
         <Route path="/ferramentas/etiquetas" element={<RotaPrivada perfisPermitidos={['administrador']}><FerramentasAdmin /></RotaPrivada>} />
         <Route path="/ferramentas/caixas" element={<RotaPrivada perfisPermitidos={['administrador']}><FerramentasAdmin /></RotaPrivada>} />
         <Route path="*" element={<Navigate to="/" replace />} />

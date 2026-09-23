@@ -14,6 +14,7 @@ const { prepararAvaliacao } = require('./avaliacoes');
 const { calcularASO, classificarFaixa, normalizarFaixaPlanilha, FAIXAS_VALIDAS } = require('./aso');
 const XLSX = (() => { try { return require('xlsx'); } catch { return null; } })();
 const { excelSerialToISO } = require('./aso');
+const { CATEGORIAS_TICKET, STATUS_TICKET, PRIORIDADES_TICKET, SLA_HORAS, numeroTicket, prazoSLA } = require('./tickets');
 const MODELOS_AVALIACAO = require('./modelos-avaliacao.json');
 const CLIENTES_INICIAIS = require('./clientes-iniciais.json');
 const executarArquivo = promisify(execFile);
@@ -326,6 +327,7 @@ async function inicializarBancoEAdmin() {
     await inicializarAjuda();
     await inicializarIngredientesSugestao();
     await inicializarASO();
+    await inicializarFase2();
 
     const check = await pool.query("SELECT * FROM usuarios WHERE email = 'admin'");
     if (check.rows.length === 0) {
@@ -1790,6 +1792,18 @@ app.put('/api/asos/:id', verificarToken, async (req, res) => {
     await criarNotificacao(r.rows[0].usuario_id, 'aso_faixa', `ASO mudou para ${c.faixa}`,
       `${r.rows[0].nome_funcionario}: ${faixaAntes} → ${c.faixa}`, '/aso', `aso:${r.rows[0].id}:${c.faixa}`);
   }
+  if (c.vencido) {
+    if (r.rows[0].usuario_id) {
+      await criarNotificacao(r.rows[0].usuario_id, 'aso_vencido', 'ASO vencido',
+        `${r.rows[0].nome_funcionario}: vencimento ${String(venc).slice(0, 10)} — procure o RH`, '/aso', `aso:${r.rows[0].id}:vencido`);
+    }
+    const rhs = await pool.query(`SELECT id FROM usuarios WHERE LOWER(perfil) IN ('administrador','gerente')`);
+    for (const rh of rhs.rows) {
+      if (Number(rh.id) === Number(req.usuarioId)) continue;
+      await criarNotificacao(rh.id, 'aso_vencido', 'ASO vencido',
+        `${r.rows[0].nome_funcionario}: vencimento ${String(venc).slice(0, 10)}`, '/aso', `aso:${r.rows[0].id}:vencido-rh`);
+    }
+  }
   res.json(r.rows[0]);
 });
 
@@ -1976,6 +1990,342 @@ app.post('/api/agendamentos-aso/:id/confirmar', verificarToken, async (req, res)
   const upd = await pool.query('UPDATE agendamentos_aso SET presenca_confirmada=TRUE WHERE id=$1 RETURNING *', [req.params.id]);
   await registrarLog(req.usuarioId, 'confirmar_presenca', 'agendamento_aso', req.params.id, ag.nome_funcionario);
   res.json(upd.rows[0]);
+});
+
+// ============ FASE 2 — Central de Notificações + Chat/Tickets (23/09/2026) ============
+async function inicializarFase2() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS comunicados (
+      id SERIAL PRIMARY KEY,
+      titulo VARCHAR(220) NOT NULL,
+      mensagem TEXT NOT NULL DEFAULT '',
+      prioridade VARCHAR(10) NOT NULL DEFAULT 'Normal',
+      segmento VARCHAR(20) NOT NULL DEFAULT 'todos',
+      agendado_para TIMESTAMP,
+      enviado_em TIMESTAMP,
+      criado_por INT REFERENCES usuarios(id) ON DELETE SET NULL,
+      criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS comunicado_leituras (
+      comunicado_id INT NOT NULL REFERENCES comunicados(id) ON DELETE CASCADE,
+      usuario_id INT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+      lido_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (comunicado_id, usuario_id)
+    );
+    CREATE TABLE IF NOT EXISTS notificacoes_config (
+      usuario_id INT PRIMARY KEY REFERENCES usuarios(id) ON DELETE CASCADE,
+      prefs JSONB NOT NULL DEFAULT '{}'::jsonb,
+      atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE SEQUENCE IF NOT EXISTS ticket_num_seq;
+    CREATE TABLE IF NOT EXISTS tickets (
+      id SERIAL PRIMARY KEY,
+      numero VARCHAR(20) UNIQUE NOT NULL,
+      usuario_id INT REFERENCES usuarios(id) ON DELETE SET NULL,
+      nome_solicitante VARCHAR(150) NOT NULL DEFAULT '',
+      categoria VARCHAR(20) NOT NULL DEFAULT 'Outro',
+      titulo VARCHAR(220) NOT NULL,
+      descricao TEXT NOT NULL DEFAULT '',
+      status VARCHAR(25) NOT NULL DEFAULT 'Aberto',
+      prioridade VARCHAR(10) NOT NULL DEFAULT 'Média',
+      prazo_sla TIMESTAMP,
+      fechado_em TIMESTAMP,
+      criado_por INT REFERENCES usuarios(id) ON DELETE SET NULL,
+      criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS tickets_status_idx ON tickets (status);
+    CREATE INDEX IF NOT EXISTS tickets_usuario_idx ON tickets (usuario_id);
+    ALTER TABLE tickets ADD COLUMN IF NOT EXISTS criado_por INT REFERENCES usuarios(id) ON DELETE SET NULL;
+    CREATE TABLE IF NOT EXISTS ticket_mensagens (
+      id SERIAL PRIMARY KEY,
+      ticket_id INT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+      usuario_id INT REFERENCES usuarios(id) ON DELETE SET NULL,
+      nome_autor VARCHAR(150) NOT NULL DEFAULT '',
+      texto TEXT NOT NULL DEFAULT '',
+      anexo_url VARCHAR(255) NOT NULL DEFAULT '',
+      anexo_nome VARCHAR(220) NOT NULL DEFAULT '',
+      anexo_tipo VARCHAR(100) NOT NULL DEFAULT '',
+      criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS ticket_mensagens_ticket_idx ON ticket_mensagens (ticket_id, criado_em);
+  `);
+}
+
+const TIPOS_NOTIF_OBRIGATORIOS = new Set(['aso_vencido', 'comunicado_oficial']);
+
+// Anexos do chat: PDF/DOCX/XLSX/JPG/PNG/MP4/áudio até 50MB.
+const chatUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, uploadDir),
+    filename: (req, file, cb) => {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      const safeName = String(file.originalname || 'anexo').replace(/[^a-zA-Z0-9.-]/g, '_');
+      cb(null, 'chat-' + uniqueSuffix + '-' + safeName);
+    }
+  }),
+  limits: { fileSize: 50 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const ok = /pdf|msword|officedocument|spreadsheet|excel|jpeg|png|jpg|mp4|audio|video|octet-stream/i.test(file.mimetype || '')
+      || /\.(pdf|docx?|xlsx?|jpe?g|png|mp4|webm|mp3|m4a|ogg|wav)$/i.test(file.originalname || '');
+    if (ok) cb(null, true);
+    else cb(new Error('Tipo de arquivo não permitido.'));
+  }
+});
+
+async function prefsNotificacao(usuarioId) {
+  const r = await pool.query('SELECT prefs FROM notificacoes_config WHERE usuario_id=$1', [usuarioId]);
+  return r.rows[0]?.prefs || {};
+}
+
+async function criarNotificacaoRespeitandoPrefs(usuarioId, tipo, titulo, mensagem, link, referencia) {
+  if (TIPOS_NOTIF_OBRIGATORIOS.has(tipo)) return criarNotificacao(usuarioId, tipo, titulo, mensagem, link, referencia);
+  const prefs = await prefsNotificacao(usuarioId);
+  if (prefs[tipo] === false) return; // usuário desativou este tipo
+  return criarNotificacao(usuarioId, tipo, titulo, mensagem, link, referencia);
+}
+
+async function enviarComunicado(id) {
+  const c = await pool.query('SELECT * FROM comunicados WHERE id=$1', [id]);
+  if (!c.rows.length || c.rows[0].enviado_em) return null;
+  const com = c.rows[0];
+  const dest = com.segmento === 'todos'
+    ? await pool.query('SELECT id FROM usuarios')
+    : await pool.query('SELECT id FROM usuarios WHERE LOWER(perfil)=$1', [String(com.segmento).toLowerCase()]);
+  const pri = String(com.prioridade || 'Normal');
+  for (const u of dest.rows) {
+    await criarNotificacao(Number(u.id), 'comunicado_oficial', `${pri === 'Normal' ? '📢' : pri === 'Alta' ? '🔔' : '🚨'} ${com.titulo}`,
+      String(com.mensagem || '').slice(0, 200), '/comunicados', `comunicado:${com.id}`);
+  }
+  await pool.query('UPDATE comunicados SET enviado_em=NOW() WHERE id=$1', [id]);
+  await registrarLog(com.criado_por, 'enviar', 'comunicado', id, `${dest.rows.length} destinatários`);
+  return dest.rows.length;
+}
+
+// Despacha comunicados agendados (verificação a cada minuto).
+setInterval(async () => {
+  try {
+    const r = await pool.query(`SELECT id FROM comunicados WHERE enviado_em IS NULL AND agendado_para IS NOT NULL AND agendado_para <= NOW() LIMIT 10`);
+    for (const row of r.rows) await enviarComunicado(row.id);
+  } catch (e) { console.error('Erro no agendador de comunicados:', e.message); }
+}, 60 * 1000);
+
+// ---- Preferências de notificação ----
+app.get('/api/notificacoes/config', verificarToken, async (req, res) => {
+  const prefs = await prefsNotificacao(req.usuarioId);
+  res.json({ prefs, obrigatorios: [...TIPOS_NOTIF_OBRIGATORIOS] });
+});
+
+app.put('/api/notificacoes/config', verificarToken, async (req, res) => {
+  const prefs = req.body?.prefs && typeof req.body.prefs === 'object' ? req.body.prefs : {};
+  const limpas = {};
+  for (const [k, v] of Object.entries(prefs)) {
+    if (TIPOS_NOTIF_OBRIGATORIOS.has(k)) continue; // ASO vencido e comunicados oficiais não podem ser desativados
+    limpas[String(k).slice(0, 40)] = Boolean(v);
+  }
+  await pool.query(
+    `INSERT INTO notificacoes_config (usuario_id,prefs) VALUES ($1,$2) ON CONFLICT (usuario_id) DO UPDATE SET prefs=$2,atualizado_em=NOW()`,
+    [req.usuarioId, JSON.stringify(limpas)]
+  );
+  res.json({ prefs: limpas });
+});
+
+// ---- Comunicados (RH) ----
+const SEGMENTOS_COMUNICADO = ['todos', 'leitor', 'editor', 'gerente', 'administrador'];
+const PRIORIDADES_COMUNICADO = ['Normal', 'Alta', 'Urgente'];
+
+app.get('/api/comunicados', verificarToken, async (req, res) => {
+  if (ehRH(req.usuarioPerfil)) {
+    const r = await pool.query(
+      `SELECT c.*, u.nome AS criado_por_nome,
+       (SELECT COUNT(*)::int FROM comunicado_leituras l WHERE l.comunicado_id=c.id) AS leituras,
+       (SELECT COUNT(*)::int FROM usuarios) AS destinatarios
+       FROM comunicados c LEFT JOIN usuarios u ON u.id=c.criado_por ORDER BY c.criado_em DESC LIMIT 100`
+    );
+    return res.json(r.rows);
+  }
+  const r = await pool.query(
+    `SELECT c.*, (l.usuario_id IS NOT NULL) AS lido FROM comunicados c
+     LEFT JOIN comunicado_leituras l ON l.comunicado_id=c.id AND l.usuario_id=$1
+     WHERE c.enviado_em IS NOT NULL AND (c.segmento='todos' OR LOWER(c.segmento)=LOWER($2))
+     ORDER BY c.enviado_em DESC LIMIT 100`,
+    [req.usuarioId, req.usuarioPerfil]
+  );
+  res.json(r.rows);
+});
+
+app.post('/api/comunicados', verificarToken, async (req, res) => {
+  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  const b = req.body || {};
+  const titulo = String(b.titulo || '').trim();
+  if (titulo.length < 3) return res.status(400).json({ error: 'Informe o título do comunicado' });
+  const prioridade = PRIORIDADES_COMUNICADO.includes(b.prioridade) ? b.prioridade : 'Normal';
+  const segmento = SEGMENTOS_COMUNICADO.includes(String(b.segmento)) ? String(b.segmento) : 'todos';
+  const agendado = b.agendado_para || null;
+  const r = await pool.query(
+    `INSERT INTO comunicados (titulo,mensagem,prioridade,segmento,agendado_para,criado_por) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+    [titulo, String(b.mensagem || ''), prioridade, segmento, agendado, req.usuarioId]
+  );
+  await registrarLog(req.usuarioId, 'criar', 'comunicado', r.rows[0].id, `${titulo} [${prioridade}/${segmento}]${agendado ? ` agendado ${agendado}` : ''}`);
+  if (!agendado) await enviarComunicado(r.rows[0].id);
+  res.status(201).json(r.rows[0]);
+});
+
+app.post('/api/comunicados/:id/enviar', verificarToken, async (req, res) => {
+  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  const total = await enviarComunicado(req.params.id);
+  if (total === null) return res.status(404).json({ error: 'Comunicado não encontrado ou já enviado' });
+  res.json({ destinatarios: total });
+});
+
+app.post('/api/comunicados/:id/reenviar', verificarToken, async (req, res) => {
+  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  const c = await pool.query('SELECT * FROM comunicados WHERE id=$1', [req.params.id]);
+  if (!c.rows.length) return res.status(404).json({ error: 'Comunicado não encontrado' });
+  await pool.query('UPDATE comunicados SET enviado_em=NULL WHERE id=$1', [req.params.id]);
+  const total = await enviarComunicado(req.params.id);
+  res.json({ destinatarios: total });
+});
+
+app.get('/api/comunicados/:id/leituras', verificarToken, async (req, res) => {
+  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  const r = await pool.query(
+    `SELECT u.nome, l.lido_em FROM comunicado_leituras l JOIN usuarios u ON u.id=l.usuario_id WHERE l.comunicado_id=$1 ORDER BY l.lido_em DESC`,
+    [req.params.id]
+  );
+  res.json(r.rows);
+});
+
+app.post('/api/comunicados/:id/ler', verificarToken, async (req, res) => {
+  await pool.query('INSERT INTO comunicado_leituras (comunicado_id,usuario_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [req.params.id, req.usuarioId]);
+  res.json({ ok: true });
+});
+
+// ---- Tickets / Chat interno ----
+app.get('/api/tickets', verificarToken, async (req, res) => {
+  try {
+    const { status, categoria, busca } = req.query;
+    const conds = [], params = [];
+    if (!ehRH(req.usuarioPerfil)) { params.push(req.usuarioId); conds.push(`t.usuario_id=$${params.length}`); }
+    if (status && STATUS_TICKET.includes(String(status))) { params.push(String(status)); conds.push(`t.status=$${params.length}`); }
+    if (categoria && CATEGORIAS_TICKET.includes(String(categoria))) { params.push(String(categoria)); conds.push(`t.categoria=$${params.length}`); }
+    if (busca) {
+      params.push(`%${String(busca).trim()}%`);
+      conds.push(`(t.numero ILIKE $${params.length} OR t.titulo ILIKE $${params.length} OR EXISTS (SELECT 1 FROM ticket_mensagens m WHERE m.ticket_id=t.id AND m.texto ILIKE $${params.length}))`);
+    }
+    const r = await pool.query(
+      `SELECT t.*, (SELECT COUNT(*)::int FROM ticket_mensagens m WHERE m.ticket_id=t.id) AS mensagens,
+       CASE WHEN t.prazo_sla IS NOT NULL AND t.status NOT IN ('Resolvido','Fechado') AND t.prazo_sla < NOW() THEN TRUE ELSE FALSE END AS sla_estourado
+       FROM tickets t ${conds.length ? 'WHERE ' + conds.join(' AND ') : ''} ORDER BY t.atualizado_em DESC LIMIT 200`,
+      params
+    );
+    res.json(r.rows);
+  } catch (e) { res.status(500).json({ error: 'Erro ao listar tickets' }); }
+});
+
+app.post('/api/tickets', verificarToken, async (req, res) => {
+  const b = req.body || {};
+  const titulo = String(b.titulo || '').trim();
+  if (titulo.length < 3) return res.status(400).json({ error: 'Informe o assunto' });
+  const categoria = CATEGORIAS_TICKET.includes(b.categoria) ? b.categoria : 'Outro';
+  const prioridade = PRIORIDADES_TICKET.includes(b.prioridade) ? b.prioridade : 'Média';
+  const seq = (await pool.query(`SELECT nextval('ticket_num_seq') AS n`)).rows[0].n;
+  const ano = new Date().getFullYear();
+  const numero = numeroTicket(Number(seq), ano);
+  const prazo = prazoSLA(prioridade);
+  const u = await pool.query('SELECT nome FROM usuarios WHERE id=$1', [req.usuarioId]);
+  const nome = u.rows[0]?.nome || '';
+  const r = await pool.query(
+    `INSERT INTO tickets (numero,usuario_id,nome_solicitante,categoria,titulo,descricao,prioridade,prazo_sla,criado_por)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+    [numero, req.usuarioId, nome, categoria, titulo, String(b.descricao || ''), prioridade, prazo, req.usuarioId]
+  );
+  await registrarLog(req.usuarioId, 'criar', 'ticket', r.rows[0].id, `${numero} ${titulo}`);
+  const rhs = await pool.query(`SELECT id FROM usuarios WHERE LOWER(perfil) IN ('administrador','gerente')`);
+  for (const rh of rhs.rows) {
+    if (Number(rh.id) === Number(req.usuarioId)) continue;
+    await criarNotificacaoRespeitandoPrefs(rh.id, 'chat_novo', `Novo ticket ${numero}`, `${titulo} · ${prioridade}`, '/atendimento', `ticket:${r.rows[0].id}`);
+  }
+  res.status(201).json(r.rows[0]);
+});
+
+app.get('/api/tickets/:id', verificarToken, async (req, res) => {
+  const t = await pool.query('SELECT * FROM tickets WHERE id=$1', [req.params.id]);
+  if (!t.rows.length) return res.status(404).json({ error: 'Ticket não encontrado' });
+  const tick = t.rows[0];
+  if (!ehRH(req.usuarioPerfil) && Number(tick.usuario_id) !== Number(req.usuarioId)) {
+    return res.status(403).json({ error: 'Você só vê os próprios tickets' });
+  }
+  const m = await pool.query(
+    'SELECT m.*, u.perfil AS autor_perfil FROM ticket_mensagens m LEFT JOIN usuarios u ON u.id=m.usuario_id WHERE m.ticket_id=$1 ORDER BY m.criado_em',
+    [req.params.id]
+  );
+  res.json({ ...tick, mensagens: m.rows });
+});
+
+app.post('/api/tickets/:id/mensagens', verificarToken, chatUpload.single('anexo'), async (req, res) => {
+  const t = await pool.query('SELECT * FROM tickets WHERE id=$1', [req.params.id]);
+  if (!t.rows.length) return res.status(404).json({ error: 'Ticket não encontrado' });
+  const tick = t.rows[0];
+  if (!ehRH(req.usuarioPerfil) && Number(tick.usuario_id) !== Number(req.usuarioId)) {
+    return res.status(403).json({ error: 'Você só participa dos próprios tickets' });
+  }
+  if (['Resolvido', 'Fechado'].includes(tick.status) && !ehRH(req.usuarioPerfil)) {
+    return res.status(400).json({ error: 'Ticket encerrado. Abra um novo se precisar.' });
+  }
+  const texto = String(req.body?.texto || '').trim();
+  const anexo = req.file ? `/uploads/${req.file.filename}` : '';
+  if (!texto && !anexo) return res.status(400).json({ error: 'Escreva uma mensagem ou anexe um arquivo' });
+  const u = await pool.query('SELECT nome FROM usuarios WHERE id=$1', [req.usuarioId]);
+  const r = await pool.query(
+    `INSERT INTO ticket_mensagens (ticket_id,usuario_id,nome_autor,texto,anexo_url,anexo_nome,anexo_tipo)
+     VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+    [req.params.id, req.usuarioId, u.rows[0]?.nome || '', texto, anexo,
+     req.file ? req.file.originalname : '', req.file ? req.file.mimetype : '']
+  );
+  await pool.query(`UPDATE tickets SET atualizado_em=NOW(), status=CASE WHEN status='Resolvido' THEN 'Em andamento' ELSE status END WHERE id=$1`, [req.params.id]);
+  await registrarLog(req.usuarioId, 'mensagem', 'ticket', req.params.id, texto.slice(0, 120) || '[anexo]');
+  // Notifica o outro lado: RH ↔ solicitante.
+  const autorEhRH = ehRH(req.usuarioPerfil);
+  const destinos = autorEhRH
+    ? (tick.usuario_id ? [Number(tick.usuario_id)] : [])
+    : (await pool.query(`SELECT id FROM usuarios WHERE LOWER(perfil) IN ('administrador','gerente')`)).rows.map((x) => Number(x.id));
+  for (const uid of destinos) {
+    if (uid === Number(req.usuarioId)) continue;
+    await criarNotificacaoRespeitandoPrefs(uid, 'chat_msg', `💬 ${tick.numero}`, texto.slice(0, 150) || 'Novo anexo', '/atendimento', `ticket:${tick.id}:msg${r.rows[0].id}`);
+  }
+  res.status(201).json(r.rows[0]);
+});
+
+app.patch('/api/tickets/:id', verificarToken, async (req, res) => {
+  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  const b = req.body || {};
+  const sets = [], vals = [];
+  if (b.status && STATUS_TICKET.includes(String(b.status))) { vals.push(String(b.status)); sets.push(`status=$${vals.length}`); }
+  if (b.prioridade && PRIORIDADES_TICKET.includes(String(b.prioridade))) {
+    vals.push(String(b.prioridade)); sets.push(`prioridade=$${vals.length}`);
+    const prazo = new Date(Date.now() + SLA_HORAS[String(b.prioridade)] * 3600 * 1000);
+    vals.push(prazo); sets.push(`prazo_sla=$${vals.length}`);
+  }
+  if (b.categoria && CATEGORIAS_TICKET.includes(String(b.categoria))) { vals.push(String(b.categoria)); sets.push(`categoria=$${vals.length}`); }
+  if (!sets.length) return res.status(400).json({ error: 'Nada para atualizar' });
+  let fechadoSql = 'fechado_em';
+  if (b.status === 'Fechado') fechadoSql = 'NOW()';
+  else if (b.status === 'Aberto') fechadoSql = 'NULL';
+  vals.push(req.params.id);
+  const r = await pool.query(
+    `UPDATE tickets SET ${sets.join(', ')}, atualizado_em=NOW(), fechado_em=${fechadoSql} WHERE id=$${vals.length} RETURNING *`,
+    vals
+  );
+  if (!r.rows.length) return res.status(404).json({ error: 'Ticket não encontrado' });
+  await registrarLog(req.usuarioId, 'atualizar', 'ticket', req.params.id, JSON.stringify(b).slice(0, 200));
+  if (r.rows[0].usuario_id && Number(r.rows[0].usuario_id) !== Number(req.usuarioId)) {
+    const tipo = b.status === 'Fechado' ? 'chat_fechado' : 'chat_update';
+    await criarNotificacaoRespeitandoPrefs(r.rows[0].usuario_id, tipo,
+      b.status === 'Fechado' ? `Ticket ${r.rows[0].numero} fechado` : `Ticket ${r.rows[0].numero} atualizado`,
+      `Status: ${r.rows[0].status}`, '/atendimento', `ticket:${r.rows[0].id}:${r.rows[0].status}`);
+  }
+  res.json(r.rows[0]);
 });
 
 app.listen(PORT, () => console.log(`🚀 Backend rodando na porta ${PORT}`));

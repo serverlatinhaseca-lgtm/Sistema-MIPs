@@ -157,3 +157,57 @@ CREATE TABLE IF NOT EXISTS logs_auditoria (
   criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS logs_auditoria_entidade_idx ON logs_auditoria (entidade, entidade_id);
+
+-- Fase 2 (23/09/2026): comunicados, preferências, tickets/chat.
+CREATE TABLE IF NOT EXISTS comunicados (
+  id SERIAL PRIMARY KEY,
+  titulo VARCHAR(220) NOT NULL,
+  mensagem TEXT NOT NULL DEFAULT '',
+  prioridade VARCHAR(10) NOT NULL DEFAULT 'Normal',
+  segmento VARCHAR(20) NOT NULL DEFAULT 'todos',
+  agendado_para TIMESTAMP,
+  enviado_em TIMESTAMP,
+  criado_por INT REFERENCES usuarios(id) ON DELETE SET NULL,
+  criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS comunicado_leituras (
+  comunicado_id INT NOT NULL REFERENCES comunicados(id) ON DELETE CASCADE,
+  usuario_id INT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+  lido_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (comunicado_id, usuario_id)
+);
+CREATE TABLE IF NOT EXISTS notificacoes_config (
+  usuario_id INT PRIMARY KEY REFERENCES usuarios(id) ON DELETE CASCADE,
+  prefs JSONB NOT NULL DEFAULT '{}'::jsonb,
+  atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE SEQUENCE IF NOT EXISTS ticket_num_seq;
+CREATE TABLE IF NOT EXISTS tickets (
+  id SERIAL PRIMARY KEY,
+  numero VARCHAR(20) UNIQUE NOT NULL,
+  usuario_id INT REFERENCES usuarios(id) ON DELETE SET NULL,
+  nome_solicitante VARCHAR(150) NOT NULL DEFAULT '',
+  categoria VARCHAR(20) NOT NULL DEFAULT 'Outro',
+  titulo VARCHAR(220) NOT NULL,
+  descricao TEXT NOT NULL DEFAULT '',
+  status VARCHAR(25) NOT NULL DEFAULT 'Aberto',
+  prioridade VARCHAR(10) NOT NULL DEFAULT 'Média',
+  prazo_sla TIMESTAMP,
+  fechado_em TIMESTAMP,
+  criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS tickets_status_idx ON tickets (status);
+CREATE INDEX IF NOT EXISTS tickets_usuario_idx ON tickets (usuario_id);
+CREATE TABLE IF NOT EXISTS ticket_mensagens (
+  id SERIAL PRIMARY KEY,
+  ticket_id INT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+  usuario_id INT REFERENCES usuarios(id) ON DELETE SET NULL,
+  nome_autor VARCHAR(150) NOT NULL DEFAULT '',
+  texto TEXT NOT NULL DEFAULT '',
+  anexo_url VARCHAR(255) NOT NULL DEFAULT '',
+  anexo_nome VARCHAR(220) NOT NULL DEFAULT '',
+  anexo_tipo VARCHAR(100) NOT NULL DEFAULT '',
+  criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS ticket_mensagens_ticket_idx ON ticket_mensagens (ticket_id, criado_em);

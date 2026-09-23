@@ -2,7 +2,7 @@
 
 > Portal interno para padronização operacional, gestão de receitas, avaliações de desempenho, reclamações e ferramentas de produção.
 
-![Versão](https://img.shields.io/badge/versão-2.8.0-ff8d2f)
+![Versão](https://img.shields.io/badge/versão-2.9.0-ff8d2f)
 ![React](https://img.shields.io/badge/React-18-61dafb)
 ![Node.js](https://img.shields.io/badge/Node.js-22-339933)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-4169e1)
@@ -11,6 +11,12 @@
 ## Sobre o sistema
 
 O Sistema Central reúne em um único portal os processos internos da Nova Esperança. A aplicação funciona em computadores e celulares, possui modo claro e escuro e separa os acessos conforme a função de cada usuário.
+
+### Novidades da versão 2.9.0
+
+- ASO enxuto: só 2 registros de teste, agendamentos na mesma página (abas Funcionários/Agendamentos), PDF com ver/alterar, botão verde "Atualizar exame" (último + vencimento + PDF) e "Novo funcionário"; presença virou status (botão só no Meu ASO); notificação imediata ao vencer; concluir agendamento já abre o exame preenchido;
+- **Atendimento (chat + tickets)**: número automático TK-AAAA-NNNN, categorias, status, prioridade com SLA, anexos até 50MB + áudio gravado, busca, exportação PDF e notificações;
+- **Central de notificações**: pop-up em tempo real (10s + som), página de histórico/filtros/preferências (ASO vencido e oficiais sempre ativos) e **Comunicados** do RH com prioridade, agendamento, relatório de leitura e reenvio.
 
 ### Novidades da versão 2.8.0
 
