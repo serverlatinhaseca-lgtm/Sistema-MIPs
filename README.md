@@ -2,7 +2,7 @@
 
 > Portal interno para padronização operacional, gestão de receitas, avaliações de desempenho, reclamações e ferramentas de produção.
 
-![Versão](https://img.shields.io/badge/versão-2.7.2-ff8d2f)
+![Versão](https://img.shields.io/badge/versão-2.8.0-ff8d2f)
 ![React](https://img.shields.io/badge/React-18-61dafb)
 ![Node.js](https://img.shields.io/badge/Node.js-22-339933)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-4169e1)
@@ -11,6 +11,15 @@
 ## Sobre o sistema
 
 O Sistema Central reúne em um único portal os processos internos da Nova Esperança. A aplicação funciona em computadores e celulares, possui modo claro e escuro e separa os acessos conforme a função de cada usuário.
+
+### Novidades da versão 2.8.0
+
+- Módulo **ASO (Fase 1)**: controle por funcionário com faixas 🔴🟠🟡🟢, job diário de recálculo e painel do RH com contadores, filtros e exportação CSV;
+- **Locais de Exame**: CRUD com busca, filtro ativos/inativos e trava de exclusão com agendamento futuro (oferece inativar);
+- **Agendamentos de ASO**: data/hora, local, confirmação de presença, reagendamento e exportação `.ics`;
+- **Meu ASO** no perfil do funcionário: faixa, % restante, dias a vencer, PDF, histórico e botão de presença;
+- Importação em massa da planilha atual (67 funcionários, faixa da planilha preservada) e notificações no sino existente;
+- Auditoria de todas as ações do módulo em `logs_auditoria`.
 
 ### Novidades da versão 2.7.2
 
@@ -381,7 +390,7 @@ Sistema-MIPs/
 docker ps --filter publish=7001 --format 'table {{.ID}}\t{{.Names}}\t{{.Ports}}'
 ```
 
-Pare somente o contêiner antigo do próprio Sistema MIPs antes de subir a nova versão.
+Pare somente o contêiner antigo do próprio Portal - Nova Esperança antes de subir a nova versão.
 
 ### Conflito com o nome do contêiner
 

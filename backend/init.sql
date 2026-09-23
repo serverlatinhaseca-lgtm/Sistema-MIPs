@@ -94,3 +94,66 @@ ALTER TABLE reclamacoes ADD COLUMN IF NOT EXISTS setor_id INT REFERENCES setores
 CREATE TABLE IF NOT EXISTS categorias_acesso (id SERIAL PRIMARY KEY,nome VARCHAR(100) UNIQUE NOT NULL,permissoes JSONB NOT NULL DEFAULT '[]'::jsonb,ativo BOOLEAN NOT NULL DEFAULT TRUE,criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
 CREATE TABLE IF NOT EXISTS backup_auditoria (id SERIAL PRIMARY KEY,arquivo VARCHAR(180) NOT NULL,acao VARCHAR(30) NOT NULL,usuario_id INT REFERENCES usuarios(id) ON DELETE SET NULL,criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS categoria_acesso_id INT REFERENCES categorias_acesso(id) ON DELETE SET NULL;
+
+-- Módulo ASO — Fase 1 (23/09/2026). FK para usuarios; funcionários não são recriados.
+CREATE TABLE IF NOT EXISTS locais_exame (
+  id SERIAL PRIMARY KEY,
+  nome VARCHAR(180) NOT NULL,
+  cnpj VARCHAR(20) NOT NULL DEFAULT '',
+  endereco TEXT NOT NULL DEFAULT '',
+  cidade VARCHAR(120) NOT NULL DEFAULT '',
+  uf CHAR(2) NOT NULL DEFAULT '',
+  cep VARCHAR(10) NOT NULL DEFAULT '',
+  telefone VARCHAR(30) NOT NULL DEFAULT '',
+  email VARCHAR(120) NOT NULL DEFAULT '',
+  responsavel VARCHAR(150) NOT NULL DEFAULT '',
+  observacoes TEXT NOT NULL DEFAULT '',
+  ativo BOOLEAN NOT NULL DEFAULT TRUE,
+  criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS asos (
+  id SERIAL PRIMARY KEY,
+  usuario_id INT REFERENCES usuarios(id) ON DELETE SET NULL,
+  nome_funcionario VARCHAR(150) NOT NULL,
+  matricula VARCHAR(30) NOT NULL DEFAULT '',
+  data_admissao DATE,
+  ultimo_exame DATE,
+  vencimento DATE,
+  pdf_url VARCHAR(255) NOT NULL DEFAULT '',
+  dias_periodo INT,
+  dias_restantes INT,
+  percentual_restante NUMERIC,
+  faixa VARCHAR(20) NOT NULL DEFAULT 'Pendente',
+  faixa_importada VARCHAR(20) NOT NULL DEFAULT '',
+  presenca_confirmada BOOLEAN NOT NULL DEFAULT FALSE,
+  presenca_confirmada_em TIMESTAMP,
+  criado_por INT REFERENCES usuarios(id) ON DELETE SET NULL,
+  criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS asos_faixa_idx ON asos (faixa);
+CREATE INDEX IF NOT EXISTS asos_vencimento_idx ON asos (vencimento);
+CREATE TABLE IF NOT EXISTS agendamentos_aso (
+  id SERIAL PRIMARY KEY,
+  aso_id INT REFERENCES asos(id) ON DELETE CASCADE,
+  usuario_id INT REFERENCES usuarios(id) ON DELETE SET NULL,
+  nome_funcionario VARCHAR(150) NOT NULL,
+  data_hora TIMESTAMP NOT NULL,
+  local_id INT REFERENCES locais_exame(id) ON DELETE SET NULL,
+  observacoes TEXT NOT NULL DEFAULT '',
+  presenca_confirmada BOOLEAN NOT NULL DEFAULT FALSE,
+  realizado BOOLEAN NOT NULL DEFAULT FALSE,
+  criado_por INT REFERENCES usuarios(id) ON DELETE SET NULL,
+  criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS agendamentos_aso_data_idx ON agendamentos_aso (data_hora);
+CREATE TABLE IF NOT EXISTS logs_auditoria (
+  id SERIAL PRIMARY KEY,
+  usuario_id INT REFERENCES usuarios(id) ON DELETE SET NULL,
+  acao VARCHAR(60) NOT NULL,
+  entidade VARCHAR(60) NOT NULL,
+  entidade_id INT,
+  detalhes TEXT NOT NULL DEFAULT '',
+  criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS logs_auditoria_entidade_idx ON logs_auditoria (entidade, entidade_id);

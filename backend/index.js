@@ -11,6 +11,9 @@ const { execFile } = require('child_process');
 const { promisify } = require('util');
 const { randomUUID } = require('crypto');
 const { prepararAvaliacao } = require('./avaliacoes');
+const { calcularASO, classificarFaixa, normalizarFaixaPlanilha, FAIXAS_VALIDAS } = require('./aso');
+const XLSX = (() => { try { return require('xlsx'); } catch { return null; } })();
+const { excelSerialToISO } = require('./aso');
 const MODELOS_AVALIACAO = require('./modelos-avaliacao.json');
 const CLIENTES_INICIAIS = require('./clientes-iniciais.json');
 const executarArquivo = promisify(execFile);
@@ -140,10 +143,22 @@ async function inicializarBancoEAdmin() {
       ALTER TABLE mips ADD COLUMN IF NOT EXISTS atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
       CREATE TABLE IF NOT EXISTS configuracoes_portal (
         id INT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
-        nome_site VARCHAR(150) NOT NULL DEFAULT 'Portal MIPs',
+        nome_site VARCHAR(150) NOT NULL DEFAULT 'Portal - Nova Esperança',
         logo_site TEXT NOT NULL DEFAULT '',
         logo_avaliacao TEXT NOT NULL DEFAULT '',
+        imagem_login TEXT NOT NULL DEFAULT '',
         atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      ALTER TABLE configuracoes_portal ADD COLUMN IF NOT EXISTS imagem_login TEXT NOT NULL DEFAULT '';
+      ALTER TABLE configuracoes_portal ADD COLUMN IF NOT EXISTS ajuda_icone TEXT NOT NULL DEFAULT '';
+      ALTER TABLE configuracoes_portal ADD COLUMN IF NOT EXISTS imagem_dashboard TEXT NOT NULL DEFAULT '';
+      CREATE TABLE IF NOT EXISTS ajuda_respostas (
+        id SERIAL PRIMARY KEY,
+        pergunta VARCHAR(180) NOT NULL,
+        gatilhos TEXT NOT NULL DEFAULT '',
+        resposta TEXT NOT NULL,
+        ativo BOOLEAN NOT NULL DEFAULT TRUE,
+        criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
       INSERT INTO configuracoes_portal (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
       CREATE TABLE IF NOT EXISTS ferramentas_admin_estado (
@@ -181,9 +196,12 @@ async function inicializarBancoEAdmin() {
       CREATE TABLE IF NOT EXISTS receita_versoes (
         id SERIAL PRIMARY KEY, receita_id INT NOT NULL REFERENCES receitas(id) ON DELETE CASCADE,
         titulo VARCHAR(255) NOT NULL, rendimento_base INT NOT NULL, ingredientes JSONB NOT NULL,
+        peso_pao NUMERIC,
         alterado_por INT REFERENCES usuarios(id) ON DELETE SET NULL,
         criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+      ALTER TABLE receitas ADD COLUMN IF NOT EXISTS peso_pao NUMERIC;
+      ALTER TABLE receita_versoes ADD COLUMN IF NOT EXISTS peso_pao NUMERIC;
       CREATE TABLE IF NOT EXISTS avaliacoes (
         id SERIAL PRIMARY KEY,
         usuario_avaliado_id INT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
@@ -210,6 +228,7 @@ async function inicializarBancoEAdmin() {
       CREATE TABLE IF NOT EXISTS tipos_reclamacao (
         id SERIAL PRIMARY KEY,
         nome VARCHAR(150) UNIQUE NOT NULL,
+        prioridade VARCHAR(10) NOT NULL DEFAULT 'verde',
         ativo BOOLEAN NOT NULL DEFAULT TRUE,
         criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
@@ -256,6 +275,7 @@ async function inicializarBancoEAdmin() {
       ALTER TABLE reclamacoes ADD COLUMN IF NOT EXISTS concluido_em TIMESTAMP;
       ALTER TABLE reclamacoes ADD COLUMN IF NOT EXISTS concluido_por INT REFERENCES usuarios(id) ON DELETE SET NULL;
       ALTER TABLE reclamacoes ADD COLUMN IF NOT EXISTS setor_id INT REFERENCES setores_reclamacao(id) ON DELETE SET NULL;
+      ALTER TABLE tipos_reclamacao ADD COLUMN IF NOT EXISTS prioridade VARCHAR(10) NOT NULL DEFAULT 'verde';
       UPDATE reclamacoes SET prazo_em = criado_em + INTERVAL '24 hours' WHERE prazo_em IS NULL;
       CREATE TABLE IF NOT EXISTS categorias_acesso (
         id SERIAL PRIMARY KEY,
@@ -271,6 +291,18 @@ async function inicializarBancoEAdmin() {
         usuario_id INT REFERENCES usuarios(id) ON DELETE SET NULL,
         criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+      CREATE TABLE IF NOT EXISTS notificacoes (
+        id SERIAL PRIMARY KEY,
+        usuario_id INT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+        tipo VARCHAR(40) NOT NULL,
+        titulo VARCHAR(220) NOT NULL,
+        mensagem TEXT NOT NULL DEFAULT '',
+        link VARCHAR(220) NOT NULL DEFAULT '',
+        referencia VARCHAR(80) NOT NULL DEFAULT '',
+        lida BOOLEAN NOT NULL DEFAULT FALSE,
+        criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS notificacoes_usuario_idx ON notificacoes (usuario_id, lida, criado_em DESC);
       ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS categoria_acesso_id INT REFERENCES categorias_acesso(id) ON DELETE SET NULL;
       INSERT INTO perguntas_avaliacao (titulo,pergunta,criterios,obrigatoria,ordem)
       SELECT * FROM (VALUES
@@ -289,6 +321,11 @@ async function inicializarBancoEAdmin() {
     `);
     await inicializarModelosAvaliacao();
     await inicializarReclamacoes();
+    await inicializarNotificacoes();
+    await migrarPesoPao();
+    await inicializarAjuda();
+    await inicializarIngredientesSugestao();
+    await inicializarASO();
 
     const check = await pool.query("SELECT * FROM usuarios WHERE email = 'admin'");
     if (check.rows.length === 0) {
@@ -300,11 +337,25 @@ async function inicializarBancoEAdmin() {
 }
 
 async function inicializarReclamacoes() {
-  const tipos = ['Pão duro','Pão esfarelado','Pão com aspecto velho','Pão mofado','Produto sem validade','Entrega atrasada','Falta de itens','Entrega não realizada'];
-  for (const nome of tipos) await pool.query('INSERT INTO tipos_reclamacao (nome) VALUES ($1) ON CONFLICT (nome) DO NOTHING', [nome]);
+  // Mapeamento provisório tipo→prioridade (18/09/2026); a nutri vai definir a lista final.
+  const tipos = [['Pão duro','amarelo'],['Pão esfarelado','verde'],['Pão com aspecto velho','amarelo'],['Pão mofado','vermelho'],['Produto sem validade','vermelho'],['Entrega atrasada','amarelo'],['Falta de itens','amarelo'],['Entrega não realizada','vermelho']];
+  for (const [nome,prioridade] of tipos) {
+    await pool.query('INSERT INTO tipos_reclamacao (nome,prioridade) VALUES ($1,$2) ON CONFLICT (nome) DO NOTHING', [nome,prioridade]);
+    // Promove o padrão só onde ainda está o default 'verde' — não sobrescreve ajuste feito em Configurações.
+    if (prioridade !== 'verde') await pool.query("UPDATE tipos_reclamacao SET prioridade=$1 WHERE nome=$2 AND prioridade='verde'", [prioridade,nome]);
+  }
   for (const nome of CLIENTES_INICIAIS) await pool.query('INSERT INTO clientes_reclamacao (nome) VALUES ($1) ON CONFLICT (nome) DO NOTHING', [nome]);
-  const setores = ['Embalagem Manhã','Embalagem Tarde','Produção','Logística','Produção e Logística'];
+  // Setores gerais (sem separar por turno; o líder define o horário). ADM responde ao diretor.
+  const setores = ['Embalagem','Produção','Logística','ADM'];
   for (const nome of setores) await pool.query('INSERT INTO setores_reclamacao (nome) VALUES ($1) ON CONFLICT (nome) DO NOTHING', [nome]);
+  // Migração (idempotente): funde setores por turno nos gerais, preservando histórico.
+  const fusoes = [['Embalagem',['Embalagem Manhã','Embalagem Tarde','Embalagem Noite']],['ADM',['ADM - Pedidos','ADM - Financeiro']]];
+  for (const [destino,antigos] of fusoes) {
+    await pool.query(`INSERT INTO usuario_setores (usuario_id,setor_id) SELECT us.usuario_id,(SELECT id FROM setores_reclamacao WHERE nome=$1) FROM usuario_setores us JOIN setores_reclamacao s ON s.id=us.setor_id WHERE s.nome=ANY($2) ON CONFLICT DO NOTHING`, [destino,antigos]);
+    await pool.query(`DELETE FROM usuario_setores WHERE setor_id IN (SELECT id FROM setores_reclamacao WHERE nome=ANY($1))`, [antigos]);
+    await pool.query(`UPDATE reclamacoes SET setor_id=(SELECT id FROM setores_reclamacao WHERE nome=$1) WHERE setor_id IN (SELECT id FROM setores_reclamacao WHERE nome=ANY($2))`, [destino,antigos]);
+  }
+  await pool.query(`UPDATE setores_reclamacao SET ativo=FALSE WHERE nome IN ('Embalagem Manhã','Embalagem Tarde','Embalagem Noite','ADM - Pedidos','ADM - Financeiro','Produção e Logística')`);
 }
 
 async function inicializarModelosAvaliacao() {
@@ -412,6 +463,7 @@ function alteracoesReceita(anterior, posterior) {
   const alteracoes = [];
   if (String(anterior.titulo || '') !== String(posterior.titulo || '')) alteracoes.push({ campo: 'Nome da receita', de: anterior.titulo || 'Vazio', para: posterior.titulo || 'Vazio' });
   if (Number(anterior.rendimento_base) !== Number(posterior.rendimento_base)) alteracoes.push({ campo: 'Rendimento base', de: String(anterior.rendimento_base), para: String(posterior.rendimento_base) });
+  if (String(anterior.peso_pao ?? '') !== String(posterior.peso_pao ?? '')) alteracoes.push({ campo: 'Peso do pão', de: anterior.peso_pao != null ? `${anterior.peso_pao} g` : 'Vazio', para: posterior.peso_pao != null ? `${posterior.peso_pao} g` : 'Vazio' });
   const lista = valor => Array.isArray(valor) ? valor : [];
   const antes = new Map(lista(anterior.ingredientes).map(i => [String(i.nome || '').trim().toLowerCase(), i]));
   const depois = new Map(lista(posterior.ingredientes).map(i => [String(i.nome || '').trim().toLowerCase(), i]));
@@ -508,19 +560,79 @@ app.post('/api/backups/:nome/restaurar', verificarToken, somenteAdministrador, a
 
 app.get('/api/configuracoes-portal', async (_req, res) => {
   try {
-    const result = await pool.query("SELECT nome_site,logo_site,logo_avaliacao FROM configuracoes_portal WHERE id=1");
-    res.json(result.rows[0] || { nome_site: 'Portal MIPs', logo_site: '', logo_avaliacao: '' });
+    const result = await pool.query("SELECT nome_site,logo_site,logo_avaliacao,imagem_login,COALESCE(ajuda_icone,'') AS ajuda_icone,COALESCE(imagem_dashboard,'') AS imagem_dashboard FROM configuracoes_portal WHERE id=1");
+    res.json(result.rows[0] || { nome_site: 'Portal - Nova Esperança', logo_site: '', logo_avaliacao: '', imagem_login: '', ajuda_icone: '', imagem_dashboard: '' });
   } catch (error) { res.status(500).json({ error: 'Erro ao carregar identidade visual' }); }
 });
 
 app.put('/api/configuracoes-portal', verificarToken, async (req, res) => {
   if (String(req.usuarioPerfil).toLowerCase() !== 'administrador') return res.status(403).json({ error: 'Acesso negado' });
-  const { nome_site, logo_site = '', logo_avaliacao = '' } = req.body;
-  if (!String(nome_site || '').trim()) return res.status(400).json({ error: 'Informe o nome do site' });
   try {
-    const result = await pool.query(`INSERT INTO configuracoes_portal (id,nome_site,logo_site,logo_avaliacao,atualizado_em) VALUES (1,$1,$2,$3,CURRENT_TIMESTAMP) ON CONFLICT (id) DO UPDATE SET nome_site=EXCLUDED.nome_site,logo_site=EXCLUDED.logo_site,logo_avaliacao=EXCLUDED.logo_avaliacao,atualizado_em=CURRENT_TIMESTAMP RETURNING nome_site,logo_site,logo_avaliacao`, [nome_site.trim(), String(logo_site), String(logo_avaliacao)]);
+    // Atualização parcial: cada bloco da personalização salva só o seu campo.
+    const atual = (await pool.query("SELECT nome_site,logo_site,logo_avaliacao,imagem_login,COALESCE(ajuda_icone,'') AS ajuda_icone,COALESCE(imagem_dashboard,'') AS imagem_dashboard FROM configuracoes_portal WHERE id=1")).rows[0] || {};
+    const nome_site = req.body.nome_site !== undefined ? String(req.body.nome_site).trim() : (atual.nome_site || 'Portal - Nova Esperança');
+    const logo_site = req.body.logo_site !== undefined ? String(req.body.logo_site) : (atual.logo_site || '');
+    const logo_avaliacao = req.body.logo_avaliacao !== undefined ? String(req.body.logo_avaliacao) : (atual.logo_avaliacao || '');
+    const imagem_login = req.body.imagem_login !== undefined ? String(req.body.imagem_login) : (atual.imagem_login || '');
+    const ajuda_icone = req.body.ajuda_icone !== undefined ? String(req.body.ajuda_icone) : (atual.ajuda_icone || '');
+    const imagem_dashboard = req.body.imagem_dashboard !== undefined ? String(req.body.imagem_dashboard) : (atual.imagem_dashboard || '');
+    if (!nome_site) return res.status(400).json({ error: 'Informe o nome do site' });
+    const result = await pool.query(`INSERT INTO configuracoes_portal (id,nome_site,logo_site,logo_avaliacao,imagem_login,ajuda_icone,imagem_dashboard,atualizado_em) VALUES (1,$1,$2,$3,$4,$5,$6,CURRENT_TIMESTAMP) ON CONFLICT (id) DO UPDATE SET nome_site=EXCLUDED.nome_site,logo_site=EXCLUDED.logo_site,logo_avaliacao=EXCLUDED.logo_avaliacao,imagem_login=EXCLUDED.imagem_login,ajuda_icone=EXCLUDED.ajuda_icone,imagem_dashboard=EXCLUDED.imagem_dashboard,atualizado_em=CURRENT_TIMESTAMP RETURNING nome_site,logo_site,logo_avaliacao,imagem_login,ajuda_icone,imagem_dashboard`, [nome_site, logo_site, logo_avaliacao, imagem_login, ajuda_icone, imagem_dashboard]);
     res.json(result.rows[0]);
   } catch (error) { res.status(500).json({ error: 'Erro ao salvar identidade visual' }); }
+});
+
+// AJUDA — Lino (chat fake com respostas pré-programadas, editáveis em Configurações).
+async function inicializarAjuda() {
+  const padrao = [
+    ['O que são MIPs?', 'mip,manual,manuais,procedimento,procedimentos', 'Os MIPs são os manuais de procedimento da Nova Esperança: cada um explica o passo a passo de uma tarefa (produção, embalagem, higiene...). Você pode ler, pesquisar e imprimir. Manuais novos passam por revisão antes de serem publicados.'],
+    ['Como funciona a calculadora de receitas?', 'receita,receitas,rendimento,peso,pao,paes,calculadora,massa,ingrediente,fornada', 'Na página Receitas, abra uma receita e diga quantos pães quer produzir: o sistema calcula o peso de cada ingrediente. O rendimento é automático: soma dos pesos dividida pelo peso unitário do pão.'],
+    ['Onde vejo minhas avaliações?', 'avaliacao,avaliacoes,desempenho,nota,performance,avaliar', 'Suas avaliações ficam em Avaliações (funcionário) ou Meu desempenho (líder e gerente). Todo mês seu responsável registra uma avaliação e você acompanha o histórico por lá.'],
+    ['Como registro uma reclamação?', 'reclamacao,reclamacoes,cliente,mofado,reclamar,queixa', 'Quem tem permissão registra em Reclamações → Nova reclamação: cliente, tipo (a prioridade entra sozinha — pão mofado, por exemplo, é imediata), líder responsável e descrição. O líder mencionado, a gerência e a nutri são avisados na hora.'],
+    ['Para que servem as notificações?', 'notificacao,notificacoes,sino,aviso,avisos,som,apita', 'O sino no canto superior direito junta todos os avisos: reclamações novas, MIPs aguardando revisão ou aprovadas e avaliações publicadas. Ele apita quando chega algo novo e tudo fica registrado para ver depois.'],
+    ['Esqueci minha senha', 'senha,login,entrar,acesso,alterar,esqueci', 'Em Minha senha você troca sua senha quando quiser. Se não consegue entrar, peça ao administrador para redefinir.'],
+    ['O que são as Etiquetas?', 'etiqueta,etiquetas,pimaco,caixa,caixas,ferramenta,imprimir,impressao', 'As Etiquetas (Pimaco 6187) e Pacotes/Caixas ficam com o Administrador, no menu Ferramentas. Fale com ele para gerar impressões.'],
+    ['Quem é você?', 'lino,voce,quem,ajuda,oi,ola,opa,bom dia,boa tarde,boa noite', 'Eu sou o Lino, ajudante do Portal - Nova Esperança! Posso explicar as funções do sistema: pergunte sobre MIPs, receitas, avaliações, reclamações ou senha.'],
+  ];
+  for (const [pergunta, gatilhos, resposta] of padrao) {
+    const existe = await pool.query('SELECT 1 FROM ajuda_respostas WHERE pergunta=$1 LIMIT 1', [pergunta]);
+    if (!existe.rows.length) await pool.query('INSERT INTO ajuda_respostas (pergunta,gatilhos,resposta) VALUES ($1,$2,$3)', [pergunta, gatilhos, resposta]);
+  }
+  await pool.query(`UPDATE ajuda_respostas SET gatilhos='lino,voce,quem,ajuda,oi,ola,opa,bom dia,boa tarde,boa noite', resposta='Eu sou o Lino, ajudante do Portal - Nova Esperança! Posso explicar as funções do sistema: pergunte sobre MIPs, receitas, avaliações, reclamações ou senha.' WHERE pergunta='Quem é você?' AND resposta LIKE '%mascote%'`);
+  // Renome 19/09/2026: Portal MIPs → Portal - Nova Esperança (atualiza linhas já gravadas).
+  await pool.query(`UPDATE ajuda_respostas SET resposta = REPLACE(resposta, 'Portal MIPs', 'Portal - Nova Esperança') WHERE resposta LIKE '%Portal MIPs%'`);
+}
+app.get('/api/ajuda/respostas', verificarToken, async (_req, res) => {
+  const r = await pool.query('SELECT id,pergunta,gatilhos,resposta FROM ajuda_respostas WHERE ativo=TRUE ORDER BY id');
+  res.json(r.rows);
+});
+app.post('/api/configuracoes/ajuda/respostas', verificarToken, async (req, res) => {
+  if (normalizarPerfil(req.usuarioPerfil) !== 'administrador') return res.status(403).json({ error: 'Acesso negado' });
+  const pergunta = String(req.body?.pergunta || '').trim(), resposta = String(req.body?.resposta || '').trim(), gatilhos = String(req.body?.gatilhos || '').trim();
+  if (pergunta.length < 3 || resposta.length < 3) return res.status(400).json({ error: 'Informe a pergunta e a resposta' });
+  const r = await pool.query('INSERT INTO ajuda_respostas (pergunta,gatilhos,resposta) VALUES ($1,$2,$3) RETURNING *', [pergunta, gatilhos, resposta]);
+  res.status(201).json(r.rows[0]);
+});
+app.put('/api/configuracoes/ajuda/respostas/:id', verificarToken, async (req, res) => {
+  if (normalizarPerfil(req.usuarioPerfil) !== 'administrador') return res.status(403).json({ error: 'Acesso negado' });
+  const sets = [], vals = [];
+  for (const [campo, minimo] of [['pergunta', 3], ['gatilhos', 0], ['resposta', 3]]) {
+    if (req.body?.[campo] !== undefined) {
+      const v = String(req.body[campo] || '').trim();
+      if (v.length < minimo) return res.status(400).json({ error: 'Texto muito curto' });
+      vals.push(v); sets.push(`${campo}=$${vals.length}`);
+    }
+  }
+  if (!sets.length) return res.status(400).json({ error: 'Nada para atualizar' });
+  vals.push(req.params.id);
+  const r = await pool.query(`UPDATE ajuda_respostas SET ${sets.join(', ')} WHERE id=$${vals.length} AND ativo=TRUE RETURNING *`, vals);
+  if (!r.rows.length) return res.status(404).json({ error: 'Resposta não encontrada' });
+  res.json(r.rows[0]);
+});
+app.delete('/api/configuracoes/ajuda/respostas/:id', verificarToken, async (req, res) => {
+  if (normalizarPerfil(req.usuarioPerfil) !== 'administrador') return res.status(403).json({ error: 'Acesso negado' });
+  await pool.query('UPDATE ajuda_respostas SET ativo=FALSE WHERE id=$1', [req.params.id]);
+  res.json({ mensagem: 'Resposta desativada.' });
 });
 
 // DASHBOARD
@@ -549,9 +661,9 @@ app.get('/api/dashboard', verificarToken, async (req, res) => {
 app.post('/api/upload', verificarToken, upload.single('image'), (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo' });
-    const host = req.headers.host;
-    const protocol = req.headers['x-forwarded-proto'] || 'http';
-    res.json({ url: `${protocol}://${host}/uploads/${req.file.filename}` });
+    // URL relativa: o frontend serve /uploads/ via proxy na mesma origem,
+    // então a imagem funciona por IP ou hostname, sem depender da porta 7001.
+    res.json({ url: `/uploads/${req.file.filename}` });
   } catch (err) { res.status(500).json({ error: 'Erro upload' }); }
 });
 
@@ -623,6 +735,7 @@ app.post('/api/mips', verificarToken, async (req, res) => {
       `INSERT INTO mips (codigo, titulo, resumo, objetivo, conteudo, status, autor_id) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
       [codigo||'MIP-GERAL', titulo||'Sem Título', resumo||'', objetivo||'', conteudo||'', s||'Em Revisão', req.usuarioId]
     );
+    if ((s || 'Em Revisão') === 'Em Revisão') notificarAdminsMip('mip_revisao', 'MIP aguardando revisão', `${codigo || 'MIP-GERAL'} — ${titulo || 'Sem Título'}`, r.rows[0].id);
     res.status(201).json({ id: r.rows[0].id, mensagem: 'Salvo!' });
   } catch (err) { res.status(500).json({ error: 'Erro salvar' }); }
 });
@@ -640,6 +753,7 @@ app.put('/api/mips/:id', verificarToken, async (req, res) => {
     await client.query(`INSERT INTO mip_versoes (mip_id,codigo,titulo,resumo,objetivo,conteudo,status,alterado_por) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`, [m.id,m.codigo,m.titulo,m.resumo,m.objetivo,m.conteudo,m.status,req.usuarioId]);
     await client.query(`UPDATE mips SET codigo=$1,titulo=$2,resumo=$3,objetivo=$4,conteudo=$5,status=$6,orientacao_correcao='',atualizado_em=CURRENT_TIMESTAMP WHERE id=$7`, [codigo,titulo,resumo,objetivo,conteudo,novoStatus,req.params.id]);
     await client.query('COMMIT');
+    notificarAdminsMip('mip_revisao', 'MIP aguardando revisão', `${codigo} — ${titulo}`, req.params.id);
     res.json({ mensagem: 'MIP atualizada e enviada novamente para aprovação do Administrador.', status: novoStatus });
   } catch (error) { await client.query('ROLLBACK'); res.status(500).json({ error: 'Erro ao atualizar MIP' }); }
   finally { client.release(); }
@@ -658,7 +772,7 @@ app.get('/api/mips/:id/versoes', verificarToken, async (req, res) => {
 
 app.patch('/api/mips/:id/aprovar', verificarToken, async (req, res) => {
   if (req.usuarioPerfil !== 'Administrador') return res.status(403).json({ error: 'Acesso negado' });
-  try { await pool.query("UPDATE mips SET status = 'Publicado', orientacao_correcao='', atualizado_em=CURRENT_TIMESTAMP WHERE id = $1", [req.params.id]); res.json({ mensagem: 'Aprovada!' }); } 
+  try { const r = await pool.query("UPDATE mips SET status = 'Publicado', orientacao_correcao='', atualizado_em=CURRENT_TIMESTAMP WHERE id = $1 RETURNING id,autor_id,codigo,titulo", [req.params.id]); if (r.rows.length) { const m = r.rows[0]; criarNotificacao(m.autor_id, 'mip_aprovacao', 'MIP aprovada', `${m.codigo} — ${m.titulo}`, `/mips/${m.id}`, `mip:${m.id}`); } res.json({ mensagem: 'Aprovada!' }); } 
   catch (error) { res.status(500).json({ error: 'Erro aprovar' }); }
 });
 
@@ -667,8 +781,10 @@ app.patch('/api/mips/:id/reprovar', verificarToken, async (req, res) => {
   const orientacao = String(req.body?.orientacao || '').trim();
   if (orientacao.length < 5) return res.status(400).json({ error: 'Descreva claramente as correções necessárias' });
   try {
-    const result = await pool.query("UPDATE mips SET status='Reprovado', orientacao_correcao=$1, atualizado_em=CURRENT_TIMESTAMP WHERE id=$2 RETURNING id", [orientacao, req.params.id]);
+    const result = await pool.query("UPDATE mips SET status='Reprovado', orientacao_correcao=$1, atualizado_em=CURRENT_TIMESTAMP WHERE id=$2 RETURNING id,autor_id,codigo,titulo", [orientacao, req.params.id]);
     if (!result.rows.length) return res.status(404).json({ error: 'MIP não encontrada' });
+    const m = result.rows[0];
+    criarNotificacao(m.autor_id, 'mip_correcao', 'Correções solicitadas', `${m.codigo} — ${m.titulo}: ${orientacao}`, `/mips/${m.id}`, `mip:${m.id}`);
     res.json({ mensagem: 'MIP devolvida ao autor para correção.' });
   } catch (error) { res.status(500).json({ error: 'Erro ao reprovar MIP' }); }
 });
@@ -761,6 +877,80 @@ app.delete('/api/usuarios/:id', verificarToken, async (req, res) => {
 });
 
 // RECEITAS
+// Rendimento = soma dos pesos dos ingredientes ÷ peso unitário do pão (arredonda p/ baixo).
+function calcularRendimento(ingredientes, pesoPao) {
+  const lista = Array.isArray(ingredientes) ? ingredientes : [];
+  const total = lista.reduce((t, i) => t + (Number(i.quantidade) || 0), 0);
+  const peso = Number(pesoPao);
+  if (!(total > 0) || !(peso > 0)) return { total, rendimento: null };
+  return { total, rendimento: Math.floor(total / peso) };
+}
+function validarReceita(titulo, ingredientes, pesoPao) {
+  if (!String(titulo || '').trim()) return 'Informe o nome da receita';
+  if (!Array.isArray(ingredientes) || !ingredientes.length || ingredientes.length > 50) return 'Informe ao menos 1 ingrediente';
+  for (const i of ingredientes) {
+    if (!String(i.nome || '').trim()) return 'Todo ingrediente precisa de nome';
+    if (!Number.isFinite(Number(i.quantidade)) || Number(i.quantidade) < 0) return `Peso inválido em "${i.nome || '?'}'`;
+  }
+  const { total, rendimento } = calcularRendimento(ingredientes, pesoPao);
+  if (!(total > 0)) return 'A soma dos pesos precisa ser maior que zero';
+  if (!(Number(pesoPao) > 0)) return 'Informe o peso unitário do pão';
+  if (rendimento == null || rendimento < 1) return 'Peso do pão maior que a massa total — rendimento zero';
+  return null;
+}
+// Backfill: deriva o peso do pão das receitas legadas (total ÷ rendimento informado).
+async function migrarPesoPao() {
+  try {
+    await pool.query(`UPDATE receitas SET peso_pao = ROUND(t.total_calc / NULLIF(rendimento_base,0), 1)
+      FROM (SELECT id AS rid, (SELECT COALESCE(SUM(CASE WHEN elem->>'quantidade' ~ '^[0-9]+(\\.[0-9]+)?$' THEN (elem->>'quantidade')::numeric ELSE 0 END),0)
+        FROM jsonb_array_elements(COALESCE(ingredientes,'[]'::jsonb)) elem) AS total_calc
+        FROM receitas WHERE peso_pao IS NULL AND rendimento_base > 0) t
+      WHERE receitas.id = t.rid AND t.total_calc > 0`);
+  } catch (e) { console.error('Erro no backfill do peso do pão:', e.message); }
+}
+// Sugestões de ingredientes (19/09/2026): cada salvamento de receita alimenta esta
+// tabela, que serve o autocomplete do formulário. Sobrevive à exclusão de receitas.
+async function inicializarIngredientesSugestao() {
+  try {
+    await pool.query(`CREATE TABLE IF NOT EXISTS ingredientes_receita (
+      id SERIAL PRIMARY KEY,
+      nome VARCHAR(150) NOT NULL,
+      ultima_quantidade NUMERIC,
+      usos INT NOT NULL DEFAULT 1,
+      atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`);
+    await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS ingredientes_receita_nome_idx ON ingredientes_receita (lower(nome))`);
+    // Semeia com o que já existe nas receitas (só o que ainda não está na tabela).
+    await pool.query(`INSERT INTO ingredientes_receita (nome, ultima_quantidade, usos)
+      SELECT nome, MAX(qtd), COUNT(*) FROM (
+        SELECT btrim(elem->>'nome') AS nome,
+          CASE WHEN elem->>'quantidade' ~ '^[0-9]+(\\.[0-9]+)?$' THEN (elem->>'quantidade')::numeric ELSE NULL END AS qtd
+        FROM receitas, jsonb_array_elements(COALESCE(ingredientes,'[]'::jsonb)) elem
+      ) s WHERE nome <> '' GROUP BY nome
+      ON CONFLICT ((lower(nome))) DO NOTHING`);
+  } catch (e) { console.error('Erro ao inicializar sugestões de ingredientes:', e.message); }
+}
+async function registrarIngredientesSugestao(clientOrPool, ingredientes) {
+  const lista = Array.isArray(ingredientes) ? ingredientes : [];
+  const vistos = new Set();
+  for (const item of lista) {
+    const nome = String(item?.nome || '').trim();
+    if (!nome || nome.length > 150) continue;
+    const chave = nome.toLowerCase();
+    if (vistos.has(chave)) continue;
+    vistos.add(chave);
+    const qtd = Number(item.quantidade);
+    try {
+      await clientOrPool.query(
+        `INSERT INTO ingredientes_receita (nome, ultima_quantidade, usos) VALUES ($1, $2, 1)
+         ON CONFLICT ((lower(nome))) DO UPDATE SET usos = ingredientes_receita.usos + 1,
+           ultima_quantidade = COALESCE(EXCLUDED.ultima_quantidade, ingredientes_receita.ultima_quantidade),
+           atualizado_em = CURRENT_TIMESTAMP`,
+        [nome, Number.isFinite(qtd) ? qtd : null]
+      );
+    } catch (e) { console.error('Erro ao registrar sugestão de ingrediente:', e.message); }
+  }
+}
 app.get('/api/receitas', verificarToken, async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM receitas ORDER BY titulo ASC');
@@ -770,31 +960,46 @@ app.get('/api/receitas', verificarToken, async (req, res) => {
 
 app.post('/api/receitas', verificarToken, async (req, res) => {
   if (req.usuarioPerfil === 'Leitor') return res.status(403).json({ error: 'Acesso negado' });
-  const { titulo, rendimento_base, ingredientes } = req.body;
+  const { titulo, ingredientes, peso_pao } = req.body;
+  const erro = validarReceita(titulo, ingredientes, peso_pao);
+  if (erro) return res.status(400).json({ error: erro });
+  const { rendimento } = calcularRendimento(ingredientes, peso_pao);
   try {
     const result = await pool.query(
-      'INSERT INTO receitas (titulo, rendimento_base, ingredientes) VALUES ($1, $2, $3) RETURNING id',
-      [titulo, rendimento_base, JSON.stringify(ingredientes)]
+      'INSERT INTO receitas (titulo, rendimento_base, ingredientes, peso_pao) VALUES ($1, $2, $3, $4) RETURNING id',
+      [String(titulo).trim(), rendimento, JSON.stringify(ingredientes), Number(peso_pao)]
     );
+    await registrarIngredientesSugestao(pool, ingredientes);
     res.status(201).json({ id: result.rows[0].id, mensagem: 'Salvo!' });
   } catch (error) { res.status(500).json({ error: 'Erro' }); }
 });
 
 app.put('/api/receitas/:id', verificarToken, async (req, res) => {
   if (req.usuarioPerfil === 'Leitor') return res.status(403).json({ error: 'Acesso negado' });
-  const { titulo, rendimento_base, ingredientes } = req.body;
+  const { titulo, ingredientes, peso_pao } = req.body;
+  const erro = validarReceita(titulo, ingredientes, peso_pao);
+  if (erro) return res.status(400).json({ error: erro });
+  const { rendimento } = calcularRendimento(ingredientes, peso_pao);
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     const atual = await client.query('SELECT * FROM receitas WHERE id=$1 FOR UPDATE', [req.params.id]);
     if (!atual.rows.length) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Receita não encontrada' }); }
     const r = atual.rows[0];
-    await client.query('INSERT INTO receita_versoes (receita_id,titulo,rendimento_base,ingredientes,alterado_por) VALUES ($1,$2,$3,$4::jsonb,$5)', [r.id,r.titulo,r.rendimento_base,JSON.stringify(r.ingredientes),req.usuarioId]);
-    await client.query('UPDATE receitas SET titulo=$1,rendimento_base=$2,ingredientes=$3::jsonb WHERE id=$4', [titulo,Number(rendimento_base),JSON.stringify(ingredientes),req.params.id]);
+    await client.query('INSERT INTO receita_versoes (receita_id,titulo,rendimento_base,ingredientes,peso_pao,alterado_por) VALUES ($1,$2,$3,$4::jsonb,$5,$6)', [r.id,r.titulo,r.rendimento_base,JSON.stringify(r.ingredientes),r.peso_pao,req.usuarioId]);
+    await client.query('UPDATE receitas SET titulo=$1,rendimento_base=$2,ingredientes=$3::jsonb,peso_pao=$4 WHERE id=$5', [String(titulo).trim(),rendimento,JSON.stringify(ingredientes),Number(peso_pao),req.params.id]);
     await client.query('COMMIT');
+    await registrarIngredientesSugestao(pool, ingredientes);
     res.json({ mensagem: 'Receita atualizada e versão anterior arquivada.' });
   } catch (error) { await client.query('ROLLBACK'); console.error('Erro ao atualizar receita:', error.message); res.status(500).json({ error: 'Erro ao atualizar receita. Verifique os dados dos ingredientes.' }); }
   finally { client.release(); }
+});
+
+app.get('/api/ingredientes-sugestoes', verificarToken, async (_req, res) => {
+  try {
+    const result = await pool.query('SELECT nome, ultima_quantidade, usos FROM ingredientes_receita ORDER BY usos DESC, nome ASC LIMIT 200');
+    res.json(result.rows);
+  } catch (error) { res.status(500).json({ error: 'Erro ao carregar sugestões de ingredientes' }); }
 });
 
 app.get('/api/receitas/:id/versoes', verificarToken, async (req, res) => {
@@ -1008,7 +1213,10 @@ app.post('/api/avaliacoes', verificarToken, podeGerenciarAvaliacoes, async (req,
       calculo.pontuacaoTotal, calculo.percentual,
       calculo.classificacao, JSON.stringify(calculo.respostas), tokenCompartilhamento, req.usuarioId,
     ]);
-    res.status(201).json(result.rows[0]);
+    const av = result.rows[0];
+    const avaliado = (await pool.query('SELECT nome,perfil FROM usuarios WHERE id=$1', [Number(colaborador_id)])).rows[0];
+    if (avaliado) criarNotificacao(Number(colaborador_id), 'avaliacao_nova', 'Nova avaliação publicada', `${avaliado.nome} · referência ${mes_referencia}`, String(avaliado.perfil || '').toLowerCase() === 'leitor' ? '/avaliacoes' : '/meu-desempenho', `avaliacao:${av.id}`);
+    res.status(201).json(av);
   } catch (error) {
     if (error.code === '23505') return res.status(409).json({ error: 'Este colaborador já foi avaliado neste mês' });
     if (error.message?.includes('nota válida') || error.message?.includes('obrigatória')) {
@@ -1051,6 +1259,83 @@ app.delete('/api/avaliacoes/:id', verificarToken, podeGerenciarAvaliacoes, async
   } catch (error) { res.status(500).json({ error: 'Erro ao excluir avaliação' }); }
 });
 
+// NOTIFICAÇÕES — central persistida (sino + badge no app). Sem popups bloqueantes.
+// Eventos ao vivo não duplicam não-lidas; o backfill do boot nunca ressuscita lidas.
+async function criarNotificacao(usuarioId, tipo, titulo, mensagem, link, referencia, soSeNuncaExistiu = false) {
+  if (!usuarioId) return;
+  try {
+    const onde = soSeNuncaExistiu ? '' : ' AND lida=FALSE';
+    const dup = await pool.query(`SELECT 1 FROM notificacoes WHERE usuario_id=$1 AND tipo=$2 AND referencia=$3${onde} LIMIT 1`, [Number(usuarioId), tipo, referencia || '']);
+    if (dup.rows.length) return;
+    await pool.query('INSERT INTO notificacoes (usuario_id,tipo,titulo,mensagem,link,referencia) VALUES ($1,$2,$3,$4,$5,$6)', [Number(usuarioId), tipo, titulo, mensagem || '', link || '', referencia || '']);
+  } catch (e) { console.error('Erro ao criar notificação:', e.message); }
+}
+// Reclamação nova: líder responsável mencionado + todos os gerentes + Ximene (nutri).
+async function destinatariosReclamacao(liderId) {
+  try {
+    const r = await pool.query(`SELECT id FROM usuarios WHERE id=$1 OR LOWER(perfil)='gerente' OR nome ILIKE '%ximene%'`, [Number(liderId)]);
+    return [...new Set(r.rows.map(x => Number(x.id)))];
+  } catch (e) { console.error('Erro ao buscar destinatários:', e.message); return [Number(liderId)]; }
+}
+async function notificarReclamacaoNova(reclamacaoId, soSeNuncaExistiu = false) {
+  try {
+    const r = await pool.query(`SELECT r.lider_responsavel_id,r.prioridade,c.nome AS cliente,t.nome AS tipo,s.nome AS setor FROM reclamacoes r JOIN clientes_reclamacao c ON c.id=r.cliente_id JOIN tipos_reclamacao t ON t.id=r.tipo_id LEFT JOIN setores_reclamacao s ON s.id=r.setor_id WHERE r.id=$1`, [Number(reclamacaoId)]);
+    if (!r.rows.length) return;
+    const { lider_responsavel_id, prioridade, cliente, tipo, setor } = r.rows[0];
+    const pri = { verde: 'Não urgente', amarelo: 'Média', vermelho: 'Imediata' }[prioridade] || prioridade;
+    const titulo = `Nova reclamação: ${tipo} — ${cliente}`;
+    const mensagem = `Prioridade ${pri}${setor ? ` · Setor ${setor}` : ''}`;
+    for (const uid of await destinatariosReclamacao(lider_responsavel_id)) await criarNotificacao(uid, 'reclamacao_nova', titulo, mensagem, '/reclamacoes', `reclamacao:${reclamacaoId}`, soSeNuncaExistiu);
+  } catch (e) { console.error('Erro ao notificar reclamação:', e.message); }
+}
+async function notificarAdminsMip(tipo, titulo, mensagem, mipId, soSeNuncaExistiu = false) {
+  try {
+    const r = await pool.query(`SELECT id FROM usuarios WHERE LOWER(perfil)='administrador'`);
+    for (const { id } of r.rows) await criarNotificacao(id, tipo, titulo, mensagem, `/mips/${mipId}`, `mip:${mipId}`, soSeNuncaExistiu);
+  } catch (e) { console.error('Erro ao notificar admins:', e.message); }
+}
+
+app.get('/api/notificacoes', verificarToken, async (req, res) => {
+  try {
+    const limite = Math.min(Math.max(Number(req.query.limite) || 30, 1), 100);
+    const somente = String(req.query.somente || '');
+    const filtro = somente === 'nao-lidas' ? 'AND lida=FALSE' : somente === 'arquivadas' ? 'AND lida=TRUE' : '';
+    const [itens, cont] = await Promise.all([
+      pool.query(`SELECT id,tipo,titulo,mensagem,link,referencia,lida,criado_em FROM notificacoes WHERE usuario_id=$1 ${filtro} ORDER BY criado_em DESC,id DESC LIMIT $2`, [req.usuarioId, limite]),
+      pool.query('SELECT COUNT(*) FILTER (WHERE lida=FALSE)::int AS nao_lidas, COUNT(*) FILTER (WHERE lida=TRUE)::int AS arquivadas FROM notificacoes WHERE usuario_id=$1', [req.usuarioId])
+    ]);
+    res.json({ itens: itens.rows, nao_lidas: cont.rows[0].nao_lidas, arquivadas: cont.rows[0].arquivadas });
+  } catch (e) { res.status(500).json({ error: 'Erro ao carregar notificações' }); }
+});
+app.patch('/api/notificacoes/:id/lida', verificarToken, async (req, res) => {
+  const lida = req.body?.lida === undefined ? true : Boolean(req.body.lida);
+  await pool.query('UPDATE notificacoes SET lida=$1 WHERE id=$2 AND usuario_id=$3', [lida, req.params.id, req.usuarioId]);
+  res.json({ ok: true });
+});
+app.post('/api/notificacoes/marcar-todas-lidas', verificarToken, async (req, res) => {
+  await pool.query('UPDATE notificacoes SET lida=TRUE WHERE usuario_id=$1 AND lida=FALSE', [req.usuarioId]);
+  res.json({ ok: true });
+});
+
+// Backfill idempotente no boot: registra o que já está pendente (nunca duplica,
+// nem ressuscita lidas — eventos novos continuam chegando pelos gatilhos ao vivo).
+async function inicializarNotificacoes() {
+  try {
+    await pool.query(`DELETE FROM notificacoes WHERE id NOT IN (SELECT MAX(id) FROM notificacoes GROUP BY usuario_id,tipo,referencia)`);
+    const emRevisao = await pool.query(`SELECT id,codigo,titulo FROM mips WHERE status='Em Revisão'`);
+    for (const m of emRevisao.rows) await notificarAdminsMip('mip_revisao', 'MIP aguardando revisão', `${m.codigo} — ${m.titulo}`, m.id, true);
+    const recentes = await pool.query(`SELECT id,codigo,titulo,status,autor_id,orientacao_correcao FROM mips WHERE status IN ('Publicado','Reprovado') AND atualizado_em > NOW() - INTERVAL '30 days' LIMIT 100`);
+    for (const m of recentes.rows) {
+      if (m.status === 'Reprovado') await criarNotificacao(m.autor_id, 'mip_correcao', 'Correções solicitadas', `${m.codigo} — ${m.titulo}${m.orientacao_correcao ? `: ${m.orientacao_correcao}` : ''}`, `/mips/${m.id}`, `mip:${m.id}`, true);
+      else await criarNotificacao(m.autor_id, 'mip_aprovacao', 'MIP aprovada', `${m.codigo} — ${m.titulo}`, `/mips/${m.id}`, `mip:${m.id}`, true);
+    }
+    const abertas = await pool.query(`SELECT id FROM reclamacoes WHERE status='aberto' LIMIT 200`);
+    for (const r of abertas.rows) await notificarReclamacaoNova(r.id, true);
+    const avals = await pool.query(`SELECT a.id,a.usuario_avaliado_id,a.mes_referencia,u.nome,u.perfil FROM avaliacoes a JOIN usuarios u ON u.id=a.usuario_avaliado_id WHERE a.criado_em > NOW() - INTERVAL '60 days' LIMIT 200`);
+    for (const a of avals.rows) await criarNotificacao(a.usuario_avaliado_id, 'avaliacao_nova', 'Nova avaliação publicada', `${a.nome} · referência ${a.mes_referencia}`, String(a.perfil || '').toLowerCase() === 'leitor' ? '/avaliacoes' : '/meu-desempenho', `avaliacao:${a.id}`, true);
+  } catch (e) { console.error('Erro no backfill de notificações:', e.message); }
+}
+
 // RECLAMAÇÕES
 const podeRegistrarReclamacao = async (req) => {
   if (['administrador','editor','gerente'].includes(normalizarPerfil(req.usuarioPerfil))) return true;
@@ -1058,15 +1343,17 @@ const podeRegistrarReclamacao = async (req) => {
   return Boolean(r.rows.length);
 };
 
-app.get('/api/reclamacoes/catalogos', verificarToken, async (_req,res) => {
+app.get('/api/reclamacoes/catalogos', verificarToken, async (req,res) => {
   const [clientes,tipos,lideres,setores,prazos]=await Promise.all([
     pool.query('SELECT id,nome FROM clientes_reclamacao WHERE ativo=TRUE ORDER BY nome'),
-    pool.query('SELECT id,nome FROM tipos_reclamacao WHERE ativo=TRUE ORDER BY nome'),
+    pool.query("SELECT id,nome,COALESCE(prioridade,'verde') AS prioridade FROM tipos_reclamacao WHERE ativo=TRUE ORDER BY nome"),
     pool.query(`SELECT u.id,u.nome,COALESCE((SELECT JSON_AGG(JSON_BUILD_OBJECT('id',s.id,'nome',s.nome) ORDER BY s.nome) FROM usuario_setores us JOIN setores_reclamacao s ON s.id=us.setor_id WHERE us.usuario_id=u.id),'[]'::json) AS setores FROM usuarios u WHERE LOWER(u.perfil)='editor' ORDER BY u.nome`),
     pool.query('SELECT id,nome FROM setores_reclamacao WHERE ativo=TRUE ORDER BY nome'),
     pool.query('SELECT prazo_verde_min,prazo_amarelo_min,prazo_vermelho_min FROM configuracao_reclamacoes WHERE id=TRUE')
   ]);
-  res.json({clientes:clientes.rows,tipos:tipos.rows,lideres:lideres.rows,setores:setores.rows,prazos:prazos.rows[0]});
+  // Funcionário (sem permissão de registrar) não vê quem são os líderes responsáveis.
+  const podeVerLideres = await podeRegistrarReclamacao(req);
+  res.json({clientes:clientes.rows,tipos:tipos.rows,lideres:podeVerLideres?lideres.rows:[],setores:setores.rows,prazos:prazos.rows[0]});
 });
 
 function montarFiltrosReclamacoes(query, alias) {
@@ -1097,7 +1384,7 @@ app.get('/api/reclamacoes/metricas', verificarToken, async (req,res) => {
     pool.query(`SELECT r.status AS nome,COUNT(*)::int AS total FROM reclamacoes r ${f.where} GROUP BY r.status`, f.params),
     pool.query(`SELECT COUNT(*) FILTER (WHERE status='aberto')::int AS abertas,COUNT(*) FILTER (WHERE status='aberto' AND prazo_em<NOW())::int AS atrasadas,COUNT(*) FILTER (WHERE status='concluido')::int AS concluidas,COALESCE(ROUND((AVG(EXTRACT(EPOCH FROM (concluido_em-criado_em))/3600) FILTER (WHERE concluido_em IS NOT NULL))::numeric,1),0) AS media_horas FROM reclamacoes ${fs.where}`, fs.params)
   ]);
-  res.json({mes:f.mes,filtros:{mes:f.mes,setor:f.setor,lider_id:Number(req.query.lider_id)||null,tipo_id:Number(req.query.tipo_id)||null,cliente_id:Number(req.query.cliente_id)||null},total:total.rows[0].total,por_tipo:tipo.rows,por_lider:lider.rows,por_setor:setor.rows,por_mes:mes.rows,por_cliente:cliente.rows,por_prioridade:prioridade.rows,por_status:status.rows,...prazos.rows[0]});
+  res.json({mes:f.mes,filtros:{mes:f.mes,setor:f.setor,lider_id:Number(req.query.lider_id)||null,tipo_id:Number(req.query.tipo_id)||null,cliente_id:Number(req.query.cliente_id)||null},total:total.rows[0].total,por_tipo:tipo.rows,por_lider:(await podeRegistrarReclamacao(req))?lider.rows:[],por_setor:setor.rows,por_mes:mes.rows,por_cliente:cliente.rows,por_prioridade:prioridade.rows,por_status:status.rows,...prazos.rows[0]});
 });
 
 app.get('/api/reclamacoes', verificarToken, async (req,res) => {
@@ -1131,6 +1418,7 @@ app.post('/api/reclamacoes', verificarToken, async (req,res) => {
   const cfg=(await pool.query('SELECT prazo_verde_min,prazo_amarelo_min,prazo_vermelho_min FROM configuracao_reclamacoes WHERE id=TRUE')).rows[0];
   const minutos={verde:cfg.prazo_verde_min,amarelo:cfg.prazo_amarelo_min,vermelho:cfg.prazo_vermelho_min}[prioridade];
   const r=await pool.query(`INSERT INTO reclamacoes (cliente_id,assunto,tipo_id,lider_responsavel_id,setor_id,descricao,anexos,prioridade,prazo_em,status,criado_por) VALUES ($1,'',$2,$3,$4,$5,$6,$7,NOW()+($8||' minutes')::interval,'aberto',$9) RETURNING id`,[Number(cliente_id),Number(tipo_id),Number(lider_responsavel_id),setorFinal,String(descricao).trim(),JSON.stringify(anexos),prioridade,String(minutos),req.usuarioId]);
+  notificarReclamacaoNova(r.rows[0].id);
   res.status(201).json(r.rows[0]);
 });
 
@@ -1177,9 +1465,24 @@ app.delete('/api/reclamacoes/:id', verificarToken, async (req,res) => {
 });
 
 for (const [rota,tabela] of [['clientes','clientes_reclamacao'],['tipos','tipos_reclamacao'],['setores','setores_reclamacao']]) {
-  app.post(`/api/configuracoes/reclamacoes/${rota}`,verificarToken,async(req,res)=>{if(normalizarPerfil(req.usuarioPerfil)!=='administrador')return res.status(403).json({error:'Acesso negado'});const nome=String(req.body?.nome||'').trim();if(nome.length<2)return res.status(400).json({error:'Informe um nome válido'});try{const r=await pool.query(`INSERT INTO ${tabela} (nome,ativo) VALUES ($1,TRUE) ON CONFLICT (nome) DO UPDATE SET ativo=TRUE RETURNING *`,[nome]);res.status(201).json(r.rows[0]);}catch(e){res.status(500).json({error:'Erro ao salvar cadastro'});}});
+  const prioridadeValida = p => ['verde','amarelo','vermelho'].includes(String(p||''));
+  app.post(`/api/configuracoes/reclamacoes/${rota}`,verificarToken,async(req,res)=>{if(normalizarPerfil(req.usuarioPerfil)!=='administrador')return res.status(403).json({error:'Acesso negado'});const nome=String(req.body?.nome||'').trim();if(nome.length<2)return res.status(400).json({error:'Informe um nome válido'});try{
+    const r = rota==='tipos'
+      ? await pool.query(`INSERT INTO ${tabela} (nome,prioridade,ativo) VALUES ($1,$2,TRUE) ON CONFLICT (nome) DO UPDATE SET ativo=TRUE RETURNING *`,[nome,prioridadeValida(req.body?.prioridade)?req.body.prioridade:'verde'])
+      : await pool.query(`INSERT INTO ${tabela} (nome,ativo) VALUES ($1,TRUE) ON CONFLICT (nome) DO UPDATE SET ativo=TRUE RETURNING *`,[nome]);
+    res.status(201).json(r.rows[0]);}catch(e){res.status(500).json({error:'Erro ao salvar cadastro'});}});
   app.delete(`/api/configuracoes/reclamacoes/${rota}/:id`,verificarToken,async(req,res)=>{if(normalizarPerfil(req.usuarioPerfil)!=='administrador')return res.status(403).json({error:'Acesso negado'});await pool.query(`UPDATE ${tabela} SET ativo=FALSE WHERE id=$1`,[req.params.id]);res.json({mensagem:'Cadastro desativado.'});});
-  app.put(`/api/configuracoes/reclamacoes/${rota}/:id`,verificarToken,async(req,res)=>{if(normalizarPerfil(req.usuarioPerfil)!=='administrador')return res.status(403).json({error:'Acesso negado'});const nome=String(req.body?.nome||'').trim();if(nome.length<2)return res.status(400).json({error:'Informe um nome válido'});try{const r=await pool.query(`UPDATE ${tabela} SET nome=$1 WHERE id=$2 AND ativo=TRUE RETURNING *`,[nome,req.params.id]);if(!r.rows.length)return res.status(404).json({error:'Cadastro não encontrado'});res.json(r.rows[0]);}catch(e){if(e.code==='23505')return res.status(409).json({error:'Já existe um cadastro com esse nome'});res.status(500).json({error:'Erro ao editar cadastro'});}});
+  app.put(`/api/configuracoes/reclamacoes/${rota}/:id`,verificarToken,async(req,res)=>{if(normalizarPerfil(req.usuarioPerfil)!=='administrador')return res.status(403).json({error:'Acesso negado'});try{
+    if (rota==='tipos') {
+      const sets=[],vals=[];
+      if (req.body?.nome !== undefined) { const nome=String(req.body.nome||'').trim();if(nome.length<2)return res.status(400).json({error:'Informe um nome válido'});vals.push(nome);sets.push(`nome=$${vals.length}`); }
+      if (req.body?.prioridade !== undefined) { if(!prioridadeValida(req.body.prioridade))return res.status(400).json({error:'Prioridade inválida'});vals.push(req.body.prioridade);sets.push(`prioridade=$${vals.length}`); }
+      if (!sets.length) return res.status(400).json({error:'Nada para atualizar'});
+      vals.push(req.params.id);
+      const r=await pool.query(`UPDATE ${tabela} SET ${sets.join(', ')} WHERE id=$${vals.length} AND ativo=TRUE RETURNING *`,vals);
+      if(!r.rows.length)return res.status(404).json({error:'Cadastro não encontrado'});return res.json(r.rows[0]);
+    }
+    const nome=String(req.body?.nome||'').trim();if(nome.length<2)return res.status(400).json({error:'Informe um nome válido'});const r=await pool.query(`UPDATE ${tabela} SET nome=$1 WHERE id=$2 AND ativo=TRUE RETURNING *`,[nome,req.params.id]);if(!r.rows.length)return res.status(404).json({error:'Cadastro não encontrado'});res.json(r.rows[0]);}catch(e){if(e.code==='23505')return res.status(409).json({error:'Já existe um cadastro com esse nome'});res.status(500).json({error:'Erro ao editar cadastro'});}});
 }
 
 app.put('/api/configuracoes/reclamacoes/prazos',verificarToken,async(req,res)=>{
@@ -1193,5 +1496,486 @@ app.get('/api/categorias-acesso',verificarToken,async(req,res)=>{if(normalizarPe
 app.post('/api/categorias-acesso',verificarToken,async(req,res)=>{if(normalizarPerfil(req.usuarioPerfil)!=='administrador')return res.status(403).json({error:'Acesso negado'});const nome=String(req.body?.nome||'').trim(),permissoes=Array.isArray(req.body?.permissoes)?req.body.permissoes:[];if(nome.length<2)return res.status(400).json({error:'Informe o nome da categoria'});try{const r=await pool.query('INSERT INTO categorias_acesso (nome,permissoes,ativo) VALUES ($1,$2,TRUE) RETURNING *',[nome,JSON.stringify(permissoes)]);res.status(201).json(r.rows[0]);}catch(e){if(e.code==='23505')return res.status(409).json({error:'Já existe uma categoria com esse nome'});res.status(500).json({error:'Erro ao criar categoria'});}});
 app.put('/api/categorias-acesso/:id',verificarToken,somenteAdministrador,async(req,res)=>{const nome=String(req.body?.nome||'').trim(),permissoes=Array.isArray(req.body?.permissoes)?req.body.permissoes:[];if(nome.length<2)return res.status(400).json({error:'Informe o nome da categoria'});try{const r=await pool.query('UPDATE categorias_acesso SET nome=$1,permissoes=$2::jsonb WHERE id=$3 AND ativo=TRUE RETURNING *',[nome,JSON.stringify(permissoes),req.params.id]);if(!r.rows.length)return res.status(404).json({error:'Categoria não encontrada'});res.json(r.rows[0]);}catch(e){if(e.code==='23505')return res.status(409).json({error:'Já existe uma categoria com esse nome'});res.status(500).json({error:'Erro ao editar categoria'});}});
 app.delete('/api/categorias-acesso/:id',verificarToken,somenteAdministrador,async(req,res)=>{await pool.query('UPDATE usuarios SET categoria_acesso_id=NULL WHERE categoria_acesso_id=$1',[req.params.id]);const r=await pool.query('UPDATE categorias_acesso SET ativo=FALSE WHERE id=$1 RETURNING id',[req.params.id]);if(!r.rows.length)return res.status(404).json({error:'Categoria não encontrada'});res.json({mensagem:'Categoria removida e desvinculada dos usuários.'});});
+
+// ============ MÓDULO ASO — Fase 1 (23/09/2026) ============
+// Tabelas novas com FK para usuarios (não recria funcionários/usuários).
+// Importação preserva faixa da planilha em faixa_importada; o cálculo
+// e o job diário usam a regra do prompt (ver backend/aso.js).
+async function inicializarASO() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS locais_exame (
+      id SERIAL PRIMARY KEY,
+      nome VARCHAR(180) NOT NULL,
+      cnpj VARCHAR(20) NOT NULL DEFAULT '',
+      endereco TEXT NOT NULL DEFAULT '',
+      cidade VARCHAR(120) NOT NULL DEFAULT '',
+      uf CHAR(2) NOT NULL DEFAULT '',
+      cep VARCHAR(10) NOT NULL DEFAULT '',
+      telefone VARCHAR(30) NOT NULL DEFAULT '',
+      email VARCHAR(120) NOT NULL DEFAULT '',
+      responsavel VARCHAR(150) NOT NULL DEFAULT '',
+      observacoes TEXT NOT NULL DEFAULT '',
+      ativo BOOLEAN NOT NULL DEFAULT TRUE,
+      criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS asos (
+      id SERIAL PRIMARY KEY,
+      usuario_id INT REFERENCES usuarios(id) ON DELETE SET NULL,
+      nome_funcionario VARCHAR(150) NOT NULL,
+      matricula VARCHAR(30) NOT NULL DEFAULT '',
+      data_admissao DATE,
+      ultimo_exame DATE,
+      vencimento DATE,
+      pdf_url VARCHAR(255) NOT NULL DEFAULT '',
+      dias_periodo INT,
+      dias_restantes INT,
+      percentual_restante NUMERIC,
+      faixa VARCHAR(20) NOT NULL DEFAULT 'Pendente',
+      faixa_importada VARCHAR(20) NOT NULL DEFAULT '',
+      presenca_confirmada BOOLEAN NOT NULL DEFAULT FALSE,
+      presenca_confirmada_em TIMESTAMP,
+      criado_por INT REFERENCES usuarios(id) ON DELETE SET NULL,
+      criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS asos_faixa_idx ON asos (faixa);
+    CREATE INDEX IF NOT EXISTS asos_vencimento_idx ON asos (vencimento);
+    CREATE TABLE IF NOT EXISTS agendamentos_aso (
+      id SERIAL PRIMARY KEY,
+      aso_id INT REFERENCES asos(id) ON DELETE CASCADE,
+      usuario_id INT REFERENCES usuarios(id) ON DELETE SET NULL,
+      nome_funcionario VARCHAR(150) NOT NULL,
+      data_hora TIMESTAMP NOT NULL,
+      local_id INT REFERENCES locais_exame(id) ON DELETE SET NULL,
+      observacoes TEXT NOT NULL DEFAULT '',
+      presenca_confirmada BOOLEAN NOT NULL DEFAULT FALSE,
+      realizado BOOLEAN NOT NULL DEFAULT FALSE,
+      criado_por INT REFERENCES usuarios(id) ON DELETE SET NULL,
+      criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS agendamentos_aso_data_idx ON agendamentos_aso (data_hora);
+    CREATE TABLE IF NOT EXISTS logs_auditoria (
+      id SERIAL PRIMARY KEY,
+      usuario_id INT REFERENCES usuarios(id) ON DELETE SET NULL,
+      acao VARCHAR(60) NOT NULL,
+      entidade VARCHAR(60) NOT NULL,
+      entidade_id INT,
+      detalhes TEXT NOT NULL DEFAULT '',
+      criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS logs_auditoria_entidade_idx ON logs_auditoria (entidade, entidade_id);
+  `);
+}
+
+async function registrarLog(usuarioId, acao, entidade, entidadeId, detalhes) {
+  try {
+    await pool.query(
+      'INSERT INTO logs_auditoria (usuario_id,acao,entidade,entidade_id,detalhes) VALUES ($1,$2,$3,$4,$5)',
+      [usuarioId || null, String(acao || '').slice(0, 60), String(entidade || '').slice(0, 60), entidadeId || null, String(detalhes || '')]
+    );
+  } catch (e) { console.error('Erro ao registrar log:', e.message); }
+}
+
+const ehRH = (perfil) => ['administrador', 'gerente'].includes(String(perfil || '').toLowerCase());
+
+const pdfASO = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, uploadDir),
+    filename: (req, file, cb) => {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      const safeName = String(file.originalname || 'aso.pdf').replace(/[^a-zA-Z0-9.-]/g, '_');
+      cb(null, 'aso-' + uniqueSuffix + '-' + safeName);
+    }
+  }),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (/pdf$/i.test(file.mimetype || '') || /\.pdf$/i.test(file.originalname || '')) cb(null, true);
+    else cb(new Error('Envie um arquivo PDF.'));
+  }
+});
+
+function recalcLinhaASO(ultimoExame, vencimento, hoje = new Date().toISOString().slice(0, 10)) {
+  const toISO = (v) => (v instanceof Date ? v.toISOString().slice(0, 10) : v ? String(v).slice(0, 10) : null);
+  return calcularASO(toISO(ultimoExame), toISO(vencimento), hoje);
+}
+
+// Recalcula dias_restantes/percentual/faixa de todos; notifica mudanças de faixa e vencidos.
+// Retorna { atualizados, mudancas }.
+async function recalcularASOs(job = false) {
+  const r = await pool.query('SELECT id,usuario_id,nome_funcionario,ultimo_exame,vencimento,faixa FROM asos');
+  const hoje = new Date().toISOString().slice(0, 10);
+  let atualizados = 0;
+  const mudancas = [];
+  for (const a of r.rows) {
+    const c = recalcLinhaASO(a.ultimo_exame, a.vencimento, hoje);
+    await pool.query(
+      'UPDATE asos SET dias_periodo=$1,dias_restantes=$2,percentual_restante=$3,faixa=$4,atualizado_em=NOW() WHERE id=$5',
+      [c.diasPeriodo, c.diasRestantes, c.percentualRestante, c.faixa, a.id]
+    );
+    atualizados++;
+    if (a.faixa !== c.faixa) {
+      mudancas.push({ id: a.id, nome: a.nome_funcionario, de: a.faixa, para: c.faixa });
+      if (a.usuario_id) {
+        const tipo = c.faixa === 'Vermelho' || c.vencido ? 'aso_vencido' : 'aso_faixa';
+        await criarNotificacao(a.usuario_id, tipo, c.vencido ? 'ASO vencido' : `ASO mudou para ${c.faixa}`,
+          `${a.nome_funcionario}: ${a.faixa || '?'} → ${c.faixa}`, '/aso', `aso:${a.id}:${c.faixa}`);
+      }
+    } else if (c.vencido && a.usuario_id) {
+      await criarNotificacao(a.usuario_id, 'aso_vencido', 'ASO vencido',
+        `${a.nome_funcionario}: vencimento ${String(a.vencimento).slice(0, 10)}`, '/aso', `aso:${a.id}:vencido`);
+    }
+  }
+  if (job && mudancas.length) console.log(`[ASO job] ${atualizados} recalculados, ${mudancas.length} mudanças de faixa.`);
+  return { atualizados, mudancas };
+}
+
+// Job diário à meia-noite (horário do servidor).
+setInterval(async () => {
+  try { await recalcularASOs(true); } catch (e) { console.error('Erro no job ASO:', e.message); }
+}, 24 * 60 * 60 * 1000);
+
+// ---- Locais de exame ----
+app.get('/api/locais-exame', verificarToken, async (req, res) => {
+  try {
+    const busca = String(req.query.busca || '').trim();
+    const situacao = String(req.query.situacao || 'ativos'); // ativos | inativos | todos
+    const conds = [], params = [];
+    if (situacao === 'ativos') conds.push('ativo=TRUE');
+    else if (situacao === 'inativos') conds.push('ativo=FALSE');
+    if (busca) { params.push(`%${busca}%`); conds.push(`(nome ILIKE $${params.length} OR cidade ILIKE $${params.length})`); }
+    const r = await pool.query(`SELECT * FROM locais_exame ${conds.length ? 'WHERE ' + conds.join(' AND ') : ''} ORDER BY ativo DESC, nome`, params);
+    res.json(r.rows);
+  } catch (e) { res.status(500).json({ error: 'Erro ao listar locais' }); }
+});
+
+app.post('/api/locais-exame', verificarToken, async (req, res) => {
+  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  const b = req.body || {};
+  const nome = String(b.nome || '').trim();
+  if (nome.length < 2) return res.status(400).json({ error: 'Informe o nome do local' });
+  try {
+    const r = await pool.query(
+      `INSERT INTO locais_exame (nome,cnpj,endereco,cidade,uf,cep,telefone,email,responsavel,observacoes)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+      [nome, String(b.cnpj || '').trim(), String(b.endereco || '').trim(), String(b.cidade || '').trim(),
+       String(b.uf || '').trim().toUpperCase().slice(0, 2), String(b.cep || '').trim(), String(b.telefone || '').trim(),
+       String(b.email || '').trim(), String(b.responsavel || '').trim(), String(b.observacoes || '').trim()]
+    );
+    await registrarLog(req.usuarioId, 'criar', 'local_exame', r.rows[0].id, nome);
+    res.status(201).json(r.rows[0]);
+  } catch (e) { res.status(500).json({ error: 'Erro ao criar local' }); }
+});
+
+app.put('/api/locais-exame/:id', verificarToken, async (req, res) => {
+  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  const b = req.body || {};
+  const nome = String(b.nome || '').trim();
+  if (nome.length < 2) return res.status(400).json({ error: 'Informe o nome do local' });
+  const r = await pool.query(
+    `UPDATE locais_exame SET nome=$1,cnpj=$2,endereco=$3,cidade=$4,uf=$5,cep=$6,telefone=$7,email=$8,
+     responsavel=$9,observacoes=$10,ativo=COALESCE($11,ativo) WHERE id=$12 RETURNING *`,
+    [nome, String(b.cnpj || ''), String(b.endereco || ''), String(b.cidade || ''), String(b.uf || '').toUpperCase().slice(0, 2),
+     String(b.cep || ''), String(b.telefone || ''), String(b.email || ''), String(b.responsavel || ''),
+     String(b.observacoes || ''), b.ativo === undefined ? null : Boolean(b.ativo), req.params.id]
+  );
+  if (!r.rows.length) return res.status(404).json({ error: 'Local não encontrado' });
+  await registrarLog(req.usuarioId, 'editar', 'local_exame', r.rows[0].id, nome);
+  res.json(r.rows[0]);
+});
+
+app.delete('/api/locais-exame/:id', verificarToken, async (req, res) => {
+  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  const fut = await pool.query(
+    `SELECT COUNT(*)::int AS total FROM agendamentos_aso WHERE local_id=$1 AND realizado=FALSE AND data_hora >= NOW()`,
+    [req.params.id]
+  );
+  if (Number(fut.rows[0].total) > 0) {
+    return res.status(409).json({ error: 'Há agendamentos futuros neste local. Inative em vez de excluir.', agendamentos_futuros: Number(fut.rows[0].total) });
+  }
+  const r = await pool.query('DELETE FROM locais_exame WHERE id=$1 RETURNING id', [req.params.id]);
+  if (!r.rows.length) return res.status(404).json({ error: 'Local não encontrado' });
+  await registrarLog(req.usuarioId, 'excluir', 'local_exame', req.params.id, '');
+  res.json({ mensagem: 'Local excluído.' });
+});
+
+// ---- ASO ----
+app.get('/api/asos', verificarToken, async (req, res) => {
+  try {
+    const { faixa, busca } = req.query;
+    const conds = [], params = [];
+    if (!ehRH(req.usuarioPerfil)) { params.push(req.usuarioId); conds.push('(a.usuario_id=$' + params.length + ')'); }
+    if (faixa && FAIXAS_VALIDAS.includes(String(faixa))) { params.push(String(faixa)); conds.push(`faixa=$${params.length}`); }
+    if (busca) { params.push(`%${String(busca).trim()}%`); conds.push(`(nome_funcionario ILIKE $${params.length} OR matricula ILIKE $${params.length})`); }
+    const r = await pool.query(
+      `SELECT a.*, l.nome AS local_nome FROM asos a LEFT JOIN agendamentos_aso ag ON ag.aso_id=a.id AND ag.realizado=FALSE
+       LEFT JOIN locais_exame l ON l.id=ag.local_id ${conds.length ? 'WHERE ' + conds.join(' AND ') : ''} ORDER BY a.vencimento NULLS LAST, a.nome_funcionario`,
+      params
+    );
+    res.json(r.rows);
+  } catch (e) { res.status(500).json({ error: 'Erro ao listar ASOs' }); }
+});
+
+app.get('/api/asos/resumo', verificarToken, async (req, res) => {
+  try {
+    if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+    const r = await pool.query(`SELECT faixa,COUNT(*)::int AS total FROM asos GROUP BY faixa`);
+    const contadores = { Vermelho: 0, Laranja: 0, Amarelo: 0, Verde: 0, Pendente: 0 };
+    for (const x of r.rows) if (contadores[x.faixa] !== undefined) contadores[x.faixa] = x.total;
+    const total = Object.values(contadores).reduce((t, v) => t + v, 0);
+    res.json({ total, por_faixa: contadores });
+  } catch (e) { res.status(500).json({ error: 'Erro ao resumir ASOs' }); }
+});
+
+app.get('/api/asos/meu', verificarToken, async (req, res) => {
+  const r = await pool.query('SELECT * FROM asos WHERE usuario_id=$1 ORDER BY vencimento NULLS LAST LIMIT 1', [req.usuarioId]);
+  if (!r.rows.length) {
+    const u = await pool.query('SELECT nome FROM usuarios WHERE id=$1', [req.usuarioId]);
+    const nome = u.rows[0]?.nome || '';
+    const porNome = await pool.query('SELECT * FROM asos WHERE usuario_id IS NULL AND nome_funcionario ILIKE $1 ORDER BY vencimento NULLS LAST LIMIT 1', [nome]);
+    return res.json(porNome.rows[0] || null);
+  }
+  const ag = await pool.query(
+    `SELECT ag.*, l.nome AS local_nome FROM agendamentos_aso ag LEFT JOIN locais_exame l ON l.id=ag.local_id
+     WHERE ag.aso_id=$1 ORDER BY ag.data_hora DESC LIMIT 5`, [r.rows[0].id]
+  );
+  res.json({ ...r.rows[0], agendamentos: ag.rows });
+});
+
+app.post('/api/asos', verificarToken, async (req, res) => {
+  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  const b = req.body || {};
+  const nome = String(b.nome_funcionario || '').trim();
+  if (nome.length < 2) return res.status(400).json({ error: 'Informe o nome do funcionário' });
+  let usuarioId = b.usuario_id ? Number(b.usuario_id) : null;
+  if (!usuarioId) {
+    const u = await pool.query('SELECT id FROM usuarios WHERE nome ILIKE $1 LIMIT 1', [nome]);
+    if (u.rows.length) usuarioId = Number(u.rows[0].id);
+  }
+  const c = recalcLinhaASO(b.ultimo_exame || null, b.vencimento || null);
+  try {
+    const r = await pool.query(
+      `INSERT INTO asos (usuario_id,nome_funcionario,matricula,data_admissao,ultimo_exame,vencimento,
+       dias_periodo,dias_restantes,percentual_restante,faixa,faixa_importada,criado_por)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
+      [usuarioId, nome, String(b.matricula || '').trim(), b.data_admissao || null, b.ultimo_exame || null,
+       b.vencimento || null, c.diasPeriodo, c.diasRestantes, c.percentualRestante, c.faixa,
+       String(b.faixa_importada || '').trim(), req.usuarioId]
+    );
+    await registrarLog(req.usuarioId, 'criar', 'aso', r.rows[0].id, nome);
+    res.status(201).json(r.rows[0]);
+  } catch (e) { res.status(500).json({ error: 'Erro ao cadastrar ASO' }); }
+});
+
+app.put('/api/asos/:id', verificarToken, async (req, res) => {
+  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  const atual = await pool.query('SELECT * FROM asos WHERE id=$1', [req.params.id]);
+  if (!atual.rows.length) return res.status(404).json({ error: 'ASO não encontrado' });
+  const b = req.body || {};
+  const a = atual.rows[0];
+  const ultimo = b.ultimo_exame !== undefined ? (b.ultimo_exame || null) : a.ultimo_exame;
+  const venc = b.vencimento !== undefined ? (b.vencimento || null) : a.vencimento;
+  const c = recalcLinhaASO(ultimo, venc);
+  const faixaAntes = a.faixa;
+  const r = await pool.query(
+    `UPDATE asos SET nome_funcionario=COALESCE($1,nome_funcionario),matricula=COALESCE($2,matricula),
+     data_admissao=COALESCE($3,data_admissao),ultimo_exame=$4,vencimento=$5,dias_periodo=$6,dias_restantes=$7,
+     percentual_restante=$8,faixa=$9,usuario_id=COALESCE($10,usuario_id),atualizado_em=NOW() WHERE id=$11 RETURNING *`,
+    [b.nome_funcionario ? String(b.nome_funcionario).trim() : null, b.matricula !== undefined ? String(b.matricula).trim() : null,
+     b.data_admissao !== undefined ? (b.data_admissao || null) : null, ultimo, venc,
+     c.diasPeriodo, c.diasRestantes, c.percentualRestante, c.faixa,
+     b.usuario_id ? Number(b.usuario_id) : null, req.params.id]
+  );
+  await registrarLog(req.usuarioId, 'editar', 'aso', req.params.id, `${a.nome_funcionario} (${faixaAntes}→${c.faixa})`);
+  if (faixaAntes !== c.faixa && r.rows[0].usuario_id) {
+    await criarNotificacao(r.rows[0].usuario_id, 'aso_faixa', `ASO mudou para ${c.faixa}`,
+      `${r.rows[0].nome_funcionario}: ${faixaAntes} → ${c.faixa}`, '/aso', `aso:${r.rows[0].id}:${c.faixa}`);
+  }
+  res.json(r.rows[0]);
+});
+
+// Importação em massa a partir da planilha (arquivo .xlsx OU JSON já convertido).
+// Preserva faixa_importada da planilha; faixa calculada segue a regra do prompt.
+const importarXLSX = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+app.post('/api/asos/importar', verificarToken, importarXLSX.single('arquivo'), async (req, res) => {
+  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  let linhas = Array.isArray(req.body?.linhas) ? req.body.linhas : [];
+  if (req.file) {
+    if (!XLSX) return res.status(500).json({ error: 'Leitor de planilha indisponível no servidor' });
+    try {
+      const wb = XLSX.read(req.file.buffer, { type: 'buffer' });
+      const ws = wb.Sheets['Planilha1'] || wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
+      // Layout da tabela ASO: col B=nome, C=admissão, D=último exame, E=vencimento, I=faixa (índices 1,2,3,4,8).
+      linhas = rows.slice(3)
+        .filter((r) => String(r[1] || '').trim().length >= 2)
+        .map((r) => ({
+          nome_funcionario: String(r[1]).trim(),
+          data_admissao: typeof r[2] === 'number' ? excelSerialToISO(r[2]) : (r[2] || null),
+          ultimo_exame: typeof r[3] === 'number' ? excelSerialToISO(r[3]) : (r[3] || null),
+          vencimento: typeof r[4] === 'number' ? excelSerialToISO(r[4]) : (r[4] || null),
+          faixa: r[8] || '',
+        }));
+    } catch (e) { return res.status(400).json({ error: 'Não foi possível ler a planilha' }); }
+  }
+  if (!linhas.length) return res.status(400).json({ error: 'Envie linhas para importar' });
+  if (linhas.length > 500) return res.status(400).json({ error: 'Máximo de 500 linhas por importação' });
+  let criados = 0, atualizados = 0;
+  for (const l of linhas) {
+    const nome = String(l.nome_funcionario || l.nome || '').trim();
+    if (nome.length < 2) continue;
+    const matricula = String(l.matricula || '').trim();
+    const ultimo = l.ultimo_exame || null, venc = l.vencimento || null;
+    const c = recalcLinhaASO(ultimo, venc);
+    const faixaImportada = normalizarFaixaPlanilha(l.faixa || l.faixa_importada || '');
+    let usuarioId = l.usuario_id ? Number(l.usuario_id) : null;
+    if (!usuarioId) {
+      const u = await pool.query('SELECT id FROM usuarios WHERE nome ILIKE $1 LIMIT 1', [nome]);
+      if (u.rows.length) usuarioId = Number(u.rows[0].id);
+    }
+    const existe = await pool.query(
+      `SELECT id FROM asos WHERE (matricula<>'' AND matricula=$1) OR (usuario_id IS NOT DISTINCT FROM $2 AND nome_funcionario ILIKE $3) LIMIT 1`,
+      [matricula, usuarioId, nome]
+    );
+    if (existe.rows.length) {
+      await pool.query(
+        `UPDATE asos SET ultimo_exame=COALESCE($1,ultimo_exame),vencimento=COALESCE($2,vencimento),
+         data_admissao=COALESCE($3,data_admissao),matricula=CASE WHEN $4<>'' THEN $4 ELSE matricula END,
+         dias_periodo=$5,dias_restantes=$6,percentual_restante=$7,faixa=$8,faixa_importada=$9,
+         usuario_id=COALESCE($10,usuario_id),atualizado_em=NOW() WHERE id=$11`,
+        [ultimo, venc, l.data_admissao || null, matricula, c.diasPeriodo, c.diasRestantes,
+         c.percentualRestante, c.faixa, faixaImportada === 'Pendente' ? '' : faixaImportada, usuarioId, existe.rows[0].id]
+      );
+      atualizados++;
+    } else {
+      await pool.query(
+        `INSERT INTO asos (usuario_id,nome_funcionario,matricula,data_admissao,ultimo_exame,vencimento,
+         dias_periodo,dias_restantes,percentual_restante,faixa,faixa_importada,criado_por)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+        [usuarioId, nome, matricula, l.data_admissao || null, ultimo, venc, c.diasPeriodo,
+         c.diasRestantes, c.percentualRestante, c.faixa, faixaImportada === 'Pendente' ? '' : faixaImportada, req.usuarioId]
+      );
+      criados++;
+    }
+  }
+  await registrarLog(req.usuarioId, 'importar', 'aso', null, `${criados} criados, ${atualizados} atualizados`);
+  res.json({ criados, atualizados });
+});
+
+app.post('/api/asos/recalcular', verificarToken, async (req, res) => {
+  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  const r = await recalcularASOs();
+  await registrarLog(req.usuarioId, 'recalcular', 'aso', null, `${r.atualizados} recalculados`);
+  res.json(r);
+});
+
+app.post('/api/asos/:id/pdf', verificarToken, pdfASO.single('pdf'), async (req, res) => {
+  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  if (!req.file) return res.status(400).json({ error: 'Envie o PDF do exame' });
+  const url = `/uploads/${req.file.filename}`;
+  const r = await pool.query('UPDATE asos SET pdf_url=$1,atualizado_em=NOW() WHERE id=$2 RETURNING *', [url, req.params.id]);
+  if (!r.rows.length) return res.status(404).json({ error: 'ASO não encontrado' });
+  await registrarLog(req.usuarioId, 'anexar_pdf', 'aso', req.params.id, url);
+  if (r.rows[0].usuario_id) {
+    await criarNotificacao(r.rows[0].usuario_id, 'aso_agendado', 'Novo documento de ASO',
+      `${r.rows[0].nome_funcionario}: PDF atualizado`, '/aso', `aso:${r.rows[0].id}:pdf`);
+  }
+  res.json(r.rows[0]);
+});
+
+app.post('/api/asos/:id/confirmar-presenca', verificarToken, async (req, res) => {
+  const r = await pool.query('SELECT * FROM asos WHERE id=$1', [req.params.id]);
+  if (!r.rows.length) return res.status(404).json({ error: 'ASO não encontrado' });
+  const a = r.rows[0];
+  if (!ehRH(req.usuarioPerfil) && Number(a.usuario_id) !== Number(req.usuarioId)) {
+    return res.status(403).json({ error: 'Você só pode confirmar o próprio ASO' });
+  }
+  const upd = await pool.query(
+    'UPDATE asos SET presenca_confirmada=TRUE,presenca_confirmada_em=NOW(),atualizado_em=NOW() WHERE id=$1 RETURNING *', [req.params.id]
+  );
+  await registrarLog(req.usuarioId, 'confirmar_presenca', 'aso', req.params.id, a.nome_funcionario);
+  const admins = await pool.query(`SELECT id FROM usuarios WHERE LOWER(perfil) IN ('administrador','gerente')`);
+  for (const adm of admins.rows) {
+    await criarNotificacao(adm.id, 'aso_confirmado', 'Presença confirmada', `${a.nome_funcionario} confirmou presença no ASO`, '/aso', `aso:${a.id}:presenca`);
+  }
+  res.json(upd.rows[0]);
+});
+
+// ---- Agendamentos de ASO ----
+app.get('/api/agendamentos-aso', verificarToken, async (req, res) => {
+  try {
+    let q = `SELECT ag.*, l.nome AS local_nome FROM agendamentos_aso ag LEFT JOIN locais_exame l ON l.id=ag.local_id`;
+    const params = [];
+    if (!ehRH(req.usuarioPerfil)) { params.push(req.usuarioId); q += ` WHERE ag.usuario_id=$${params.length}`; }
+    q += ' ORDER BY ag.data_hora';
+    const r = await pool.query(q, params);
+    res.json(r.rows);
+  } catch (e) { res.status(500).json({ error: 'Erro ao listar agendamentos' }); }
+});
+
+app.post('/api/agendamentos-aso', verificarToken, async (req, res) => {
+  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  const b = req.body || {};
+  const nome = String(b.nome_funcionario || '').trim();
+  if (!b.aso_id || !b.data_hora || !nome) return res.status(400).json({ error: 'Informe funcionário, ASO e data/hora' });
+  let localId = b.local_id ? Number(b.local_id) : null;
+  if (localId) {
+    const l = await pool.query('SELECT id FROM locais_exame WHERE id=$1 AND ativo=TRUE', [localId]);
+    if (!l.rows.length) return res.status(400).json({ error: 'Selecione um local ativo' });
+  }
+  const aso = await pool.query('SELECT usuario_id,nome_funcionario FROM asos WHERE id=$1', [Number(b.aso_id)]);
+  if (!aso.rows.length) return res.status(404).json({ error: 'ASO não encontrado' });
+  const r = await pool.query(
+    `INSERT INTO agendamentos_aso (aso_id,usuario_id,nome_funcionario,data_hora,local_id,observacoes,criado_por)
+     VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+    [Number(b.aso_id), aso.rows[0].usuario_id, nome, b.data_hora, localId, String(b.observacoes || '').trim(), req.usuarioId]
+  );
+  await registrarLog(req.usuarioId, 'criar', 'agendamento_aso', r.rows[0].id, `${nome} em ${b.data_hora}`);
+  if (aso.rows[0].usuario_id) {
+    await criarNotificacao(aso.rows[0].usuario_id, 'aso_agendado', 'ASO agendado',
+      `${nome}: ${new Date(b.data_hora).toLocaleString('pt-BR')}`, '/aso', `agaso:${r.rows[0].id}`);
+  }
+  res.status(201).json(r.rows[0]);
+});
+
+app.put('/api/agendamentos-aso/:id', verificarToken, async (req, res) => {
+  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  const b = req.body || {};
+  const sets = [], vals = [];
+  if (b.data_hora) { vals.push(b.data_hora); sets.push(`data_hora=$${vals.length}`); }
+  if (b.local_id !== undefined) { vals.push(b.local_id || null); sets.push(`local_id=$${vals.length}`); }
+  if (b.observacoes !== undefined) { vals.push(String(b.observacoes)); sets.push(`observacoes=$${vals.length}`); }
+  if (b.presenca_confirmada !== undefined) { vals.push(Boolean(b.presenca_confirmada)); sets.push(`presenca_confirmada=$${vals.length}`); }
+  if (b.realizado !== undefined) { vals.push(Boolean(b.realizado)); sets.push(`realizado=$${vals.length}`); }
+  if (!sets.length) return res.status(400).json({ error: 'Nada para atualizar' });
+  vals.push(req.params.id);
+  const r = await pool.query(`UPDATE agendamentos_aso SET ${sets.join(', ')} WHERE id=$${vals.length} RETURNING *`, vals);
+  if (!r.rows.length) return res.status(404).json({ error: 'Agendamento não encontrado' });
+  await registrarLog(req.usuarioId, 'editar', 'agendamento_aso', req.params.id, b.data_hora ? `reagendado para ${b.data_hora}` : 'atualizado');
+  if (b.data_hora && r.rows[0].usuario_id) {
+    await criarNotificacao(r.rows[0].usuario_id, 'aso_agendado', 'ASO reagendado',
+      `${r.rows[0].nome_funcionario}: ${new Date(b.data_hora).toLocaleString('pt-BR')}`, '/aso', `agaso:${r.rows[0].id}:${b.data_hora}`);
+  }
+  res.json(r.rows[0]);
+});
+
+app.delete('/api/agendamentos-aso/:id', verificarToken, async (req, res) => {
+  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  const r = await pool.query('DELETE FROM agendamentos_aso WHERE id=$1 RETURNING id', [req.params.id]);
+  if (!r.rows.length) return res.status(404).json({ error: 'Agendamento não encontrado' });
+  await registrarLog(req.usuarioId, 'excluir', 'agendamento_aso', req.params.id, '');
+  res.json({ mensagem: 'Agendamento excluído.' });
+});
+
+app.post('/api/agendamentos-aso/:id/confirmar', verificarToken, async (req, res) => {
+  const r = await pool.query('SELECT * FROM agendamentos_aso WHERE id=$1', [req.params.id]);
+  if (!r.rows.length) return res.status(404).json({ error: 'Agendamento não encontrado' });
+  const ag = r.rows[0];
+  if (!ehRH(req.usuarioPerfil) && Number(ag.usuario_id) !== Number(req.usuarioId)) {
+    return res.status(403).json({ error: 'Você só pode confirmar o próprio agendamento' });
+  }
+  const upd = await pool.query('UPDATE agendamentos_aso SET presenca_confirmada=TRUE WHERE id=$1 RETURNING *', [req.params.id]);
+  await registrarLog(req.usuarioId, 'confirmar_presenca', 'agendamento_aso', req.params.id, ag.nome_funcionario);
+  res.json(upd.rows[0]);
+});
 
 app.listen(PORT, () => console.log(`🚀 Backend rodando na porta ${PORT}`));
