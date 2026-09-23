@@ -211,3 +211,73 @@ CREATE TABLE IF NOT EXISTS ticket_mensagens (
   criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS ticket_mensagens_ticket_idx ON ticket_mensagens (ticket_id, criado_em);
+
+-- Banco de Horas (23/09/2026): matrícula/CPF no usuário + lotes e lançamentos.
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS matricula VARCHAR(30) NOT NULL DEFAULT '';
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS cpf VARCHAR(14) NOT NULL DEFAULT '';
+CREATE TABLE IF NOT EXISTS banco_horas_lotes (
+  id SERIAL PRIMARY KEY,
+  competencia CHAR(7) NOT NULL,
+  status VARCHAR(15) NOT NULL DEFAULT 'rascunho',
+  total INT NOT NULL DEFAULT 0,
+  vinculados INT NOT NULL DEFAULT 0,
+  nao_identificados INT NOT NULL DEFAULT 0,
+  publicado_por INT REFERENCES usuarios(id) ON DELETE SET NULL,
+  criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  publicado_em TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS banco_horas (
+  id SERIAL PRIMARY KEY,
+  lote_id INT REFERENCES banco_horas_lotes(id) ON DELETE CASCADE,
+  usuario_id INT REFERENCES usuarios(id) ON DELETE SET NULL,
+  nome_funcionario VARCHAR(150) NOT NULL,
+  matricula VARCHAR(30) NOT NULL DEFAULT '',
+  cpf VARCHAR(14) NOT NULL DEFAULT '',
+  competencia CHAR(7) NOT NULL,
+  pdf_url VARCHAR(255) NOT NULL DEFAULT '',
+  status VARCHAR(20) NOT NULL DEFAULT 'nao_identificado',
+  publicado BOOLEAN NOT NULL DEFAULT FALSE,
+  publicado_por INT REFERENCES usuarios(id) ON DELETE SET NULL,
+  publicado_em TIMESTAMP,
+  criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS banco_horas_usuario_idx ON banco_horas (usuario_id, competencia);
+
+-- Folgas rotativas (23/09/2026).
+CREATE TABLE IF NOT EXISTS escalas (
+  id SERIAL PRIMARY KEY,
+  nome VARCHAR(150) NOT NULL,
+  modelo VARCHAR(20) NOT NULL DEFAULT '5x2',
+  tipo VARCHAR(20) NOT NULL DEFAULT 'Rotativa',
+  time VARCHAR(5) NOT NULL DEFAULT '',
+  inicio DATE NOT NULL,
+  fim DATE NOT NULL,
+  dias_gerados INT NOT NULL DEFAULT 0,
+  status VARCHAR(15) NOT NULL DEFAULT 'rascunho',
+  criado_por INT REFERENCES usuarios(id) ON DELETE SET NULL,
+  criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS folgas (
+  id SERIAL PRIMARY KEY,
+  escala_id INT REFERENCES escalas(id) ON DELETE CASCADE,
+  usuario_id INT REFERENCES usuarios(id) ON DELETE CASCADE,
+  nome_funcionario VARCHAR(150) NOT NULL,
+  data DATE NOT NULL,
+  tipo VARCHAR(20) NOT NULL DEFAULT 'Rotativa',
+  status VARCHAR(15) NOT NULL DEFAULT 'rascunho',
+  criado_por INT REFERENCES usuarios(id) ON DELETE SET NULL,
+  criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (usuario_id, data)
+);
+CREATE INDEX IF NOT EXISTS folgas_data_idx ON folgas (data);
+CREATE TABLE IF NOT EXISTS solicitacoes_folga (
+  id SERIAL PRIMARY KEY,
+  usuario_id INT REFERENCES usuarios(id) ON DELETE CASCADE,
+  nome_solicitante VARCHAR(150) NOT NULL DEFAULT '',
+  data_inicio DATE NOT NULL,
+  data_fim DATE NOT NULL,
+  motivo TEXT NOT NULL DEFAULT '',
+  status VARCHAR(15) NOT NULL DEFAULT 'pendente',
+  decidido_por INT REFERENCES usuarios(id) ON DELETE SET NULL,
+  criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

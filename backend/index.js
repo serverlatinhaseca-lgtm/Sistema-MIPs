@@ -15,6 +15,8 @@ const { calcularASO, classificarFaixa, normalizarFaixaPlanilha, FAIXAS_VALIDAS }
 const XLSX = (() => { try { return require('xlsx'); } catch { return null; } })();
 const { excelSerialToISO } = require('./aso');
 const { CATEGORIAS_TICKET, STATUS_TICKET, PRIORIDADES_TICKET, SLA_HORAS, numeroTicket, prazoSLA } = require('./tickets');
+const AdmZip = (() => { try { return require('adm-zip'); } catch { return null; } })();
+const { MODELOS, TIPOS_FOLGA, TIMES, gerarFolgasCiclo } = require('./folgas');
 const MODELOS_AVALIACAO = require('./modelos-avaliacao.json');
 const CLIENTES_INICIAIS = require('./clientes-iniciais.json');
 const executarArquivo = promisify(execFile);
@@ -328,6 +330,8 @@ async function inicializarBancoEAdmin() {
     await inicializarIngredientesSugestao();
     await inicializarASO();
     await inicializarFase2();
+    await inicializarBancoHoras();
+    await inicializarFolgas();
 
     const check = await pool.query("SELECT * FROM usuarios WHERE email = 'admin'");
     if (check.rows.length === 0) {
@@ -810,7 +814,7 @@ async function salvarSetoresUsuario(usuarioId, setorIds) {
 app.get('/api/usuarios', verificarToken, async (req, res) => {
   if (String(req.usuarioPerfil || '').toLowerCase() !== 'administrador') return res.status(403).json({ error: 'Acesso negado' });
   try {
-    const result = await pool.query(`SELECT u.id,u.nome,u.email,u.perfil,u.setor,u.cargo,u.lider_id,l.nome AS lider_nome,u.modelo_avaliacao_id,m.nome AS modelo_avaliacao_nome,u.categoria_acesso_id,ca.nome AS categoria_acesso_nome,u.deve_alterar_senha,u.criado_em,COALESCE((SELECT JSON_AGG(JSON_BUILD_OBJECT('id',s.id,'nome',s.nome) ORDER BY s.nome) FROM usuario_setores us JOIN setores_reclamacao s ON s.id=us.setor_id WHERE us.usuario_id=u.id),'[]'::json) AS setores FROM usuarios u LEFT JOIN usuarios l ON l.id=u.lider_id LEFT JOIN modelos_avaliacao m ON m.id=u.modelo_avaliacao_id LEFT JOIN categorias_acesso ca ON ca.id=u.categoria_acesso_id ORDER BY u.nome`);
+    const result = await pool.query(`SELECT u.id,u.nome,u.email,u.perfil,u.setor,u.cargo,u.matricula,u.cpf,u.lider_id,l.nome AS lider_nome,u.modelo_avaliacao_id,m.nome AS modelo_avaliacao_nome,u.categoria_acesso_id,ca.nome AS categoria_acesso_nome,u.deve_alterar_senha,u.criado_em,COALESCE((SELECT JSON_AGG(JSON_BUILD_OBJECT('id',s.id,'nome',s.nome) ORDER BY s.nome) FROM usuario_setores us JOIN setores_reclamacao s ON s.id=us.setor_id WHERE us.usuario_id=u.id),'[]'::json) AS setores FROM usuarios u LEFT JOIN usuarios l ON l.id=u.lider_id LEFT JOIN modelos_avaliacao m ON m.id=u.modelo_avaliacao_id LEFT JOIN categorias_acesso ca ON ca.id=u.categoria_acesso_id ORDER BY u.nome`);
     const linhas = result.rows.map(r => ({ ...r, setor_ids: Array.isArray(r.setores) ? r.setores.map(s => s.id) : [] }));
     res.json(linhas);
   } catch (error) { res.status(500).json({ error: 'Erro' }); }
@@ -818,7 +822,7 @@ app.get('/api/usuarios', verificarToken, async (req, res) => {
 
 app.post('/api/usuarios', verificarToken, async (req, res) => {
   if (String(req.usuarioPerfil || '').toLowerCase() !== 'administrador') return res.status(403).json({ error: 'Acesso negado' });
-  const { nome, email, senha, perfil, lider_id = null, modelo_avaliacao_id = null, categoria_acesso_id = null, setor_ids = [] } = req.body;
+  const { nome, email, senha, perfil, lider_id = null, modelo_avaliacao_id = null, categoria_acesso_id = null, setor_ids = [], matricula = '', cpf = '' } = req.body;
   if (['leitor','editor','gerente'].includes(normalizarPerfil(perfil)) && !lider_id) return res.status(400).json({ error: 'Selecione o responsável pela avaliação deste usuário' });
   try {
     const hash = await bcrypt.hash(senha, 10);
@@ -832,7 +836,7 @@ app.post('/api/usuarios', verificarToken, async (req, res) => {
     if(modelo_avaliacao_id){const modelo=await pool.query('SELECT id,nome FROM modelos_avaliacao WHERE id=$1 AND ativo=TRUE',[Number(modelo_avaliacao_id)]);if(!modelo.rows.length)return res.status(400).json({error:'Modelo de avaliação inválido'});nomeModelo=modelo.rows[0].nome;}
     if(['leitor','editor','gerente'].includes(normalizarPerfil(perfil)) && !modelo_avaliacao_id) return res.status(400).json({error:'Selecione a função/modelo de avaliação'});
     const recebeAvaliacao = ['leitor','editor','gerente'].includes(normalizarPerfil(perfil));
-    const result = await pool.query('INSERT INTO usuarios (nome,email,senha,perfil,setor,cargo,lider_id,modelo_avaliacao_id,categoria_acesso_id,deve_alterar_senha) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,TRUE) RETURNING id', [nome,email,hash,perfil,nomeModelo,nomeModelo,recebeAvaliacao?Number(lider_id):null,recebeAvaliacao&&modelo_avaliacao_id?Number(modelo_avaliacao_id):null,categoria_acesso_id?Number(categoria_acesso_id):null]);
+    const result = await pool.query('INSERT INTO usuarios (nome,email,senha,perfil,setor,cargo,matricula,cpf,lider_id,modelo_avaliacao_id,categoria_acesso_id,deve_alterar_senha) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,TRUE) RETURNING id', [nome,email,hash,perfil,nomeModelo,nomeModelo,String(matricula||'').trim(),String(cpf||'').trim(),recebeAvaliacao?Number(lider_id):null,recebeAvaliacao&&modelo_avaliacao_id?Number(modelo_avaliacao_id):null,categoria_acesso_id?Number(categoria_acesso_id):null]);
     try { await salvarSetoresUsuario(result.rows[0].id, setor_ids); }
     catch (e) { return res.status(e.status || 500).json({ error: e.message }); }
     res.status(201).json({ id: result.rows[0].id, mensagem: 'Criado!' });
@@ -844,7 +848,7 @@ app.post('/api/usuarios', verificarToken, async (req, res) => {
 
 app.put('/api/usuarios/:id', verificarToken, async (req, res) => {
   if (String(req.usuarioPerfil).toLowerCase() !== 'administrador') return res.status(403).json({ error: 'Acesso negado' });
-  const { nome, email, perfil, lider_id = null, modelo_avaliacao_id = null, categoria_acesso_id = null, setor_ids = null } = req.body;
+  const { nome, email, perfil, lider_id = null, modelo_avaliacao_id = null, categoria_acesso_id = null, setor_ids = null, matricula, cpf } = req.body;
   const perfilNormalizado = String(perfil || '').toLowerCase();
   if (String(req.params.id) === String(req.usuarioId) && perfilNormalizado !== 'administrador') return res.status(400).json({ error: 'O Administrador não pode remover o próprio acesso administrativo' });
   if (!String(nome || '').trim() || !String(email || '').trim() || !['leitor','editor','gerente','administrador'].includes(perfilNormalizado)) return res.status(400).json({ error: 'Preencha nome, login e perfil corretamente' });
@@ -859,7 +863,7 @@ app.put('/api/usuarios/:id', verificarToken, async (req, res) => {
       if(!r.rows.length)return res.status(400).json({error:'O responsável selecionado não possui o perfil adequado'});
     }
     const recebeAvaliacao=['leitor','editor','gerente'].includes(perfilNormalizado);
-    const result=await pool.query('UPDATE usuarios SET nome=$1,email=$2,perfil=$3,setor=$4,cargo=$4,lider_id=$5,modelo_avaliacao_id=$6,categoria_acesso_id=$7 WHERE id=$8 RETURNING id',[nome.trim(),email.trim(),perfil,nomeModelo,recebeAvaliacao?Number(lider_id):null,recebeAvaliacao&&modelo_avaliacao_id?Number(modelo_avaliacao_id):null,categoria_acesso_id?Number(categoria_acesso_id):null,req.params.id]);
+    const result=await pool.query('UPDATE usuarios SET nome=$1,email=$2,perfil=$3,setor=$4,cargo=$4,matricula=COALESCE($9,matricula),cpf=COALESCE($10,cpf),lider_id=$5,modelo_avaliacao_id=$6,categoria_acesso_id=$7 WHERE id=$8 RETURNING id',[nome.trim(),email.trim(),perfil,nomeModelo,recebeAvaliacao?Number(lider_id):null,recebeAvaliacao&&modelo_avaliacao_id?Number(modelo_avaliacao_id):null,categoria_acesso_id?Number(categoria_acesso_id):null,req.params.id,matricula!==undefined?String(matricula).trim():null,cpf!==undefined?String(cpf).trim():null]);
     if(!result.rows.length)return res.status(404).json({error:'Usuário não encontrado'});
     if (setor_ids !== null && setor_ids !== undefined) {
       try { await salvarSetoresUsuario(Number(req.params.id), setor_ids); }
@@ -2326,6 +2330,529 @@ app.patch('/api/tickets/:id', verificarToken, async (req, res) => {
       `Status: ${r.rows[0].status}`, '/atendimento', `ticket:${r.rows[0].id}:${r.rows[0].status}`);
   }
   res.json(r.rows[0]);
+});
+
+// ============ BANCO DE HORAS (23/09/2026) ============
+// Match por matrícula (usuarios.matricula) + nome; CPF fica registrado (anti-troca).
+// Cada PDF pertence a 1 funcionário — nunca compartilhado.
+async function inicializarBancoHoras() {
+  await pool.query(`
+    ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS matricula VARCHAR(30) NOT NULL DEFAULT '';
+    ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS cpf VARCHAR(14) NOT NULL DEFAULT '';
+    CREATE TABLE IF NOT EXISTS banco_horas_lotes (
+      id SERIAL PRIMARY KEY,
+      competencia CHAR(7) NOT NULL,
+      status VARCHAR(15) NOT NULL DEFAULT 'rascunho',
+      total INT NOT NULL DEFAULT 0,
+      vinculados INT NOT NULL DEFAULT 0,
+      nao_identificados INT NOT NULL DEFAULT 0,
+      publicado_por INT REFERENCES usuarios(id) ON DELETE SET NULL,
+      criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      publicado_em TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS banco_horas (
+      id SERIAL PRIMARY KEY,
+      lote_id INT REFERENCES banco_horas_lotes(id) ON DELETE CASCADE,
+      usuario_id INT REFERENCES usuarios(id) ON DELETE SET NULL,
+      nome_funcionario VARCHAR(150) NOT NULL,
+      matricula VARCHAR(30) NOT NULL DEFAULT '',
+      cpf VARCHAR(14) NOT NULL DEFAULT '',
+      competencia CHAR(7) NOT NULL,
+      pdf_url VARCHAR(255) NOT NULL DEFAULT '',
+      status VARCHAR(20) NOT NULL DEFAULT 'nao_identificado',
+      publicado BOOLEAN NOT NULL DEFAULT FALSE,
+      publicado_por INT REFERENCES usuarios(id) ON DELETE SET NULL,
+      publicado_em TIMESTAMP,
+      criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS banco_horas_usuario_idx ON banco_horas (usuario_id, competencia);
+  `);
+}
+
+const COMP_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+async function vincularBH(matricula, nome) {
+  const mat = String(matricula || '').trim();
+  if (mat) {
+    const u = await pool.query('SELECT id FROM usuarios WHERE matricula=$1 AND matricula<>\'\' LIMIT 1', [mat]);
+    if (u.rows.length) return Number(u.rows[0].id);
+  }
+  const nm = String(nome || '').trim();
+  if (nm.length >= 2) {
+    const u = await pool.query('SELECT id FROM usuarios WHERE nome ILIKE $1 LIMIT 1', [nm]);
+    if (u.rows.length) return Number(u.rows[0].id);
+  }
+  return null;
+}
+
+function salvarPDFBuffer(buffer, prefixo, nomeOriginal) {
+  const safe = String(nomeOriginal || 'arquivo.pdf').replace(/[^a-zA-Z0-9.-]/g, '_');
+  const nome = `${prefixo}-${Date.now()}-${Math.round(Math.random() * 1E9)}-${safe}`;
+  fs.writeFileSync(path.join(uploadDir, nome), buffer);
+  return `/uploads/${nome}`;
+}
+
+const bhUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024, files: 60 },
+  fileFilter: (req, file, cb) => {
+    const campo = file.fieldname;
+    if (campo === 'mapeamento') {
+      if (/spreadsheet|excel|officedocument|\.xlsx?$/i.test(`${file.mimetype} ${file.originalname}`)) return cb(null, true);
+      return cb(new Error('O mapeamento deve ser um XLSX.'));
+    }
+    if (campo === 'pacote') {
+      if (/zip/i.test(`${file.mimetype} ${file.originalname}`)) return cb(null, true);
+      return cb(new Error('O pacote deve ser um ZIP.'));
+    }
+    if (/pdf$/i.test(file.mimetype || '') || /\.pdf$/i.test(file.originalname || '')) return cb(null, true);
+    cb(new Error('Envie apenas PDFs nos arquivos.'));
+  }
+});
+
+const bhIndividual = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (/pdf$/i.test(file.mimetype || '') || /\.pdf$/i.test(file.originalname || '')) cb(null, true);
+    else cb(new Error('Envie um arquivo PDF.'));
+  }
+});
+
+app.post('/api/banco-horas/lotes', verificarToken, async (req, res) => {
+  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  const competencia = String(req.body?.competencia || '').trim();
+  if (!COMP_RE.test(competencia)) return res.status(400).json({ error: 'Competência inválida (use AAAA-MM)' });
+  const r = await pool.query('INSERT INTO banco_horas_lotes (competencia) VALUES ($1) RETURNING *', [competencia]);
+  await registrarLog(req.usuarioId, 'criar', 'banco_horas_lote', r.rows[0].id, competencia);
+  res.status(201).json(r.rows[0]);
+});
+
+app.get('/api/banco-horas/lotes', verificarToken, async (req, res) => {
+  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  const r = await pool.query(
+    `SELECT l.*, u.nome AS publicado_por_nome FROM banco_horas_lotes l LEFT JOIN usuarios u ON u.id=l.publicado_por ORDER BY l.criado_em DESC LIMIT 60`
+  );
+  res.json(r.rows);
+});
+
+app.delete('/api/banco-horas/lotes/:id', verificarToken, async (req, res) => {
+  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  const l = await pool.query('SELECT status FROM banco_horas_lotes WHERE id=$1', [req.params.id]);
+  if (!l.rows.length) return res.status(404).json({ error: 'Lote não encontrado' });
+  if (l.rows[0].status !== 'rascunho') return res.status(400).json({ error: 'Só é possível excluir rascunho' });
+  const arqs = await pool.query('SELECT pdf_url FROM banco_horas WHERE lote_id=$1', [req.params.id]);
+  for (const a of arqs.rows) {
+    try { const f = path.join(uploadDir, path.basename(a.pdf_url)); if (fs.existsSync(f)) fs.unlinkSync(f); } catch { /* ignora */ }
+  }
+  await pool.query('DELETE FROM banco_horas_lotes WHERE id=$1', [req.params.id]);
+  await registrarLog(req.usuarioId, 'excluir', 'banco_horas_lote', req.params.id, '');
+  res.json({ mensagem: 'Rascunho excluído.' });
+});
+
+// Upload em massa: pdfs[] (drag&drop) + mapeamento.xlsx opcional + pacote.zip opcional.
+app.post('/api/banco-horas/lotes/:id/arquivos', verificarToken, bhUpload.fields([
+  { name: 'pdfs', maxCount: 50 }, { name: 'mapeamento', maxCount: 1 }, { name: 'pacote', maxCount: 1 },
+]), async (req, res) => {
+  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  const lote = await pool.query('SELECT * FROM banco_horas_lotes WHERE id=$1', [req.params.id]);
+  if (!lote.rows.length) return res.status(404).json({ error: 'Lote não encontrado' });
+  if (lote.rows[0].status !== 'rascunho') return res.status(400).json({ error: 'Lote já publicado' });
+  const comp = lote.rows[0].competencia;
+  const arquivos = req.files?.pdfs || [];
+  const itens = []; // { buffer, nomeOriginal, matricula, nome, cpf }
+
+  for (const f of arquivos) itens.push({ buffer: f.buffer, nomeOriginal: f.originalname, matricula: '', nome: '', cpf: '' });
+
+  const pacote = req.files?.pacote?.[0];
+  if (pacote) {
+    if (!AdmZip) return res.status(500).json({ error: 'Leitor de ZIP indisponível no servidor' });
+    try {
+      const zip = new AdmZip(pacote.buffer);
+      for (const e of zip.getEntries()) {
+        if (e.isDirectory || !/\.pdf$/i.test(e.entryName)) continue;
+        const base = path.basename(e.entryName);
+        const mat = (base.match(/\d{3,}/) || [''])[0]; // matrícula no nome do arquivo
+        itens.push({ buffer: e.getData(), nomeOriginal: base, matricula: mat, nome: '', cpf: '' });
+      }
+    } catch { return res.status(400).json({ error: 'Não foi possível ler o ZIP' }); }
+  }
+
+  const map = req.files?.mapeamento?.[0];
+  let mapa = [];
+  if (map) {
+    if (!XLSX) return res.status(500).json({ error: 'Leitor de planilha indisponível no servidor' });
+    try {
+      const wb = XLSX.read(map.buffer, { type: 'buffer' });
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '' });
+      const chave = (o, nomes) => {
+        for (const k of Object.keys(o)) {
+          const n = String(k).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+          if (nomes.includes(n)) return String(o[k] ?? '').trim();
+        }
+        return '';
+      };
+      mapa = rows.map((o) => ({
+        matricula: chave(o, ['matricula']),
+        nome: chave(o, ['nome']),
+        cpf: chave(o, ['cpf']),
+        arquivo: chave(o, ['arquivo']),
+        competencia: chave(o, ['competencia']) || comp,
+      })).filter((m) => m.matricula || m.nome || m.arquivo);
+    } catch { return res.status(400).json({ error: 'Não foi possível ler o XLSX' }); }
+  }
+
+  // Aplica o mapeamento aos PDFs pelo nome do arquivo.
+  for (const it of itens) {
+    const m = mapa.find((x) => x.arquivo && x.arquivo.toLowerCase() === String(it.nomeOriginal).toLowerCase());
+    if (m) { it.matricula = it.matricula || m.matricula; it.nome = it.nome || m.nome; it.cpf = m.cpf; }
+    if (!it.nome && it.matricula) {
+      const u = await pool.query('SELECT nome FROM usuarios WHERE matricula=$1 LIMIT 1', [it.matricula]);
+      if (u.rows.length) it.nome = u.rows[0].nome;
+    }
+  }
+  // Linhas do XLSX sem PDF correspondente → status "PDF ausente" (sem arquivo).
+  for (const m of mapa) {
+    const achou = itens.some((it) => m.arquivo && m.arquivo.toLowerCase() === String(it.nomeOriginal).toLowerCase());
+    if (!achou && (m.matricula || m.nome)) itens.push({ buffer: null, nomeOriginal: m.arquivo || '(sem arquivo)', matricula: m.matricula, nome: m.nome, cpf: m.cpf });
+  }
+
+  if (!itens.length) return res.status(400).json({ error: 'Nenhum arquivo ou linha para revisar' });
+  let vinculados = 0, naoId = 0;
+  const saida = [];
+  for (const it of itens) {
+    const usuarioId = await vincularBH(it.matricula, it.nome);
+    const status = usuarioId ? 'vinculado' : (it.buffer ? 'nao_identificado' : 'pdf_ausente');
+    if (status === 'vinculado') vinculados++; else naoId++;
+    const pdfUrl = it.buffer ? salvarPDFBuffer(it.buffer, 'bh', it.nomeOriginal) : '';
+    const r = await pool.query(
+      `INSERT INTO banco_horas (lote_id,usuario_id,nome_funcionario,matricula,cpf,competencia,pdf_url,status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [req.params.id, usuarioId, it.nome || it.nomeOriginal, it.matricula, it.cpf, comp, pdfUrl, status]
+    );
+    saida.push(r.rows[0]);
+  }
+  await pool.query('UPDATE banco_horas_lotes SET total=total+$1,vinculados=vinculados+$2,nao_identificados=nao_identificados+$3 WHERE id=$4',
+    [saida.length, vinculados, naoId, req.params.id]);
+  await registrarLog(req.usuarioId, 'enviar_arquivos', 'banco_horas_lote', req.params.id, `${saida.length} itens (${vinculados} vinculados)`);
+  res.status(201).json({ itens: saida });
+});
+
+app.get('/api/banco-horas/lotes/:id/revisao', verificarToken, async (req, res) => {
+  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  const r = await pool.query('SELECT * FROM banco_horas WHERE lote_id=$1 ORDER BY status, nome_funcionario', [req.params.id]);
+  res.json(r.rows);
+});
+
+app.post('/api/banco-horas/lotes/:id/publicar', verificarToken, async (req, res) => {
+  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  const lote = await pool.query('SELECT * FROM banco_horas_lotes WHERE id=$1', [req.params.id]);
+  if (!lote.rows.length) return res.status(404).json({ error: 'Lote não encontrado' });
+  if (lote.rows[0].status !== 'rascunho') return res.status(400).json({ error: 'Lote já publicado' });
+  const itens = await pool.query(`SELECT * FROM banco_horas WHERE lote_id=$1 AND publicado=FALSE AND pdf_url<>''`, [req.params.id]);
+  let publicados = 0;
+  for (const it of itens.rows) {
+    await pool.query('UPDATE banco_horas SET publicado=TRUE,publicado_por=$1,publicado_em=NOW() WHERE id=$2', [req.usuarioId, it.id]);
+    if (it.usuario_id) {
+      publicados++;
+      await criarNotificacaoRespeitandoPrefs(it.usuario_id, 'banco_horas', '📄 Banco de Horas disponível',
+        `Competência ${it.competencia} publicada`, '/banco-horas', `bh:${it.id}`);
+    }
+  }
+  const pend = await pool.query(`SELECT COUNT(*)::int AS n FROM banco_horas WHERE lote_id=$1 AND publicado=FALSE`, [req.params.id]);
+  await pool.query(`UPDATE banco_horas_lotes SET status='publicado',publicado_por=$1,publicado_em=NOW() WHERE id=$2`, [req.usuarioId, req.params.id]);
+  await registrarLog(req.usuarioId, 'publicar', 'banco_horas_lote', req.params.id,
+    `${publicados} publicados, ${pend.rows[0].n} pendentes (competência ${lote.rows[0].competencia})`);
+  res.json({ publicados, pendentes: pend.rows[0].n });
+});
+
+// Upload individual: publica direto + notifica.
+app.post('/api/banco-horas/individual', verificarToken, bhIndividual.single('pdf'), async (req, res) => {
+  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  const competencia = String(req.body?.competencia || '').trim();
+  if (!COMP_RE.test(competencia)) return res.status(400).json({ error: 'Competência inválida (use AAAA-MM)' });
+  if (!req.file) return res.status(400).json({ error: 'Envie o PDF' });
+  const usuarioId = req.body?.usuario_id ? Number(req.body.usuario_id)
+    : await vincularBH(req.body?.matricula, req.body?.nome_funcionario);
+  const nome = String(req.body?.nome_funcionario || '').trim()
+    || (await pool.query('SELECT nome FROM usuarios WHERE id=$1', [usuarioId])).rows[0]?.nome || req.file.originalname;
+  const pdfUrl = salvarPDFBuffer(req.file.buffer, 'bh', req.file.originalname);
+  const r = await pool.query(
+    `INSERT INTO banco_horas (usuario_id,nome_funcionario,matricula,cpf,competencia,pdf_url,status,publicado,publicado_por,publicado_em)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,TRUE,$8,NOW()) RETURNING *`,
+    [usuarioId || null, nome, String(req.body?.matricula || ''), String(req.body?.cpf || ''),
+     competencia, pdfUrl, usuarioId ? 'vinculado' : 'nao_identificado', req.usuarioId]
+  );
+  await registrarLog(req.usuarioId, 'publicar_individual', 'banco_horas', r.rows[0].id, `${nome} ${competencia}`);
+  if (usuarioId) {
+    await criarNotificacaoRespeitandoPrefs(usuarioId, 'banco_horas', '📄 Banco de Horas disponível',
+      `Competência ${competencia} publicada`, '/banco-horas', `bh:${r.rows[0].id}`);
+  }
+  res.status(201).json(r.rows[0]);
+});
+
+app.get('/api/banco-horas/meus', verificarToken, async (req, res) => {
+  const comp = String(req.query.competencia || '').trim();
+  const params = [req.usuarioId];
+  let f = 'WHERE publicado=TRUE AND usuario_id=$1';
+  if (COMP_RE.test(comp)) { params.push(comp); f += ` AND competencia=$${params.length}`; }
+  const r = await pool.query(`SELECT * FROM banco_horas ${f} ORDER BY competencia DESC`, params);
+  res.json(r.rows);
+});
+
+app.delete('/api/banco-horas/:id', verificarToken, async (req, res) => {
+  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  const r = await pool.query('SELECT pdf_url FROM banco_horas WHERE id=$1', [req.params.id]);
+  if (!r.rows.length) return res.status(404).json({ error: 'Registro não encontrado' });
+  try { const f = path.join(uploadDir, path.basename(r.rows[0].pdf_url)); if (r.rows[0].pdf_url && fs.existsSync(f)) fs.unlinkSync(f); } catch { /* ignora */ }
+  await pool.query('DELETE FROM banco_horas WHERE id=$1', [req.params.id]);
+  await registrarLog(req.usuarioId, 'excluir', 'banco_horas', req.params.id, '');
+  res.json({ mensagem: 'Registro excluído.' });
+});
+
+// ============ FOLGAS ROTATIVAS (23/09/2026) ============
+async function inicializarFolgas() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS escalas (
+      id SERIAL PRIMARY KEY,
+      nome VARCHAR(150) NOT NULL,
+      modelo VARCHAR(20) NOT NULL DEFAULT '5x2',
+      tipo VARCHAR(20) NOT NULL DEFAULT 'Rotativa',
+      time VARCHAR(5) NOT NULL DEFAULT '',
+      inicio DATE NOT NULL,
+      fim DATE NOT NULL,
+      dias_gerados INT NOT NULL DEFAULT 0,
+      status VARCHAR(15) NOT NULL DEFAULT 'rascunho',
+      criado_por INT REFERENCES usuarios(id) ON DELETE SET NULL,
+      criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS folgas (
+      id SERIAL PRIMARY KEY,
+      escala_id INT REFERENCES escalas(id) ON DELETE CASCADE,
+      usuario_id INT REFERENCES usuarios(id) ON DELETE CASCADE,
+      nome_funcionario VARCHAR(150) NOT NULL,
+      data DATE NOT NULL,
+      tipo VARCHAR(20) NOT NULL DEFAULT 'Rotativa',
+      status VARCHAR(15) NOT NULL DEFAULT 'rascunho',
+      criado_por INT REFERENCES usuarios(id) ON DELETE SET NULL,
+      criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE (usuario_id, data)
+    );
+    CREATE INDEX IF NOT EXISTS folgas_data_idx ON folgas (data);
+    CREATE TABLE IF NOT EXISTS solicitacoes_folga (
+      id SERIAL PRIMARY KEY,
+      usuario_id INT REFERENCES usuarios(id) ON DELETE CASCADE,
+      nome_solicitante VARCHAR(150) NOT NULL DEFAULT '',
+      data_inicio DATE NOT NULL,
+      data_fim DATE NOT NULL,
+      motivo TEXT NOT NULL DEFAULT '',
+      status VARCHAR(15) NOT NULL DEFAULT 'pendente',
+      decidido_por INT REFERENCES usuarios(id) ON DELETE SET NULL,
+      criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+}
+
+async function equipeDoLider(liderId) {
+  const r = await pool.query('SELECT id FROM usuarios WHERE lider_id=$1 OR id=$1', [Number(liderId)]);
+  return r.rows.map((x) => Number(x.id));
+}
+
+// Escopo de visualização: RH tudo; líder a própria equipe; funcionário só o próprio.
+async function escopoFolgas(req) {
+  const p = String(req.usuarioPerfil || '').toLowerCase();
+  if (['administrador', 'gerente'].includes(p)) return null; // tudo
+  if (p === 'editor') return equipeDoLider(req.usuarioId);
+  return [Number(req.usuarioId)];
+}
+
+app.get('/api/folgas/catalogos', verificarToken, async (req, res) => {
+  const u = await pool.query('SELECT id,nome FROM usuarios ORDER BY nome');
+  res.json({ modelos: MODELOS, tipos: TIPOS_FOLGA, times: TIMES, usuarios: u.rows });
+});
+
+app.post('/api/escalas', verificarToken, async (req, res) => {
+  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  const b = req.body || {};
+  const nome = String(b.nome || '').trim();
+  const modelo = MODELOS.includes(b.modelo) ? b.modelo : '5x2';
+  const tipo = TIPOS_FOLGA.includes(b.tipo) ? b.tipo : 'Rotativa';
+  const usuarios = Array.isArray(b.usuarios) ? [...new Set(b.usuarios.map(Number).filter(Boolean))] : [];
+  if (nome.length < 2 || !b.inicio || !b.fim || !usuarios.length) {
+    return res.status(400).json({ error: 'Informe nome, período e funcionários' });
+  }
+  let datas;
+  try {
+    datas = gerarFolgasCiclo(modelo, b.inicio, b.fim, { diasSemana: b.dias_semana || [], time: b.time || 'A' });
+  } catch (e) { return res.status(400).json({ error: e.message }); }
+  const esc = await pool.query(
+    `INSERT INTO escalas (nome,modelo,tipo,time,inicio,fim,dias_gerados,criado_por) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+    [nome, modelo, tipo, String(b.time || ''), b.inicio, b.fim, datas.length * usuarios.length, req.usuarioId]
+  );
+  const nomes = await pool.query('SELECT id,nome FROM usuarios WHERE id=ANY($1::int[])', [usuarios]);
+  const mapaNomes = new Map(nomes.rows.map((x) => [Number(x.id), x.nome]));
+  let criadas = 0;
+  const conflitos = [];
+  for (const uid of usuarios) {
+    for (const data of datas) {
+      const existe = await pool.query('SELECT id FROM folgas WHERE usuario_id=$1 AND data=$2 LIMIT 1', [uid, data]);
+      if (existe.rows.length) { conflitos.push({ usuario_id: uid, nome: mapaNomes.get(uid), data }); continue; }
+      try {
+        await pool.query(
+          `INSERT INTO folgas (escala_id,usuario_id,nome_funcionario,data,tipo,status,criado_por)
+           VALUES ($1,$2,$3,$4,$5,'rascunho',$6)`,
+          [esc.rows[0].id, uid, mapaNomes.get(uid) || '', data, tipo, req.usuarioId]
+        );
+        criadas++;
+      } catch { conflitos.push({ usuario_id: uid, nome: mapaNomes.get(uid), data }); }
+    }
+  }
+  await registrarLog(req.usuarioId, 'criar', 'escala', esc.rows[0].id, `${nome} ${modelo}: ${criadas} folgas, ${conflitos.length} conflitos`);
+  res.status(201).json({ escala: esc.rows[0], criadas, conflitos });
+});
+
+app.get('/api/escalas', verificarToken, async (req, res) => {
+  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  const r = await pool.query('SELECT * FROM escalas ORDER BY criado_em DESC LIMIT 60');
+  res.json(r.rows);
+});
+
+app.delete('/api/escalas/:id', verificarToken, async (req, res) => {
+  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  const e = await pool.query('SELECT status FROM escalas WHERE id=$1', [req.params.id]);
+  if (!e.rows.length) return res.status(404).json({ error: 'Escala não encontrada' });
+  if (e.rows[0].status !== 'rascunho') return res.status(400).json({ error: 'Só é possível excluir rascunho' });
+  await pool.query('DELETE FROM folgas WHERE escala_id=$1 AND status=$2', [req.params.id, 'rascunho']);
+  await pool.query('DELETE FROM escalas WHERE id=$1', [req.params.id]);
+  await registrarLog(req.usuarioId, 'excluir', 'escala', req.params.id, '');
+  res.json({ mensagem: 'Rascunho excluído.' });
+});
+
+app.post('/api/escalas/:id/publicar', verificarToken, async (req, res) => {
+  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  const e = await pool.query('SELECT * FROM escalas WHERE id=$1', [req.params.id]);
+  if (!e.rows.length) return res.status(404).json({ error: 'Escala não encontrada' });
+  if (e.rows[0].status !== 'rascunho') return res.status(400).json({ error: 'Escala já publicada' });
+  const f = await pool.query(`UPDATE folgas SET status='publicada' WHERE escala_id=$1 AND status='rascunho' RETURNING usuario_id,nome_funcionario,data`, [req.params.id]);
+  await pool.query(`UPDATE escalas SET status='publicada' WHERE id=$1`, [req.params.id]);
+  const avisados = new Set();
+  for (const x of f.rows) {
+    if (x.usuario_id && !avisados.has(x.usuario_id)) {
+      avisados.add(x.usuario_id);
+      await criarNotificacaoRespeitandoPrefs(x.usuario_id, 'folga', '📅 Escala de folgas publicada',
+        `${e.rows[0].nome}: confira suas folgas`, '/folgas', `escala:${e.rows[0].id}`);
+    }
+  }
+  await registrarLog(req.usuarioId, 'publicar', 'escala', req.params.id, `${f.rows.length} folgas, ${avisados.size} avisados`);
+  res.json({ publicadas: f.rows.length, avisados: avisados.size });
+});
+
+// Folga individual (RH).
+app.post('/api/folgas', verificarToken, async (req, res) => {
+  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  const b = req.body || {};
+  const uid = Number(b.usuario_id);
+  const tipo = TIPOS_FOLGA.includes(b.tipo) ? b.tipo : 'Pontual';
+  if (!uid || !b.data) return res.status(400).json({ error: 'Informe funcionário e data' });
+  const u = await pool.query('SELECT nome FROM usuarios WHERE id=$1', [uid]);
+  if (!u.rows.length) return res.status(404).json({ error: 'Funcionário não encontrado' });
+  const existe = await pool.query('SELECT id FROM folgas WHERE usuario_id=$1 AND data=$2 LIMIT 1', [uid, b.data]);
+  if (existe.rows.length) return res.status(409).json({ error: 'Conflito: funcionário já tem folga neste dia' });
+  const r = await pool.query(
+    `INSERT INTO folgas (usuario_id,nome_funcionario,data,tipo,status,criado_por) VALUES ($1,$2,$3,$4,'publicada',$5) RETURNING *`,
+    [uid, u.rows[0].nome, b.data, tipo, req.usuarioId]
+  );
+  await registrarLog(req.usuarioId, 'criar', 'folga', r.rows[0].id, `${u.rows[0].nome} ${b.data} ${tipo}`);
+  await criarNotificacaoRespeitandoPrefs(uid, 'folga', '📅 Folga publicada',
+    `${new Date(`${b.data}T12:00:00`).toLocaleDateString('pt-BR')} · ${tipo}`, '/folgas', `folga:${r.rows[0].id}`);
+  res.status(201).json(r.rows[0]);
+});
+
+// Grade: folgas num período (filtro opcional por funcionário).
+app.get('/api/folgas', verificarToken, async (req, res) => {
+  const escopo = await escopoFolgas(req);
+  const { inicio, fim, usuario_id } = req.query;
+  const conds = [], params = [];
+  if (escopo) { params.push(escopo); conds.push(`f.usuario_id=ANY($${params.length}::int[])`); }
+  if (usuario_id) { params.push(Number(usuario_id)); conds.push(`f.usuario_id=$${params.length}`); }
+  if (inicio) { params.push(inicio); conds.push(`f.data>=$${params.length}`); }
+  if (fim) { params.push(fim); conds.push(`f.data<=$${params.length}`); }
+  if (!ehRH(req.usuarioPerfil)) { conds.push(`f.status='publicada'`); }
+  const r = await pool.query(
+    `SELECT f.* FROM folgas f ${conds.length ? 'WHERE ' + conds.join(' AND ') : ''} ORDER BY f.data LIMIT 1000`, params
+  );
+  res.json(r.rows);
+});
+
+app.delete('/api/folgas/:id', verificarToken, async (req, res) => {
+  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  const r = await pool.query('DELETE FROM folgas WHERE id=$1 RETURNING id', [req.params.id]);
+  if (!r.rows.length) return res.status(404).json({ error: 'Folga não encontrada' });
+  await registrarLog(req.usuarioId, 'excluir', 'folga', req.params.id, '');
+  res.json({ mensagem: 'Folga excluída.' });
+});
+
+app.get('/api/folgas/minhas', verificarToken, async (req, res) => {
+  const ano = /^\d{4}$/.test(String(req.query.ano || '')) ? String(req.query.ano) : String(new Date().getFullYear());
+  const r = await pool.query(
+    `SELECT * FROM folgas WHERE usuario_id=$1 AND status='publicada' AND TO_CHAR(data,'YYYY')=$2 ORDER BY data`, [req.usuarioId, ano]
+  );
+  res.json(r.rows);
+});
+
+// Solicitações (funcionário pede, RH decide).
+app.post('/api/folgas/solicitacoes', verificarToken, async (req, res) => {
+  const b = req.body || {};
+  if (!b.data_inicio || !b.data_fim) return res.status(400).json({ error: 'Informe o período' });
+  if (String(b.data_fim) < String(b.data_inicio)) return res.status(400).json({ error: 'Período inválido' });
+  const u = await pool.query('SELECT nome FROM usuarios WHERE id=$1', [req.usuarioId]);
+  const r = await pool.query(
+    `INSERT INTO solicitacoes_folga (usuario_id,nome_solicitante,data_inicio,data_fim,motivo) VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+    [req.usuarioId, u.rows[0]?.nome || '', b.data_inicio, b.data_fim, String(b.motivo || '').slice(0, 500)]
+  );
+  await registrarLog(req.usuarioId, 'solicitar', 'solicitacao_folga', r.rows[0].id, `${b.data_inicio}→${b.data_fim}`);
+  const rhs = await pool.query(`SELECT id FROM usuarios WHERE LOWER(perfil) IN ('administrador','gerente')`);
+  for (const rh of rhs.rows) {
+    if (Number(rh.id) === Number(req.usuarioId)) continue;
+    await criarNotificacaoRespeitandoPrefs(rh.id, 'folga_solicitada', '📅 Solicitação de folga',
+      `${u.rows[0]?.nome}: ${b.data_inicio} → ${b.data_fim}`, '/folgas', `solf:${r.rows[0].id}`);
+  }
+  res.status(201).json(r.rows[0]);
+});
+
+app.get('/api/folgas/solicitacoes', verificarToken, async (req, res) => {
+  if (ehRH(req.usuarioPerfil)) {
+    const r = await pool.query('SELECT * FROM solicitacoes_folga ORDER BY criado_em DESC LIMIT 100');
+    return res.json(r.rows);
+  }
+  const r = await pool.query('SELECT * FROM solicitacoes_folga WHERE usuario_id=$1 ORDER BY criado_em DESC LIMIT 100', [req.usuarioId]);
+  res.json(r.rows);
+});
+
+app.post('/api/folgas/solicitacoes/:id/decidir', verificarToken, async (req, res) => {
+  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  const decisao = String(req.body?.decisao || '');
+  if (!['aprovada', 'recusada'].includes(decisao)) return res.status(400).json({ error: 'Decisão inválida' });
+  const s = await pool.query('SELECT * FROM solicitacoes_folga WHERE id=$1', [req.params.id]);
+  if (!s.rows.length) return res.status(404).json({ error: 'Solicitação não encontrada' });
+  if (s.rows[0].status !== 'pendente') return res.status(400).json({ error: 'Solicitação já decidida' });
+  await pool.query('UPDATE solicitacoes_folga SET status=$1,decidido_por=$2 WHERE id=$3', [decisao, req.usuarioId, req.params.id]);
+  if (decisao === 'aprovada') {
+    const sol = s.rows[0];
+    const d0 = new Date(`${sol.data_inicio}T12:00:00Z`), d1 = new Date(`${sol.data_fim}T12:00:00Z`);
+    for (let d = new Date(d0); d <= d1; d.setUTCDate(d.getUTCDate() + 1)) {
+      const iso = d.toISOString().slice(0, 10);
+      const existe = await pool.query('SELECT id FROM folgas WHERE usuario_id=$1 AND data=$2 LIMIT 1', [sol.usuario_id, iso]);
+      if (!existe.rows.length) {
+        await pool.query(`INSERT INTO folgas (usuario_id,nome_funcionario,data,tipo,status,criado_por) VALUES ($1,$2,$3,'Pontual','publicada',$4)`,
+          [sol.usuario_id, sol.nome_solicitante, iso, req.usuarioId]);
+      }
+    }
+  }
+  await registrarLog(req.usuarioId, 'decidir', 'solicitacao_folga', req.params.id, decisao);
+  await criarNotificacaoRespeitandoPrefs(s.rows[0].usuario_id, 'folga', decisao === 'aprovada' ? '📅 Folga aprovada' : '📅 Folga recusada',
+    `${s.rows[0].data_inicio} → ${s.rows[0].data_fim}`, '/folgas', `solf:${s.rows[0].id}:${decisao}`);
+  res.json({ decisao });
 });
 
 app.listen(PORT, () => console.log(`🚀 Backend rodando na porta ${PORT}`));

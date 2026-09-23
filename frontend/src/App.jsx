@@ -18,10 +18,11 @@ import LinoChat from './components/LinoChat';
 import FerramentasAdmin from './pages/FerramentasAdmin';
 import Reclamacoes from './pages/Reclamacoes';
 import ASO from './pages/ASO';
-import LocaisExame from './pages/LocaisExame';
 import Atendimento from './pages/Atendimento';
 import Comunicados from './pages/Comunicados';
 import Notificacoes from './pages/Notificacoes';
+import BancoHoras from './pages/BancoHoras';
+import Folgas from './pages/Folgas';
 import InstallPrompt from './components/InstallPrompt';
 import MobileNav from './components/MobileNav';
 
@@ -60,10 +61,11 @@ export default function App() {
         <Route path="/meu-desempenho" element={<RotaPrivada><MeuDesempenho /></RotaPrivada>} />
         <Route path="/reclamacoes" element={<RotaPrivada><Reclamacoes /></RotaPrivada>} />
         <Route path="/aso" element={<RotaPrivada><ASO /></RotaPrivada>} />
-        <Route path="/locais-exame" element={<RotaPrivada perfisPermitidos={['administrador', 'gerente']}><LocaisExame /></RotaPrivada>} />
         <Route path="/atendimento" element={<RotaPrivada><Atendimento /></RotaPrivada>} />
         <Route path="/comunicados" element={<RotaPrivada><Comunicados /></RotaPrivada>} />
         <Route path="/notificacoes" element={<RotaPrivada><Notificacoes /></RotaPrivada>} />
+        <Route path="/banco-horas" element={<RotaPrivada><BancoHoras /></RotaPrivada>} />
+        <Route path="/folgas" element={<RotaPrivada><Folgas /></RotaPrivada>} />
         <Route path="/ferramentas/etiquetas" element={<RotaPrivada perfisPermitidos={['administrador']}><FerramentasAdmin /></RotaPrivada>} />
         <Route path="/ferramentas/caixas" element={<RotaPrivada perfisPermitidos={['administrador']}><FerramentasAdmin /></RotaPrivada>} />
         <Route path="*" element={<Navigate to="/" replace />} />

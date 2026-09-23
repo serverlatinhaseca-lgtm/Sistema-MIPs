@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { AlertTriangle, Bell, CalendarCheck, CheckCheck, CheckCircle2, ClipboardCheck, FileWarning, HeartPulse, Megaphone, MessageCircle, RotateCcw, Volume2, VolumeX, X } from 'lucide-react';
+import { AlertTriangle, Bell, CalendarCheck, CalendarDays, CheckCheck, CheckCircle2, ClipboardCheck, FileText, FileWarning, HeartPulse, Megaphone, MessageCircle, RotateCcw, Volume2, VolumeX, X } from 'lucide-react';
 import API from '../api';
 
 const porTipo = {
@@ -19,6 +19,9 @@ const porTipo = {
   chat_update: { Icone: Bell, cor: '#a16207', fundo: '#fef9c3' },
   chat_fechado: { Icone: CheckCircle2, cor: '#15803d', fundo: '#dcfce7' },
   comunicado_oficial: { Icone: Megaphone, cor: '#6d28d9', fundo: '#ede9fe' },
+  banco_horas: { Icone: FileText, cor: '#0f766e', fundo: '#ccfbf1' },
+  folga: { Icone: CalendarDays, cor: '#1d4ed8', fundo: '#dbeafe' },
+  folga_solicitada: { Icone: CalendarDays, cor: '#a16207', fundo: '#fef9c3' },
 };
 
 function tempoRel(iso) {

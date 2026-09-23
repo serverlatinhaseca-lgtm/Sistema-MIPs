@@ -16,6 +16,8 @@ export default function Usuarios() {
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
+  const [matricula, setMatricula] = useState("");
+  const [cpf, setCpf] = useState("");
   const [perfil, setPerfil] = useState("Leitor");
   const [liderId, setLiderId] = useState("");
   const [modeloId, setModeloId] = useState("");
@@ -70,6 +72,8 @@ export default function Usuarios() {
           email,
           ...(editandoUsuarioId ? {} : { senha }),
           perfil,
+          matricula,
+          cpf,
           lider_id: ["Leitor", "Editor", "Gerente"].includes(perfil) ? Number(liderId) : null,
           modelo_avaliacao_id: modeloId ? Number(modeloId) : null,
           categoria_acesso_id: categoriaId ? Number(categoriaId) : null,
@@ -83,6 +87,8 @@ export default function Usuarios() {
       setNome("");
       setEmail("");
       setSenha("");
+      setMatricula("");
+      setCpf("");
       setPerfil("Leitor");
       setLiderId("");
       setModeloId("");
@@ -95,8 +101,8 @@ export default function Usuarios() {
     }
   };
 
-  const abrirNovo = () => { setEditandoUsuarioId(null);setNome("");setEmail("");setSenha("");setPerfil("Leitor");setLiderId("");setModeloId("");setCategoriaId("");setSetorIds([]);setMostrarModal(true); };
-  const abrirEdicao = (u) => { setEditandoUsuarioId(u.id);setNome(u.nome||"");setEmail(u.email||"");setSenha("");setPerfil(u.perfil||"Leitor");setLiderId(String(u.lider_id||""));setModeloId(String(u.modelo_avaliacao_id||""));setCategoriaId(String(u.categoria_acesso_id||""));setSetorIds(Array.isArray(u.setor_ids)?u.setor_ids.map(String):(Array.isArray(u.setores)?u.setores.map(s=>String(s.id)):[]));setMostrarModal(true); };
+  const abrirNovo = () => { setEditandoUsuarioId(null);setNome("");setEmail("");setSenha("");setMatricula("");setCpf("");setPerfil("Leitor");setLiderId("");setModeloId("");setCategoriaId("");setSetorIds([]);setMostrarModal(true); };
+  const abrirEdicao = (u) => { setEditandoUsuarioId(u.id);setNome(u.nome||"");setEmail(u.email||"");setSenha("");setMatricula(u.matricula||"");setCpf(u.cpf||"");setPerfil(u.perfil||"Leitor");setLiderId(String(u.lider_id||""));setModeloId(String(u.modelo_avaliacao_id||""));setCategoriaId(String(u.categoria_acesso_id||""));setSetorIds(Array.isArray(u.setor_ids)?u.setor_ids.map(String):(Array.isArray(u.setores)?u.setores.map(s=>String(s.id)):[]));setMostrarModal(true); };
 
   const handleExcluir = async (id) => {
     if (!confirm("Deseja realmente excluir este usuário?")) return;
@@ -182,6 +188,32 @@ export default function Usuarios() {
                     placeholder="******"
                   />
                 </div>}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium mb-1 text-[var(--text-muted)]">
+                      Matrícula
+                    </label>
+                    <input
+                      type="text"
+                      className="w-full p-3 rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)] text-[var(--text-main)] outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                      value={matricula}
+                      onChange={(e) => setMatricula(e.target.value)}
+                      placeholder="Ex.: 1234"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1 text-[var(--text-muted)]">
+                      CPF
+                    </label>
+                    <input
+                      type="text"
+                      className="w-full p-3 rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)] text-[var(--text-main)] outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                      value={cpf}
+                      onChange={(e) => setCpf(e.target.value)}
+                      placeholder="Para vínculo do Banco de Horas"
+                    />
+                  </div>
+                </div>
                 <div>
                   <label className="block text-sm font-medium mb-1 text-[var(--text-muted)]">
                     Perfil de Permissão

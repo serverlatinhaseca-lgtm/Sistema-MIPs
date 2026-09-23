@@ -1,6 +1,6 @@
 {
   "name": "portal-mips-api",
-  "version": "2.9.0",
+  "version": "2.10.0",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
@@ -16,6 +16,7 @@
     "multer": "^2.0.2",
     "pg": "^8.11.3",
     "xlsx": "^0.18.5",
+    "adm-zip": "^0.5.16",
     "zod": "^3.22.4"
   }
 }

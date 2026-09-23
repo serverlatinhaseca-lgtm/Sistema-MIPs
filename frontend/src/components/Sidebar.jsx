@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { AlertTriangle, LayoutDashboard, BookOpen, Calculator, Users, ClipboardCheck, Sun, Moon, LogOut, KeyRound, Settings, Tag, Folder, ChevronDown, ChevronRight, Pin, PinOff, HeartPulse, Building2, MessageCircle, Megaphone } from 'lucide-react';
+import { AlertTriangle, LayoutDashboard, BookOpen, Calculator, Users, ClipboardCheck, Sun, Moon, LogOut, KeyRound, Settings, Tag, Folder, ChevronDown, ChevronRight, Pin, PinOff, HeartPulse, MessageCircle, Megaphone, Building2, FileText, CalendarDays } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import useBranding from '../useBranding';
 
@@ -42,6 +42,8 @@ export default function Sidebar({ emDrawer = false, aoNavegar = () => {} }) {
     <IconBtn titulo={user.perfil?.toLowerCase() === 'leitor' ? 'Meu desempenho' : 'Avaliações'} ativo={isActive('/avaliacoes')} abrir={() => ir('/avaliacoes')}><ClipboardCheck size={20} /></IconBtn>
     <IconBtn titulo="Reclamações" ativo={isActive('/reclamacoes')} abrir={() => ir('/reclamacoes')}><AlertTriangle size={20} /></IconBtn>
     <IconBtn titulo="Atendimento" ativo={isActive('/atendimento')} abrir={() => ir('/atendimento')}><MessageCircle size={20} /></IconBtn>
+    <IconBtn titulo="Banco de Horas" ativo={isActive('/banco-horas')} abrir={() => ir('/banco-horas')}><FileText size={20} /></IconBtn>
+    <IconBtn titulo="Folgas" ativo={isActive('/folgas')} abrir={() => ir('/folgas')}><CalendarDays size={20} /></IconBtn>
     <IconBtn titulo={user.perfil?.toLowerCase() === 'leitor' ? 'Meu ASO' : 'ASO'} ativo={isActive('/aso')} abrir={() => ir('/aso')}><HeartPulse size={20} /></IconBtn>
     {['editor','gerente'].includes(user.perfil?.toLowerCase()) && <IconBtn titulo="Meu desempenho" ativo={isActive('/meu-desempenho')} abrir={() => ir('/meu-desempenho')}><ClipboardCheck size={20} /></IconBtn>}
     {user.perfil?.toLowerCase() === 'administrador' && <>
@@ -84,11 +86,10 @@ export default function Sidebar({ emDrawer = false, aoNavegar = () => {} }) {
           </div>
           <div onClick={() => ir('/reclamacoes')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/reclamacoes') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}><AlertTriangle size={20} className="mr-3" /> Reclamações</div>
           <div onClick={() => ir('/atendimento')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/atendimento') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}><MessageCircle size={20} className="mr-3" /> Atendimento</div>
+          <div onClick={() => ir('/banco-horas')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/banco-horas') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}><FileText size={20} className="mr-3" /> {user.perfil?.toLowerCase() === 'leitor' ? 'Meu Banco de Horas' : 'Banco de Horas'}</div>
+          <div onClick={() => ir('/folgas')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/folgas') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}><CalendarDays size={20} className="mr-3" /> {user.perfil?.toLowerCase() === 'leitor' ? 'Minhas Folgas' : 'Folgas'}</div>
           <div onClick={() => ir('/comunicados')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/comunicados') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}><Megaphone size={20} className="mr-3" /> Comunicados</div>
           <div onClick={() => ir('/aso')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/aso') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}><HeartPulse size={20} className="mr-3" /> {user.perfil?.toLowerCase() === 'leitor' ? 'Meu ASO' : 'ASO'}</div>
-          {['administrador','gerente'].includes(user.perfil?.toLowerCase()) && (
-            <div onClick={() => ir('/locais-exame')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/locais-exame') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}><Building2 size={20} className="mr-3" /> Locais de Exame</div>
-          )}
           {['editor','gerente'].includes(user.perfil?.toLowerCase()) && <div onClick={() => ir('/meu-desempenho')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/meu-desempenho') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}><ClipboardCheck size={20} className="mr-3" /> Meu desempenho</div>}
           {user.perfil?.toLowerCase() === 'administrador' && <>
             <Pasta titulo="Ferramentas" aberta={pastas.ferramentas} alternar={()=>setPastas(v=>({...v,ferramentas:!v.ferramentas}))}>
@@ -98,6 +99,7 @@ export default function Sidebar({ emDrawer = false, aoNavegar = () => {} }) {
             <Pasta titulo="Configuração" aberta={pastas.configuracao} alternar={()=>setPastas(v=>({...v,configuracao:!v.configuracao}))}>
               <Item icon={<Users size={18}/>} titulo="Usuários" ativo={isActive('/usuarios')} abrir={()=>navigate('/usuarios')}/>
               <Item icon={<Settings size={18}/>} titulo="Central de configurações" ativo={isActive('/configuracoes')} abrir={()=>navigate('/configuracoes')}/>
+              <Item icon={<Building2 size={18}/>} titulo="Locais de Exame" ativo={false} abrir={()=>navigate('/configuracoes#locais')}/>
             </Pasta>
           </>}
         </nav>
