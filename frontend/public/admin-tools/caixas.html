@@ -465,7 +465,7 @@
       }
     </style>
     <style>
-      /* Integração visual com o Portal MIPs */
+      /* Integração visual com o Portal - Nova Esperança */
       :root { --primary: #ff8d2f; --primary-dark: #a65526; --secondary: #5e5e5e; }
       html, body { min-height: 100%; }
       body { background: transparent; background-image: none; font-family: Inter, "Segoe UI", Arial, sans-serif; }
@@ -1749,7 +1749,8 @@
       if (!portalToken || String(portalUser.perfil || "").toLowerCase() !== "administrador") {
         window.top.location.href = "/mips";
       }
-      const adminApi = `http://${window.location.hostname}:7001/api/ferramentas-admin/caixas`;
+      const adminApiBase = window.location.protocol === 'https:' ? '' : `http://${window.location.hostname}:7001`;
+      const adminApi = `${adminApiBase}/api/ferramentas-admin/caixas`;
 
       // Configurações padrão
       let config = {
@@ -1872,13 +1873,21 @@
         }
       }
 
-      async function saveDatabaseConfig() {
-        const resposta = await fetch(adminApi, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${portalToken}` },
-          body: JSON.stringify({ dados: { config } })
-        });
-        if (!resposta.ok) throw new Error("Falha ao salvar no banco");
+      async function saveDatabaseConfig(tentativa = 1) {
+        try {
+          const resposta = await fetch(adminApi, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${portalToken}` },
+            body: JSON.stringify({ dados: { config } })
+          });
+          if (!resposta.ok) throw new Error("Falha ao salvar no banco");
+        } catch (erro) {
+          if (tentativa < 2) {
+            await new Promise(res => setTimeout(res, 1500));
+            return saveDatabaseConfig(tentativa + 1);
+          }
+          throw erro;
+        }
       }
 
       function updateAmostraMessages() {

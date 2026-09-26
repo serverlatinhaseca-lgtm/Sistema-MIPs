@@ -9,7 +9,7 @@ Stack: React 18 + Vite 8 + Tailwind 3 + React Router 7 | Node.js 22 + Express 5 
 - `frontend/src/` — app React (`App.jsx`, `pages/`, `components/`, `api.js`). Ferramenta Etiquetas tem parte legada em JS vanilla: `frontend/public/admin-tools/etiquetas.html` e `caixas.html` — edite esses HTMLs direto, não procure componente React equivalente.
 - `frontend/` — build Vite servido via Nginx (`nginx.conf`, `Dockerfile`). Certificados locais em `frontend/certs/` (gitignored via `frontend/.gitignore`).
 - `docker-compose.yml` — serviços `db`, `backend`, `frontend`, `dnsmasq`, `backup`. Portal só em `80` (HTTP; sem HTTPS por decisão — `mips.lan` resolve via `dnsmasq`), API em `7001` (`/api/health`).
-- `backup/` — dump diário do Postgres (`backup.sh`, `crontab` 02:30, retenção 30 dias). Credencial `backup/rclone.conf` existe só no servidor (gitignored) — nunca commitar.
+- `backup/` — dump diário do Postgres no container `backup` (`backup.sh`, `crontab` 02:30, retenção local 30 dias) + espelho no Windows via tarefa agendada `MIPs-Espelho-Drive` (`espelhar-drive.ps1`, 03:00) para `G:\Meu Drive\Natan\Backup Sistema`. Sem rclone (era do servidor Linux antigo, removido em 17/09/2026).
 - `android/` — WebView para `http://mips.lan`, build do APK via GitHub Actions (`.github/workflows/build-apk.yml`).
 - `backups/`, `backend/uploads/`, `*.dump` — dados locais, nunca commitar.
 
@@ -51,9 +51,16 @@ Atualização segura em produção:
 ```bash
 git pull --ff-only origin main
 docker compose up -d --build
+# Pós-deploy obrigatório (24/09/2026, 2ª queda das fotos): o bind ./backend/uploads
+# pode dessincronizar no recreate — o container enxerga a pasta vazia e o site dá 404.
+docker exec portal_mips_backend ls /app/uploads | wc -l  # tem que bater com ls backend/uploads
+docker compose logs --tail=5 backend  # esperado: "📁 uploads: N arquivo(s) visível(is)"
+# Se zerado ou 404: docker compose restart backend (re-monta o bind)
 ```
 
 NUNCA rode `docker compose down -v` em produção — apaga o volume `pgdata` e o banco.
+
+Autorização permanente do mantenedor (17/09/2026): o agente pode rodar `docker compose up -d --build`, `ps`, `logs` e `restart` sem pedir confirmação — só avise depois o que foi feito.
 
 ## Convenções
 
@@ -65,7 +72,7 @@ NUNCA rode `docker compose down -v` em produção — apaga o volume `pgdata` e 
 
 ## Segurança / Git
 
-- NUNCA commitar: `.env`, `*.dump`, `backend/uploads/*`, `backups/*`, `frontend/certs/*.pem`, `backup/rclone.conf`.
+- NUNCA commitar: `.env`, `*.dump`, `backend/uploads/*`, `backups/*`, `frontend/certs/*.pem`.
 - ATENÇÃO: não há `.gitignore` na raiz. Sempre use `git add <caminho-explícito>` — nunca `git add -A` / `git add .`, pois há `.env` e `backups/` untracked neste ambiente.
 - Repositório deve permanecer privado; não exponha a porta do Postgres na internet.
 

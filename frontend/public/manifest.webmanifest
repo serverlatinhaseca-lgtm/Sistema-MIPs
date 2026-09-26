@@ -1,6 +1,6 @@
 {
-  "name": "Portal de MIPs",
-  "short_name": "Portal MIPs",
+  "name": "Portal - Nova Esperança",
+  "short_name": "Portal - Nova Esperança",
   "description": "Sistema de gestão de MIPs, manuais e avaliações",
   "id": "/",
   "start_url": "/",
@@ -25,7 +25,7 @@
       "purpose": "any"
     },
     {
-      "src": "/icons/app-512.png",
+      "src": "/icons/maskable-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"

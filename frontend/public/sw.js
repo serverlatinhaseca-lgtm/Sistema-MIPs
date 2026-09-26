@@ -1,4 +1,4 @@
-const CACHE = 'portal-mips-v1';
+const CACHE = 'portal-mips-v2';
 const SHELL = ['/', '/index.html', '/manifest.webmanifest'];
 
 self.addEventListener('install', (e) => {

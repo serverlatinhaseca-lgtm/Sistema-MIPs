@@ -23,7 +23,7 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
 
-/** Wrapper WebView do Portal MIPs (uso interno, rede local). */
+/** Wrapper WebView do Portal - Nova Esperança (uso interno, rede local). */
 @SuppressWarnings("deprecation") // startActivityForResult/onBackPressed: sem androidx, API do framework
 public class MainActivity extends Activity {
 

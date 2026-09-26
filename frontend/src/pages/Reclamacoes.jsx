@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import { BarChart3, CheckCircle2, Clock3, Printer, Image, Paperclip, Pencil, Plus, RotateCcw, Trash2, X } from 'lucide-react';
+import { BarChart3, CheckCircle2, Clock3, Printer, Paperclip, Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
+import CropModal from '../components/CropModal';
 import LeitorTopbar from '../components/LeitorTopbar';
 import API from '../api';
 
@@ -14,10 +15,11 @@ export default function Reclamacoes(){
   const api=`${API}/api`,user=JSON.parse(localStorage.getItem('user')||'{}'),perfil=user.perfil?.toLowerCase(),headers={Authorization:`Bearer ${localStorage.getItem('token')}`};
   const podeRegistrar=['administrador','editor','gerente'].includes(perfil)||(user.permissoes||[]).includes('reclamacoes.registrar');
   const [catalogos,setCatalogos]=useState({clientes:[],tipos:[],lideres:[],setores:[],prazos:{prazo_verde_min:1440,prazo_amarelo_min:180,prazo_vermelho_min:60}}),[metricas,setMetricas]=useState({por_tipo:[],por_lider:[],por_setor:[],por_mes:[],por_cliente:[],por_prioridade:[]});
-  const [itens,setItens]=useState([]),[formAberto,setFormAberto]=useState(false),[editandoId,setEditandoId]=useState(null),[salvando,setSalvando]=useState(false),[foto,setFoto]=useState(null),[agora,setAgora]=useState(new Date()),[filtro,setFiltro]=useState('todos');
+  const [itens,setItens]=useState([]),[formAberto,setFormAberto]=useState(false),[editandoId,setEditandoId]=useState(null),[salvando,setSalvando]=useState(false),[agora,setAgora]=useState(new Date()),[filtro,setFiltro]=useState('todos');
   const filtrosVazios=()=>({mes:'',setor:'',lider_id:'',tipo_id:'',cliente_id:''});
   const [filtros,setFiltros]=useState(filtrosVazios);
   const [form,setForm]=useState({cliente_id:'',cliente_busca:'',tipo_id:'',tipo_busca:'',lider_responsavel_id:'',setor_id:'',descricao:'',anexos:[],prioridade:'verde'});
+  const [filaCorte,setFilaCorte]=useState([]),[totalCorte,setTotalCorte]=useState(0);
   function queryFiltros(f){
     const p=new URLSearchParams();
     if(f.mes)p.set('mes',f.mes);
@@ -39,7 +41,21 @@ export default function Reclamacoes(){
   }
   useEffect(()=>{const t=setTimeout(()=>{carregar(filtros).catch(()=>{});},filtros.setor?400:0);return()=>clearTimeout(t);},[filtros.mes,filtros.setor,filtros.lider_id,filtros.tipo_id,filtros.cliente_id]);
   useEffect(()=>{const i=setInterval(()=>setAgora(new Date()),30000);return()=>clearInterval(i);},[]);
-  async function anexar(arquivos){const novos=[];for(const arquivo of [...arquivos].slice(0,10-form.anexos.length)){const dados=new FormData();dados.append('image',arquivo);const r=await axios.post(`${api}/upload`,dados,{headers});novos.push({nome:arquivo.name,url:r.data.url,tipo:arquivo.type});}setForm(v=>({...v,anexos:[...v.anexos,...novos]}));}
+  async function subirArquivo(arquivo){const dados=new FormData();dados.append('image',arquivo);const r=await axios.post(`${api}/upload`,dados,{headers});return {nome:arquivo.name,url:r.data.url,tipo:arquivo.type};}
+  async function anexar(arquivos){
+    const lista=[...arquivos].slice(0,10-form.anexos.length);
+    const imagens=lista.filter(a=>String(a.type||'').startsWith('image/'));
+    const outros=lista.filter(a=>!String(a.type||'').startsWith('image/'));
+    try {
+      if(outros.length){const novos=[];for(const arquivo of outros){novos.push(await subirArquivo(arquivo));}setForm(v=>({...v,anexos:[...v.anexos,...novos]}));}
+    } catch { alert('Erro ao enviar anexo para o servidor.'); }
+    if(imagens.length){if(!filaCorte.length)setTotalCorte(imagens.length);else setTotalCorte(t=>t+imagens.length);setFilaCorte(v=>[...v,...imagens]);}
+  }
+  async function confirmarCorte(arquivo){
+    setFilaCorte(v=>v.slice(1));
+    try { const item=await subirArquivo(arquivo);setForm(v=>({...v,anexos:[...v.anexos,item]})); }
+    catch { alert('Erro ao enviar imagem para o servidor.'); }
+  }
   function formVazio(){return {cliente_id:'',cliente_busca:'',tipo_id:'',tipo_busca:'',lider_responsavel_id:'',setor_id:'',descricao:'',anexos:[],prioridade:'verde'};}
   async function salvar(e){e.preventDefault();setSalvando(true);try{if(editandoId)await axios.put(`${api}/reclamacoes/${editandoId}`,form,{headers});else await axios.post(`${api}/reclamacoes`,form,{headers});setForm(formVazio());setEditandoId(null);setFormAberto(false);await carregar(filtros);}catch(err){alert(err.response?.data?.error||'Erro ao salvar reclamação.');}finally{setSalvando(false);}}
   async function mudarStatus(id,status){try{await axios.post(`${api}/reclamacoes/${id}/${status==='concluido'?'concluir':'reabrir'}`,{},{headers});setItens(v=>v.map(x=>x.id===id?{...x,status,concluido_em:status==='concluido'?new Date().toISOString():null}:x));await carregar(filtros);}catch(err){alert(err.response?.data?.error||'Não foi possível alterar a reclamação.');}}
@@ -106,17 +122,17 @@ export default function Reclamacoes(){
       <div class="kpi"><small>Tempo médio</small><strong>${metricas.media_horas||0}h</strong></div>
     </div>
     ${blocoGraf('Reclamações por setor',svgBarras(metricas.por_setor,()=>'#b45309'))}
-    ${blocoGraf('Por líder responsável',svgBarras(metricas.por_lider,()=>'#1d4ed8'))}
+    ${podeRegistrar?blocoGraf('Por líder responsável',svgBarras(metricas.por_lider,()=>'#1d4ed8')):''}
     ${blocoGraf('Por tipo de reclamação',svgBarras(metricas.por_tipo,()=>'#0f766e'))}
     ${blocoGraf('Por cliente',svgBarras(metricas.por_cliente,()=>'#6d28d9'))}
     ${blocoGraf('Por prioridade',svgBarras(metricas.por_prioridade.map(x=>({nome:nomePri(x),total:x.total,cor:corPri(x)})),x=>x.cor||'#a65526'))}
     ${blocoGraf('Evolução mensal (últimos 12 meses)',svgMeses())}
     ${tabela('Detalhamento por setor',metricas.por_setor)}
-    ${tabela('Detalhamento por líder',metricas.por_lider)}
+    ${podeRegistrar?tabela('Detalhamento por líder',metricas.por_lider):''}
     ${tabela('Detalhamento por tipo',metricas.por_tipo)}
     ${tabela('Detalhamento por cliente',metricas.por_cliente)}
     ${podeRegistrar?`<div class="bloco"><h2>Reclamações do período (${(itens||[]).length})</h2><table><thead><tr><th>#</th><th>Data</th><th>Cliente</th><th>Tipo</th><th>Setor</th><th>Líder</th><th>Prioridade</th><th>Status</th></tr></thead><tbody>${linhasDetalhe||'<tr><td colspan="8">Nenhuma reclamação neste filtro.</td></tr>'}</tbody></table></div>`:''}
-    <p class="rodape">Gerado em ${esc(new Date().toLocaleString('pt-BR'))} por ${esc(user.nome||'')} · Sistema MIPs — Nova Esperança</p>
+    <p class="rodape">Gerado em ${esc(new Date().toLocaleString('pt-BR'))} por ${esc(user.nome||'')} · Portal - Nova Esperança</p>
     </body></html>`;
     const frame=document.getElementById('relatorio-print');
     if(frame){frame.remove();}
@@ -157,22 +173,32 @@ export default function Reclamacoes(){
         <p className="text-sm text-[var(--text-muted)]">{filtros.mes||filtros.setor.trim()||filtros.lider_id||filtros.tipo_id||filtros.cliente_id?<>Exibindo <strong>{metricas.total||0}</strong> reclamação(ões) no filtro atual.</>:'Sem filtros — base completa.'}</p>
       </div>
     </section>}
+    {!podeRegistrar&&<section className="panel-card mb-5">
+      <h2 className="section-title mb-3">Filtro por mês</h2>
+      <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        <label className="font-semibold text-sm">Mês<input type="month" className="field" value={filtros.mes} onChange={e=>setFiltros(v=>({...v,mes:e.target.value}))}/></label>
+      </div>
+      <div className="flex flex-wrap items-center gap-3 mt-3">
+        <button onClick={()=>setFiltros(filtrosVazios())} className="px-4 py-2 rounded-xl bg-[var(--bg-main)] font-bold text-sm">Limpar filtro</button>
+        <p className="text-sm text-[var(--text-muted)]">{filtros.mes?<>Exibindo <strong>{metricas.total||0}</strong> reclamação(ões) em {filtros.mes.split('-').reverse().join('/')}.</>:'Sem filtro — base completa.'}</p>
+      </div>
+    </section>}
     <section className="grid sm:grid-cols-2 xl:grid-cols-5 gap-4 mb-5"><Metrica titulo="Total" valor={metricas.total||0}/><Metrica titulo="Em aberto" valor={metricas.abertas||0} cor="text-amber-600"/><Metrica titulo="Atrasadas" valor={metricas.atrasadas||0} cor="text-red-600"/><Metrica titulo="Concluídas" valor={metricas.concluidas||0} cor="text-emerald-600"/><Metrica titulo="Tempo médio" valor={`${metricas.media_horas||0}h`} cor="text-blue-600"/></section>
     <section className="grid lg:grid-cols-2 xl:grid-cols-3 gap-5 mb-5">
       <Grafico titulo="Por setor"><Barras dados={metricas.por_setor||[]}/></Grafico>
-      <Grafico titulo="Por líder responsável"><Barras dados={metricas.por_lider||[]}/></Grafico>
+      {podeRegistrar&&<Grafico titulo="Por líder responsável"><Barras dados={metricas.por_lider||[]}/></Grafico>}
       <Grafico titulo="Tipos de reclamação"><Barras dados={metricas.por_tipo||[]}/></Grafico>
       <Grafico titulo="Clientes com mais reclamações"><Barras dados={metricas.por_cliente||[]}/></Grafico>
       <Grafico titulo="Por prioridade"><Barras dados={metricas.por_prioridade||[]} prioridade/></Grafico>
       <Grafico titulo="Evolução mensal" classe="xl:col-span-2"><div className="h-56 flex items-end gap-3 border-b border-[var(--border-color)] overflow-x-auto">{(metricas.por_mes||[]).map(x=><div key={x.mes} className="flex-1 min-w-12 text-center"><strong className="text-xs">{x.total}</strong><div className="bg-[#a65526] rounded-t-lg mx-auto min-h-1" style={{height:`${Math.max(4,x.total/maior(metricas.por_mes)*170)}px`}}/><small className="text-[10px] text-[var(--text-muted)]">{x.mes.slice(5)}/{x.mes.slice(2,4)}</small></div>)}</div></Grafico>
     </section>
-    {podeRegistrar&&<section className="panel-card"><div className="flex flex-wrap items-center justify-between gap-3 mb-5"><h2 className="section-title">Lista de reclamações</h2><div className="flex gap-2">{[['todos','Todas'],['aberto','Em aberto'],['concluido','Concluídas']].map(([v,n])=><button key={v} onClick={()=>setFiltro(v)} className={`px-3 py-2 rounded-lg text-sm font-bold ${filtro===v?'bg-[var(--primary)] text-white':'bg-[var(--bg-main)]'}`}>{n}</button>)}</div></div><div className="grid xl:grid-cols-2 gap-4">{visiveis.map(r=><Cartao key={r.id} r={r} agora={agora} perfil={perfil} setFoto={setFoto} mudarStatus={mudarStatus} excluir={excluir} editar={editar}/>)}</div>{!visiveis.length&&<p className="text-[var(--text-muted)]">Nenhum registro neste filtro.</p>}</section>}
-    {formAberto&&<Formulario editando={Boolean(editandoId)} form={form} setForm={setForm} catalogos={catalogos} anexar={anexar} salvar={salvar} salvando={salvando} fechar={()=>{setFormAberto(false);setEditandoId(null);}}/>} {foto&&<div onClick={()=>setFoto(null)} className="fixed inset-0 z-[70] bg-black/85 p-5 grid place-items-center cursor-zoom-out"><button className="absolute top-5 right-5 text-white"><X size={32}/></button><img src={foto.url} alt={foto.nome} className="max-w-[94vw] max-h-[90vh] object-contain !m-0 !rounded-xl"/></div>}</main>;
+    {podeRegistrar&&<section className="panel-card"><div className="flex flex-wrap items-center justify-between gap-3 mb-5"><h2 className="section-title">Lista de reclamações</h2><div className="flex gap-2">{[['todos','Todas'],['aberto','Em aberto'],['concluido','Concluídas']].map(([v,n])=><button key={v} onClick={()=>setFiltro(v)} className={`px-3 py-2 rounded-lg text-sm font-bold ${filtro===v?'bg-[var(--primary)] text-white':'bg-[var(--bg-main)]'}`}>{n}</button>)}</div></div><div className="grid xl:grid-cols-2 gap-4">{visiveis.map(r=><Cartao key={r.id} r={r} agora={agora} perfil={perfil} mudarStatus={mudarStatus} excluir={excluir} editar={editar}/>)}</div>{!visiveis.length&&<p className="text-[var(--text-muted)]">Nenhum registro neste filtro.</p>}</section>}
+    {formAberto&&<Formulario editando={Boolean(editandoId)} form={form} setForm={setForm} catalogos={catalogos} anexar={anexar} salvar={salvar} salvando={salvando} fechar={()=>{setFormAberto(false);setEditandoId(null);}}/>}{filaCorte.length>0&&<CropModal arquivo={filaCorte[0]} aspecto={null} passo={`imagem ${totalCorte-filaCorte.length+1} de ${totalCorte}`} onFechar={()=>setFilaCorte(v=>v.slice(1))} onConfirmar={confirmarCorte}/>}</main>;
   return perfil==='leitor'?<div className="min-h-screen bg-[var(--bg-main)]"><LeitorTopbar titulo="Métricas de reclamações"/>{conteudo}</div>:<div className="min-h-screen bg-[var(--bg-main)] flex"><Sidebar/>{conteudo}</div>;
 }
 function Metrica({titulo,valor,cor=''}){return <div className="metric-card"><BarChart3 className={cor||'text-[var(--primary)]'}/><div><span>{titulo}</span><strong className={cor}>{valor}</strong></div></div>}
 function Grafico({titulo,children,classe=''}){return <div className={`panel-card ${classe}`}><h2 className="section-title mb-4">{titulo}</h2>{children}</div>}
-function Cartao({r,agora,perfil,setFoto,mudarStatus,excluir,editar}){
+function Cartao({r,agora,perfil,mudarStatus,excluir,editar}){
   const p=cores[r.prioridade]||cores.verde,t=restante(r.prazo_em,agora),aberta=r.status==='aberto';
   return <article className={`rounded-2xl border p-5 ${aberta&&t.atrasado?'border-red-500':'border-[var(--border-color)]'} bg-[var(--bg-card)] shadow-sm`}>
     <div className="flex justify-between gap-3">
@@ -189,7 +215,7 @@ function Cartao({r,agora,perfil,setFoto,mudarStatus,excluir,editar}){
     </div>
     <div className={`my-4 p-3 rounded-xl flex items-center gap-3 ${aberta?(t.atrasado?'bg-red-100 text-red-800':'bg-[var(--bg-main)]'):'bg-emerald-50 text-emerald-800'}`}>{aberta?<Clock3 size={20}/>:<CheckCircle2 size={20}/>}<div><strong className="block text-sm">{aberta?(t.atrasado?`Prazo excedido há ${t.texto}`:`Restam ${t.texto}`):'Retorno ao cliente concluído'}</strong><small>{aberta?`Limite: ${new Date(r.prazo_em).toLocaleString('pt-BR')}`:`Concluída em ${new Date(r.concluido_em).toLocaleString('pt-BR')}`}</small></div></div>
     <p className="whitespace-pre-wrap text-sm leading-relaxed">{r.descricao}</p>
-    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mt-4">{(r.anexos||[]).map((a,i)=>ehImagem(a)?<button key={i} onClick={()=>setFoto(a)} className="relative h-24 rounded-xl overflow-hidden border border-[var(--border-color)]"><img src={a.url} alt={a.nome} className="w-full h-full object-cover !m-0 !rounded-none"/><Image size={15} className="absolute bottom-2 right-2 text-white"/></button>:<a key={i} href={a.url} target="_blank" rel="noreferrer" className="h-24 rounded-xl border border-[var(--border-color)] grid place-items-center text-center text-xs p-2"><Paperclip size={20}/><span>{a.nome}</span></a>)}</div>
+    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mt-4">{(r.anexos||[]).map((a,i)=>ehImagem(a)?<span key={i} title={a.nome} className="relative block h-24 rounded-xl overflow-hidden border border-[var(--border-color)]"><img src={a.url} alt={a.nome} className="w-full h-full object-cover !m-0 !rounded-none"/></span>:<a key={i} href={a.url} target="_blank" rel="noreferrer" className="h-24 rounded-xl border border-[var(--border-color)] grid place-items-center text-center text-xs p-2"><Paperclip size={20}/><span>{a.nome}</span></a>)}</div>
     <p className="text-xs text-[var(--text-muted)] mt-4">Líder: {r.lider_nome}{r.setor_nome?` · Setor: ${r.setor_nome}`:''} · Registrado por {r.criado_por_nome||'Sistema'} em {new Date(r.criado_em).toLocaleString('pt-BR')}</p>
     <button onClick={()=>mudarStatus(r.id,aberta?'concluido':'aberto')} className={`w-full mt-4 p-3 rounded-xl font-bold flex justify-center items-center ${aberta?'bg-emerald-600 text-white':'bg-[var(--bg-main)]'}`}>{aberta?<><CheckCircle2 size={18} className="mr-2"/>Confirmar retorno e concluir</>:<><RotateCcw size={18} className="mr-2"/>Reabrir reclamação</>}</button>
   </article>;
@@ -206,6 +232,10 @@ function Formulario({editando,form,setForm,catalogos,anexar,salvar,salvando,fech
       return {...v,lider_responsavel_id:id,setor_id:setores.length===1?String(setores[0].id):(atualAindaVale?v.setor_id:'')};
     });
   }
-  return <div className="fixed inset-0 bg-black/60 z-50 grid place-items-center p-4"><form onSubmit={salvar} className="panel-card max-w-3xl w-full max-h-[92vh] overflow-auto"><div className="flex justify-between mb-5"><div><h2 className="text-2xl font-bold">{editando?'Editar reclamação':'Registrar reclamação'}</h2><p className="text-sm text-[var(--text-muted)]">A prioridade define o prazo automaticamente. O setor é sugerido pelo líder responsável.</p></div><button type="button" onClick={fechar}>Fechar</button></div><div className="grid sm:grid-cols-2 gap-4"><Selecao titulo="Cliente" valor={form.cliente_id} mudar={v=>setForm({...form,cliente_id:v})} itens={catalogos.clientes}/><Selecao titulo="Tipo de reclamação" valor={form.tipo_id} mudar={v=>setForm({...form,tipo_id:v})} itens={catalogos.tipos}/><label className="font-semibold text-sm sm:col-span-2">Nível de importância<div className="grid sm:grid-cols-3 gap-2 mt-2">{Object.entries(cores).map(([v,p])=><button type="button" key={v} onClick={()=>setForm({...form,prioridade:v})} className={`p-3 rounded-xl border text-left ${form.prioridade===v?'ring-2 ring-offset-2':'opacity-75'}`} style={{borderColor:p.cor,background:p.fundo,color:p.cor}}><strong className="block">{p.nome}</strong><small>Retorno em {formatarPrazo(Number(prazos[`prazo_${v}_min`]||0))}</small></button>)}</div></label><label className="font-semibold text-sm sm:col-span-2">Líder responsável<select required className="field" value={form.lider_responsavel_id} onChange={e=>aoTrocarLider(e.target.value)}><option value="">Selecione</option>{(catalogos.lideres||[]).map(x=><option key={x.id} value={x.id}>{x.nome}{(x.setores||[]).length?` — ${(x.setores||[]).map(s=>s.nome).join(', ')}`:''}</option>)}</select>{setoresDoLider.length>0&&<small className="text-[var(--text-muted)]">Setor(es) de {liderAtual.nome}: {setoresDoLider.map(s=>s.nome).join(', ')}</small>}</label><label className="font-semibold text-sm sm:col-span-2">Setor<select className="field" value={form.setor_id} onChange={e=>setForm({...form,setor_id:e.target.value})}><option value="">Selecione (sugestão do líder)</option>{(catalogos.setores||[]).map(x=><option key={x.id} value={x.id}>{x.nome}</option>)}</select></label><label className="font-semibold text-sm sm:col-span-2">Descrição<textarea required rows="5" className="field" value={form.descricao} onChange={e=>setForm({...form,descricao:e.target.value})}/></label><label className="font-semibold text-sm sm:col-span-2">Fotos e anexos (até 10)<input type="file" multiple className="field" onChange={e=>anexar(e.target.files)}/><div className="flex flex-wrap gap-2 mt-2">{form.anexos.map((a,i)=><span key={i} className="text-xs border rounded-lg p-2 flex gap-2">{a.nome}<button type="button" onClick={()=>setForm({...form,anexos:form.anexos.filter((_,n)=>n!==i)})}>×</button></span>)}</div></label></div><button disabled={salvando} className="w-full mt-5 bg-[var(--primary)] text-white p-3 rounded-xl font-bold">{salvando?'Salvando...':editando?'Salvar alterações':'Salvar e iniciar prazo'}</button></form></div>;
+  function aoTrocarTipo(id){
+    const tipo=(catalogos.tipos||[]).find(x=>String(x.id)===String(id));
+    setForm(v=>({...v,tipo_id:id,prioridade:tipo?.prioridade||v.prioridade}));
+  }
+  return <div className="fixed inset-0 bg-black/60 z-50 grid place-items-center p-4"><form onSubmit={salvar} className="panel-card max-w-3xl w-full max-h-[92vh] overflow-auto"><div className="flex justify-between mb-5"><div><h2 className="text-2xl font-bold">{editando?'Editar reclamação':'Registrar reclamação'}</h2><p className="text-sm text-[var(--text-muted)]">A prioridade é sugerida pelo tipo e define o prazo automaticamente. O setor é sugerido pelo líder responsável.</p></div><button type="button" onClick={fechar}>Fechar</button></div><div className="grid sm:grid-cols-2 gap-4"><Selecao titulo="Cliente" valor={form.cliente_id} mudar={v=>setForm({...form,cliente_id:v})} itens={catalogos.clientes}/><Selecao titulo="Tipo de reclamação" valor={form.tipo_id} mudar={aoTrocarTipo} itens={catalogos.tipos}/><label className="font-semibold text-sm sm:col-span-2">Nível de importância<div className="grid sm:grid-cols-3 gap-2 mt-2">{Object.entries(cores).map(([v,p])=><button type="button" key={v} onClick={()=>setForm({...form,prioridade:v})} className={`p-3 rounded-xl border text-left ${form.prioridade===v?'ring-2 ring-offset-2':'opacity-75'}`} style={{borderColor:p.cor,background:p.fundo,color:p.cor}}><strong className="block">{p.nome}</strong><small>Retorno em {formatarPrazo(Number(prazos[`prazo_${v}_min`]||0))}</small></button>)}</div></label><label className="font-semibold text-sm sm:col-span-2">Líder responsável<select required className="field" value={form.lider_responsavel_id} onChange={e=>aoTrocarLider(e.target.value)}><option value="">Selecione</option>{(catalogos.lideres||[]).map(x=><option key={x.id} value={x.id}>{x.nome}{(x.setores||[]).length?` — ${(x.setores||[]).map(s=>s.nome).join(', ')}`:''}</option>)}</select>{setoresDoLider.length>0&&<small className="text-[var(--text-muted)]">Setor(es) de {liderAtual.nome}: {setoresDoLider.map(s=>s.nome).join(', ')}</small>}</label><label className="font-semibold text-sm sm:col-span-2">Setor<select className="field" value={form.setor_id} onChange={e=>setForm({...form,setor_id:e.target.value})}><option value="">Selecione (sugestão do líder)</option>{(catalogos.setores||[]).map(x=><option key={x.id} value={x.id}>{x.nome}</option>)}</select></label><label className="font-semibold text-sm sm:col-span-2">Descrição<textarea required rows="5" className="field" value={form.descricao} onChange={e=>setForm({...form,descricao:e.target.value})}/></label><label className="font-semibold text-sm sm:col-span-2">Fotos e anexos (até 10)<input type="file" multiple className="field" onChange={e=>{anexar(e.target.files);e.target.value='';}}/><div className="flex flex-wrap gap-2 mt-2">{form.anexos.map((a,i)=><span key={i} className="text-xs border rounded-lg p-2 flex gap-2">{a.nome}<button type="button" onClick={()=>setForm({...form,anexos:form.anexos.filter((_,n)=>n!==i)})}>×</button></span>)}</div></label></div><button disabled={salvando} className="w-full mt-5 bg-[var(--primary)] text-white p-3 rounded-xl font-bold">{salvando?'Salvando...':editando?'Salvar alterações':'Salvar e iniciar prazo'}</button></form></div>;
 }
 function Selecao({titulo,valor,mudar,itens}){const [texto,setTexto]=useState('');useEffect(()=>{const atual=(itens||[]).find(x=>String(x.id)===String(valor));if(atual&&atual.nome!==texto)setTexto(atual.nome);if(!valor&&(itens||[]).some(x=>x.nome===texto))setTexto('');},[valor,itens]);const lista=`opcoes-${titulo.replace(/\W/g,'-')}`;return <label className="font-semibold text-sm">{titulo}<input required list={lista} className="field" placeholder="Digite para pesquisar" value={texto} onChange={e=>{const digitado=e.target.value;setTexto(digitado);const achado=(itens||[]).find(x=>x.nome.toLocaleLowerCase('pt-BR')===digitado.toLocaleLowerCase('pt-BR'));mudar(achado?String(achado.id):'');}}/><datalist id={lista}>{(itens||[]).map(x=><option key={x.id} value={x.nome}/>)}</datalist></label>}

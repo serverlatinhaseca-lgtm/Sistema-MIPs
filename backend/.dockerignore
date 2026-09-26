@@ -1,0 +1,10 @@
+# Build limpo: nada de dados locais ou segredos dentro da imagem.
+# (24/09/2026, 2ª queda das fotos: uploads assados na imagem ficavam
+# obsoletos e ainda mascaravam um bind mount vazio. O runtime usa o bind
+# ./backend/uploads:/app/uploads declarado no docker-compose.yml.)
+uploads/
+backups/
+node_modules/
+.env
+*.dump
+npm-debug.log

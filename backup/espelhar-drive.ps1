@@ -1,31 +1,56 @@
 # Espelha backups do banco e uploads para o Google Drive deste PC.
-# Agendado diariamente às 03:00 (após o dump das 02:30 do container).
+# Tarefa agendada 'MIPs-Espelho-Drive', diaria as 03:00 (apos o dump das 02:30 do container).
 $ErrorActionPreference = 'Stop'
 $base   = 'C:\Users\Marcelo\Projetos\Sistema-MIPs'
 $dest   = 'G:\Meu Drive\Natan\Backup Sistema'
-if (-not (Test-Path $dest)) { throw "Destino inacessível (Drive montado?): $dest" }
+$logdirLocal = Join-Path $env:ProgramData 'MIPs\logs'
+New-Item -ItemType Directory -Force -Path $logdirLocal | Out-Null
+$stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+$logLocal = Join-Path $logdirLocal "espelho-$stamp.log"
+$rbLog = Join-Path $logdirLocal "espelho-$stamp.robocopy.log"
+function Write-Log([string]$msg) {
+  "$(Get-Date -Format s) $msg" | Out-File -Append -Encoding utf8 $logLocal
+  Write-Host $msg
+}
+Write-Log '=== inicio ==='
+
+# As 03:00 o Drive pode ainda estar montando: aguarda ate 30 min em vez de falhar de cara.
+$limite = (Get-Date).AddMinutes(30)
+while (-not (Test-Path $dest)) {
+  if ((Get-Date) -gt $limite) {
+    Write-Log "FALHA: destino inacessivel apos 30 min: $dest"
+    throw "Destino inacessivel (Drive montado?): $dest"
+  }
+  Write-Log "Aguardando Drive montar: $dest"
+  Start-Sleep -Seconds 60
+}
+
 $srcBackups = Join-Path $base 'backups'
 $srcUploads = Join-Path $base 'backend\uploads'
 if (-not (Test-Path $srcBackups)) { throw "Origem inexistente: $srcBackups" }
-$logdir = Join-Path $dest 'logs'
-$log = Join-Path $logdir ("espelho-{0:yyyyMMdd-HHmmss}.log" -f (Get-Date))
-New-Item -ItemType Directory -Force -Path (Join-Path $dest 'backups'), (Join-Path $dest 'uploads'), $logdir | Out-Null
-function Invoke-Mirror($origem, $destino, [string[]]$extraArgs) {
+$logdirDrive = Join-Path $dest 'logs'
+New-Item -ItemType Directory -Force -Path (Join-Path $dest 'backups'), (Join-Path $dest 'uploads'), $logdirDrive | Out-Null
+function Invoke-Mirror($origem, $destino, [string[]]$filtros) {
   $arquivos = @(Get-ChildItem -Path $origem -File -ErrorAction SilentlyContinue)
   if ($arquivos.Count -eq 0) {
-    "AVISO: origem vazia, espelho ignorado para proteger o destino: $origem" | Out-File -Append $log
+    Write-Log "AVISO: origem vazia, espelho ignorado para proteger o destino: $origem"
     return $true
   }
-  robocopy $origem $destino @extraArgs /MIR /R:2 /W:5 /NP /LOG+:$log | Out-Null
-  # robocopy: 0-7 = sucesso (1-7 = diferenças copiadas), >= 8 = falha.
+  # Log detalhado do robocopy vai para arquivo separado (evita misturar encodings no log principal).
+  robocopy $origem $destino @filtros /MIR /R:2 /W:5 /NP /LOG+:$rbLog | Out-Null
+  # robocopy: 0-7 = sucesso (1-7 = diferencas copiadas), >= 8 = falha.
   if ($LASTEXITCODE -ge 8) {
-    "FALHA robocopy ($LASTEXITCODE): $origem -> $destino" | Out-File -Append $log
+    Write-Log "FALHA robocopy ($LASTEXITCODE): $origem -> $destino (detalhes em $rbLog)"
     return $false
   }
+  Write-Log "OK: $origem -> $destino (robocopy exit $LASTEXITCODE)"
   return $true
 }
-'=== backups ===' | Out-File $log
+Write-Log '=== backups ==='
 $okBackups = Invoke-Mirror $srcBackups (Join-Path $dest 'backups') @('mips-*.dump')
-'=== uploads ===' | Out-File -Append $log
-$okUploads = if (Test-Path $srcUploads) { Invoke-Mirror $srcUploads (Join-Path $dest 'uploads') @('/XF', 'desktop.ini') } else { "AVISO: pasta de uploads inexistente: $srcUploads" | Out-File -Append $log; $false }
-if ($okBackups -and $okUploads) { "OK $(Get-Date -Format s)" | Out-File -Append $log } else { throw "Espelho concluído com falhas — ver $log" }
+Write-Log '=== uploads ==='
+$okUploads = if (Test-Path $srcUploads) { Invoke-Mirror $srcUploads (Join-Path $dest 'uploads') @('/XF', 'desktop.ini') } else { Write-Log "AVISO: pasta de uploads inexistente: $srcUploads"; $false }
+if ($okBackups -and $okUploads) { Write-Log 'OK fim' } else { throw "Espelho concluido com falhas - ver $logLocal" }
+# Copia os logs desta execucao para o Drive e limpa logs locais com mais de 30 dias.
+Copy-Item $logLocal, $rbLog $logdirDrive -ErrorAction SilentlyContinue
+Get-ChildItem $logdirLocal -File 'espelho-*' | Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-30) } | Remove-Item -ErrorAction SilentlyContinue

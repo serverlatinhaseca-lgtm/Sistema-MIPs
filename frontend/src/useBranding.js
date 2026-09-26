@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import API from './api';
 
-const padrao = { nome_site: "Portal MIPs", logo_site: "", logo_avaliacao: "" };
+const padrao = { nome_site: "Portal - Nova Esperança", logo_site: "", logo_avaliacao: "", imagem_login: "", ajuda_icone: "", imagem_dashboard: "" };
 
 export function aplicarBranding(branding) {
   const atual = { ...padrao, ...branding };

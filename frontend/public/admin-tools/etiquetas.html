@@ -931,7 +931,7 @@
       }
     </style>
     <style>
-      /* Integração visual com o Portal MIPs */
+      /* Integração visual com o Portal - Nova Esperança */
       :root {
         --ink: #2d2926;
         --muted: #6b625c;
@@ -1635,10 +1635,12 @@
         "FAB I - CATGUT",
         "FUNDHAS",
         "UNIVERSAL",
+        "CMP - MANSERV",
       ];
       const MARGARINE_BASE_ROWS = [
-        // Base diária extraída da planilha "ÁREAS DA JOHNSON DISTRIBUIÇÃO DE LANCHES" (16/09/2026).
-        // Uma linha por setor + com/sem; quantidades integrais (totais: 1º=763, 2º=560, 3º=269).
+        // Base diária extraída da planilha "ÁREAS DA JOHNSON DISTRIBUIÇÃO DE LANCHES"
+        // (aba Pão J&J, atualização 24/09/2026, conferida com a foto de 26/09/2026).
+        // Uma linha por setor + com/sem; quantidades integrais (totais: 1º=793, 2º=560, 3º=269).
         ["1º TURNO","FAB II - ACAB. SUTURAS",221,"com"],
         ["1º TURNO","FAB II - ACAB. SUTURAS",8,"sem"],
         ["1º TURNO","AGULHAS",158,"com"],
@@ -1660,6 +1662,7 @@
         ["1º TURNO","CAPSTRANO",15,"com"],
         ["1º TURNO","CGC",20,"com"],
         ["1º TURNO","UNIVERSAL",6,"com"],
+        ["1º TURNO","CMP - MANSERV",30,"com"],
         ["2º TURNO","FAB II - ACAB. SUTURAS",227,"com"],
         ["2º TURNO","FAB II - ACAB. SUTURAS",9,"sem"],
         ["2º TURNO","AGULHAS",146,"com"],
@@ -1847,13 +1850,13 @@
       };
       const johnsonManufactureDate = (deliveryDate) =>
         addDays(deliveryDate, -Number(state.rules.manufactureLeadDays || 1));
-      // Pão da margarina pelo dia da entrega: dom/qui = leite,
-      // seg–qua = francês. Sex/sáb a margarina não produz (aba do lanche).
+      // Pão da margarina pelo dia da entrega: dom/qua = leite,
+      // seg–ter–qui = francês. Sex/sáb a margarina não produz (aba do lanche).
       const margarinaBread = (date) => {
         if (!date) return null;
         const dow = new Date(`${date}T12:00:00`).getDay();
-        if (dow === 0 || dow === 4) return "leite";
-        if (dow >= 1 && dow <= 3) return "frances";
+        if (dow === 0 || dow === 3) return "leite";
+        if (dow === 1 || dow === 2 || dow === 4) return "frances";
         return null;
       };
       // Rótulo da margarina: pão do dia + com/sem definido na base.
@@ -2013,17 +2016,26 @@
         if (state.delivery === "margarina") {
           // Impressão em duas páginas: primeiro o pedido (pacotes), depois
           // as validades. Uma linha em branco separa o 1º turno do bloco
-          // 2º + 3º, mantendo o layout.
-          const blankRow = (prefix) =>
-            Array.from({ length: 4 }, (_, blankIndex) => ({
-              id: `${prefix}-${blankIndex}`,
-              kind: "blank",
-            }));
+          // 2º + 3º, mantendo o layout (completa a linha atual + 1 linha vazia).
+          const separatorRow = (prefix, used) =>
+            Array.from(
+              { length: ((4 - (used % 4)) % 4) + 4 },
+              (_, blankIndex) => ({
+                id: `${prefix}-${blankIndex}`,
+                kind: "blank",
+              })
+            );
+          // 1º turno fabrica no dia da entrega; 2º/3º fabricam após a data
+          // base (regra "2º e 3º turnos: fabricação após a data base", padrão +1 = dia seguinte).
+          const margarinaManufactureDate = (deliveryDate, shift) =>
+            (shift || "SEM TURNO") === "1º TURNO"
+              ? deliveryDate
+              : addDays(deliveryDate, Number(state.rules.secondShiftManufactureDays ?? 1));
           const buildSection = (kind) => {
             const first = [],
               rest = [];
             johnsonOrders.forEach((o) => {
-              const manufacture = johnsonManufactureDate(o.date);
+              const manufacture = margarinaManufactureDate(o.date, o.shift);
               const resolved =
                 productById("margarina", o.product?.id) || o.product;
               const days = margarineValidityDays(resolved?.id);
@@ -2054,7 +2066,7 @@
             return [
               ...first,
               ...(first.length && rest.length
-                ? blankRow(`margarina-${kind}-sep`)
+                ? separatorRow(`margarina-${kind}-sep`, first.length)
                 : []),
               ...rest,
             ];
@@ -2335,23 +2347,24 @@
             : "<strong>Fabricação e validade automáticas</strong><span>Informe a entrega para calcular as datas.</span>";
         } else if (state.delivery === "margarina") {
           const bread = margarinaBread(state.date);
-          const manufacture = state.date && bread ? johnsonManufactureDate(state.date) : "";
+          const manufacture = state.date && bread ? state.date : "";
+          const manufactureLater = state.date && bread ? addDays(state.date, Number(state.rules.secondShiftManufactureDays ?? 1)) : "";
+          const validityDays = bread === "frances" ? state.rules.frenchMargarineValidityDays : state.rules.milkMargarineValidityDays;
           el("johnsonRule").innerHTML = !state.date
             ? "<strong>Fabricação e validade automáticas</strong><span>Informe a entrega para calcular as datas.</span>"
             : !bread
             ? "<strong>Sex/sáb a margarina não produz</strong><span>Usar a aba do lanche.</span>"
             : `<strong>Fabricação e validade automáticas • ${
                 bread === "frances" ? "Pão francês" : "Pão de leite"
-              } (com e sem)</strong><span>Fab.: ${formatDate(
+              } (com e sem)</strong><span>1º turno — Fab.: ${formatDate(
                 manufacture
               )} • Val.: ${formatDate(
-                addDays(
-                  manufacture,
-                  bread === "frances"
-                    ? state.rules.frenchMargarineValidityDays
-                    : state.rules.milkMargarineValidityDays
-                )
-              )}</span><small>Dom/qui = leite • Seg–qua = francês</small>`;
+                addDays(manufacture, validityDays)
+              )}</span><span>2º e 3º turnos — Fab.: ${formatDate(
+                manufactureLater
+              )} • Val.: ${formatDate(
+                addDays(manufactureLater, validityDays)
+              )}</span><small>Dom/qua = leite • Seg–ter–qui = francês</small>`;
         }
       }
 
@@ -2925,7 +2938,7 @@
             "Revise os valores: use somente números inteiros válidos.";
           return;
         }
-        state.rules = values;
+        state.rules = { ...state.rules, ...values };
         saveLocal();
         el("rulesMessage").textContent = "Regras gerais salvas.";
       }

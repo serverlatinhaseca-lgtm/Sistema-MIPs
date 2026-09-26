@@ -266,7 +266,7 @@ Sistema-MIPs/
 docker ps --filter publish=7001 --format 'table {{.ID}}\t{{.Names}}\t{{.Ports}}'
 ```
 
-Pare somente o contêiner antigo do próprio Sistema MIPs antes de subir a nova versão.
+Pare somente o contêiner antigo do próprio Portal - Nova Esperança antes de subir a nova versão.
 
 ### Conflito com o nome do contêiner
 

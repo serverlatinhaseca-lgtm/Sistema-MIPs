@@ -63,6 +63,25 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage: storage, limits: { fileSize: 10 * 1024 * 1024 } });
 
+// Antirregressão 24/09/2026 (2ª queda das fotos): se o bind mount
+// ./backend/uploads dessincronizar (recreate do container, WSL/reboot), o
+// container enxerga a pasta vazia e o site devolve 404 nas imagens, mesmo com
+// os arquivos intactos no host e as referências intactas no banco.
+// O watchdog (scripts/watchdog.ps1) detecta e reinicia o backend sozinho;
+// este log no boot acelera o diagnóstico manual.
+async function diagnosticarUploads() {
+  try {
+    const visiveis = fs.readdirSync(uploadDir).filter(f => f !== '.gitkeep').length;
+    let refs = 0;
+    try {
+      const r = await pool.query("SELECT logo_site,logo_avaliacao,imagem_login,COALESCE(ajuda_icone,'') AS ajuda_icone,COALESCE(imagem_dashboard,'') AS imagem_dashboard FROM configuracoes_portal WHERE id=1");
+      if (r.rows.length) refs = Object.values(r.rows[0]).filter(v => String(v || '').startsWith('/uploads/')).length;
+    } catch { /* tabela pode não existir ainda no primeiro boot */ }
+    console.log(`📁 uploads: ${visiveis} arquivo(s) visível(is) no container, ${refs} referência(s) no banco`);
+    if (refs > 0 && visiveis === 0) console.error('⚠️ uploads vazio no container com referências no banco — provável bind dessincronizado: rode `docker compose restart backend`');
+  } catch (err) { console.error('⚠️ falha no diagnóstico de uploads:', err.message); }
+}
+
 const pool = new Pool({ 
   user: process.env.DB_USER || 'postgres', 
   host: process.env.DB_HOST || 'db', 
@@ -91,6 +110,7 @@ async function conectarComRetentativa() {
       conectado = true;
       console.log('✅ Conectado ao banco de dados com sucesso!');
       await inicializarBancoEAdmin();
+      await diagnosticarUploads();
     } catch (err) {
       console.log('⏳ Aguardando banco de dados...');
       await new Promise(res => setTimeout(res, 2000));

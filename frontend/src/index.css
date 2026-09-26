@@ -130,6 +130,14 @@ img {
   display: block;
 }
 
+/* Tela de corte (CropModal): a foto é dimensionada via JS (zoom) e não pode
+   herdar as regras globais de img — o !important acima venceria o estilo inline */
+.crop-moldura img {
+  max-width: none !important;
+  margin: 0 !important;
+  border-radius: 0;
+}
+
 /* Aumenta o tamanho da fonte apenas quando estiver no celular (telas menores que 768px) */
 @media (max-width: 768px) {
   .reader-topbar { position: static; padding: 12px; align-items: flex-start; flex-direction: column; }
@@ -154,7 +162,3 @@ img {
   }
 }
 
-/* Cursor de Lupa para avisar o usuário que a imagem expande */
-img {
-  cursor: zoom-in !important;
-}

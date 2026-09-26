@@ -16,8 +16,10 @@ export default function Receitas() {
   const [versoes, setVersoes] = useState([]);
   const [mostrarVersoes, setMostrarVersoes] = useState(false);
   const [titulo, setTitulo] = useState('');
-  const [rendimentoBase, setRendimentoBase] = useState('');
+  const [pesoPao, setPesoPao] = useState('');
   const [ingredientes, setIngredientes] = useState([{ nome: '', quantidade: '' }]);
+  const [sugestoes, setSugestoes] = useState([]);
+  const [sugIdx, setSugIdx] = useState(null);
   
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -32,7 +34,33 @@ export default function Receitas() {
     } catch (err) { console.error('Erro ao carregar receitas'); }
   };
 
-  useEffect(() => { carregarReceitas(); }, []);
+  useEffect(() => { carregarReceitas(); carregarSugestoes(); }, []);
+
+  const carregarSugestoes = async () => {
+    try {
+      const res = await axios.get(`${API}/api/ingredientes-sugestoes`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      setSugestoes(res.data);
+    } catch (err) { /* sem sugestões, o cadastro segue normal */ }
+  };
+
+  const sugestoesPara = (idx) => {
+    const texto = (ingredientes[idx]?.nome || '').trim().toLowerCase();
+    return sugestoes
+      .filter(s => s.nome.toLowerCase().includes(texto) && s.nome.toLowerCase() !== texto)
+      .slice(0, 8);
+  };
+
+  const aplicarSugestao = (idx, s) => {
+    const novos = [...ingredientes];
+    novos[idx] = { ...novos[idx], nome: s.nome };
+    if ((novos[idx].quantidade === '' || novos[idx].quantidade == null) && s.ultima_quantidade != null) {
+      novos[idx].quantidade = String(s.ultima_quantidade);
+    }
+    setIngredientes(novos);
+    setSugIdx(null);
+  };
 
   const calcularQuantidade = (qtdBase) => {
     if (!quantidadeDesejada) return Math.round(Number(qtdBase)).toLocaleString('pt-BR');
@@ -41,19 +69,26 @@ export default function Receitas() {
     return Math.round(resultado).toLocaleString('pt-BR');
   };
 
+  const somaPesos = (lista) => (Array.isArray(lista) ? lista : []).reduce((t, i) => t + (Number(i.quantidade) || 0), 0);
+  const fmtG = (v) => Number(v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+  const pesoPaoNum = Number(pesoPao), totalMassa = somaPesos(ingredientes);
+  const rendimentoCalculado = totalMassa > 0 && pesoPaoNum > 0 ? Math.floor(totalMassa / pesoPaoNum) : null;
+
   const handleSalvar = async (e) => {
     e.preventDefault();
+    if (rendimentoCalculado == null || rendimentoCalculado < 1) { alert('Confira os pesos: a soma dos ingredientes dividida pelo peso do pão precisa render ao menos 1 unidade.'); return; }
     try {
       await axios[editandoId ? 'put' : 'post'](`${API}/api/receitas${editandoId ? `/${editandoId}` : ''}`, {
-        titulo, rendimento_base: Number(rendimentoBase), ingredientes
+        titulo, peso_pao: pesoPaoNum, rendimento_base: rendimentoCalculado, ingredientes
       }, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
       setModoCriacao(false);
-      setTitulo(''); setRendimentoBase(''); setIngredientes([{ nome: '', quantidade: '' }]); setEditandoId(null);
+      setTitulo(''); setPesoPao(''); setIngredientes([{ nome: '', quantidade: '' }]); setEditandoId(null);
       carregarReceitas();
+      carregarSugestoes();
     } catch (err) { alert(err.response?.data?.error || 'Erro ao salvar receita.'); }
   };
 
-  const iniciarEdicao = () => { setEditandoId(receitaAtiva.id); setTitulo(receitaAtiva.titulo); setRendimentoBase(String(receitaAtiva.rendimento_base)); setIngredientes(receitaAtiva.ingredientes.map(i=>({...i}))); setReceitaAtiva(null); setModoCriacao(true); };
+  const iniciarEdicao = () => { setEditandoId(receitaAtiva.id); setTitulo(receitaAtiva.titulo); setPesoPao(receitaAtiva.peso_pao != null ? String(receitaAtiva.peso_pao) : ''); setIngredientes(receitaAtiva.ingredientes.map(i=>({...i}))); setReceitaAtiva(null); setModoCriacao(true); };
   const abrirHistorico = async () => { try { const r=await axios.get(`${API}/api/receitas/${receitaAtiva.id}/versoes`,{headers:{Authorization:`Bearer ${localStorage.getItem('token')}`}});setVersoes(r.data);setMostrarVersoes(true); } catch { alert('Erro ao carregar histórico.'); } };
 
   const handleExcluirReceita = async (id) => {
@@ -100,6 +135,7 @@ export default function Receitas() {
             <div className="text-center mb-10">
               <h1 className="text-3xl sm:text-4xl font-bold mb-2">{receitaAtiva.titulo}</h1>
               <p className="text-[var(--text-muted)] text-base">Receita Base calculada para <strong className="text-[var(--text-main)]">{receitaAtiva.rendimento_base}</strong> unidades</p>
+              {receitaAtiva.peso_pao ? <p className="text-[var(--text-muted)] text-sm mt-1">Fórmula: {fmtG(somaPesos(receitaAtiva.ingredientes))} g ÷ {fmtG(receitaAtiva.peso_pao)} g por pão</p> : null}
             </div>
 
             <div className="bg-[var(--bg-main)] border border-[var(--border-color)] p-6 rounded-2xl mb-10 print:hidden flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -163,7 +199,7 @@ export default function Receitas() {
         {modoCriacao ? (
           <div className="bg-[var(--bg-card)] border border-[var(--border-color)] rounded-2xl p-6 shadow-sm">
             <div className="flex justify-between items-center mb-6">
-              <button onClick={() => { setModoCriacao(false); setEditandoId(null); setTitulo(''); setRendimentoBase(''); setIngredientes([{ nome: '', quantidade: '' }]); }} className="flex items-center text-[var(--primary)] font-semibold">
+              <button onClick={() => { setModoCriacao(false); setEditandoId(null); setTitulo(''); setPesoPao(''); setIngredientes([{ nome: '', quantidade: '' }]); }} className="flex items-center text-[var(--primary)] font-semibold">
                 <ArrowLeft size={20} className="mr-2" /> Voltar
               </button>
               <h2 className="text-2xl font-bold">{editandoId ? 'Editar Receita' : 'Nova Receita Padrão'}</h2>
@@ -176,16 +212,35 @@ export default function Receitas() {
                   <input required type="text" className="w-full p-3 rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)] text-[var(--text-main)] outline-none focus:ring-2 focus:ring-[var(--primary)]" value={titulo} onChange={e => setTitulo(e.target.value)} placeholder="Ex: Pão Doce 50g" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1 text-[var(--text-muted)]">Rendimento Base (Unidades)</label>
-                  <input required type="number" className="w-full p-3 rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)] text-[var(--text-main)] outline-none focus:ring-2 focus:ring-[var(--primary)]" value={rendimentoBase} onChange={e => setRendimentoBase(e.target.value)} placeholder="Ex: 200" />
+                  <label className="block text-sm font-medium mb-1 text-[var(--text-muted)]">Peso unitário do pão (g)</label>
+                  <input required type="number" min="1" step="any" className="w-full p-3 rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)] text-[var(--text-main)] outline-none focus:ring-2 focus:ring-[var(--primary)]" value={pesoPao} onChange={e => setPesoPao(e.target.value)} placeholder="Ex: 50" />
                 </div>
+              </div>
+
+              <div className="bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl p-4 text-sm">
+                <strong>Rendimento calculado: {rendimentoCalculado != null ? `${rendimentoCalculado} unidades` : '—'}</strong>
+                <p className="text-[var(--text-muted)] mt-1">Fórmula: soma dos pesos ({fmtG(totalMassa)} g) ÷ peso do pão ({pesoPaoNum > 0 ? fmtG(pesoPaoNum) : '—'} g){rendimentoCalculado != null ? ` = ${rendimentoCalculado} unidades (arredondado para baixo)` : ''}</p>
               </div>
 
               <div>
                 <h3 className="font-bold text-lg mb-3">Ingredientes e Pesos (Receita Completa)</h3>
-                {ingredientes.map((ing, idx) => (
+                {ingredientes.map((ing, idx) => {
+                  const lista = sugIdx === idx ? sugestoesPara(idx) : [];
+                  return (
                   <div key={idx} className="flex gap-4 mb-3 items-center">
-                    <input required placeholder="Ingrediente (ex: Farinha de Trigo)" className="flex-1 p-3 rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)] text-[var(--text-main)] outline-none" value={ing.nome} onChange={e => updateIngrediente(idx, 'nome', e.target.value)} />
+                    <div className="relative flex-1">
+                      <input required placeholder="Ingrediente (ex: Farinha de Trigo)" className="w-full p-3 rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)] text-[var(--text-main)] outline-none" value={ing.nome} onChange={e => { updateIngrediente(idx, 'nome', e.target.value); setSugIdx(idx); }} onFocus={() => setSugIdx(idx)} onBlur={() => setTimeout(() => setSugIdx(cur => cur === idx ? null : cur), 150)} onKeyDown={e => { if (e.key === 'Escape') setSugIdx(null); }} />
+                      {lista.length > 0 && (
+                        <div className="absolute z-20 left-0 right-0 mt-1 max-h-56 overflow-auto bg-[var(--bg-card)] border border-[var(--border-color)] rounded-xl shadow-lg">
+                          {lista.map(s => (
+                            <button key={s.nome} type="button" onMouseDown={e => { e.preventDefault(); aplicarSugestao(idx, s); }} className="w-full flex justify-between items-center gap-3 px-4 py-2.5 text-left hover:bg-[var(--bg-main)]">
+                              <span className="font-medium">{s.nome}</span>
+                              {s.ultima_quantidade != null && <span className="text-xs text-[var(--text-muted)] whitespace-nowrap">{fmtG(s.ultima_quantidade)} g · {s.usos}x</span>}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                     <input required type="number" placeholder="Peso Base (g ou ml)" className="w-40 p-3 rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)] text-[var(--text-main)] outline-none" value={ing.quantidade} onChange={e => updateIngrediente(idx, 'quantidade', e.target.value)} />
                     {ingredientes.length > 1 && (
                       <button type="button" onClick={() => removeIngrediente(idx)} className="p-3 text-red-500 hover:bg-red-500/10 rounded-xl transition-colors">
@@ -193,7 +248,8 @@ export default function Receitas() {
                       </button>
                     )}
                   </div>
-                ))}
+                  );
+                })}
                 <button type="button" onClick={addIngrediente} className="mt-2 text-[var(--primary)] font-semibold hover:underline">+ Adicionar Ingrediente</button>
               </div>
 
@@ -224,6 +280,7 @@ export default function Receitas() {
             <div className="text-center mb-10">
               <h1 className="text-4xl font-bold mb-2">{receitaAtiva.titulo}</h1>
               <p className="text-[var(--text-muted)] text-lg">Receita Base calculada para <strong className="text-[var(--text-main)]">{receitaAtiva.rendimento_base}</strong> unidades</p>
+              {receitaAtiva.peso_pao ? <p className="text-[var(--text-muted)] text-sm mt-1">Fórmula: {fmtG(somaPesos(receitaAtiva.ingredientes))} g ÷ {fmtG(receitaAtiva.peso_pao)} g por pão</p> : null}
             </div>
 
             <div className="bg-[var(--bg-main)] border border-[var(--border-color)] p-6 rounded-2xl mb-10 print:hidden flex items-center justify-between">

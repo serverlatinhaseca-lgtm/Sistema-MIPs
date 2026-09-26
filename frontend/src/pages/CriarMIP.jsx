@@ -4,6 +4,7 @@ import axios from 'axios';
 import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
 import { Save, ArrowLeft } from 'lucide-react';
+import CropModal from '../components/CropModal';
 import API from '../api';
 
 export default function CriarMIP() {
@@ -19,6 +20,7 @@ export default function CriarMIP() {
   });
   const [conteudo, setConteudo] = useState('');
   const [erro, setErro] = useState('');
+  const [corte, setCorte] = useState(null);
   const quillRef = useRef(null);
 
   useEffect(() => {
@@ -34,30 +36,35 @@ export default function CriarMIP() {
     input.setAttribute('accept', 'image/*');
     input.click();
 
-    input.onchange = async () => {
+    input.onchange = () => {
       const file = input.files[0];
-      if (!file) return;
-
-      const data = new FormData();
-      data.append('image', file);
-
-      try {
-        const token = localStorage.getItem('token');
-        const res = await axios.post(`${API}/api/upload`, data, {
-          headers: { 
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'multipart/form-data'
-          }
-        });
-
-        const imageUrl = res.data.url;
-        const quill = quillRef.current.getEditor();
-        const range = quill.getSelection(true);
-        quill.insertEmbed(range.index, 'image', imageUrl);
-      } catch (err) {
-        alert('Erro ao enviar imagem para o servidor.');
-      }
+      if (file) setCorte(file);
     };
+  };
+
+  const inserirImagemCortada = async (file) => {
+    setCorte(null);
+    if (!file) return;
+
+    const data = new FormData();
+    data.append('image', file);
+
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.post(`${API}/api/upload`, data, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+
+      const imageUrl = res.data.url;
+      const quill = quillRef.current.getEditor();
+      const range = quill.getSelection(true);
+      quill.insertEmbed(range.index, 'image', imageUrl);
+    } catch (err) {
+      alert('Erro ao enviar imagem para o servidor.');
+    }
   };
 
   const modules = useMemo(() => {
@@ -156,6 +163,7 @@ export default function CriarMIP() {
           </div>
         </form>
       </div>
+      {corte && <CropModal arquivo={corte} aspecto={null} onFechar={() => setCorte(null)} onConfirmar={inserirImagemCortada} />}
     </div>
   );
 }
