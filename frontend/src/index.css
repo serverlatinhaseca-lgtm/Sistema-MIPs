@@ -126,8 +126,20 @@ img {
   max-width: 100% !important;
   height: auto !important;
   border-radius: 8px; /* Bordinha arredondada para ficar bonito */
+}
+/* Centraliza por padrão — EXCETO fotos com posição manual do editor de MIP
+   (data-ali, 29/09/2026): essas usam o estilo inline gravado (float + margens
+   próprias) e o !important abaixo não pode vencê-lo */
+.ql-editor img:not([data-ali]),
+.ql-snow .ql-editor img:not([data-ali]),
+div[dangerouslySetInnerHTML] img:not([data-ali]),
+img:not([data-ali]) {
   margin: 15px auto !important;
   display: block;
+}
+/* No editor, o cursor de mão indica que a foto é clicável (abre o painel de ajuste) */
+.ql-editor img {
+  cursor: pointer;
 }
 
 /* Tela de corte (CropModal): a foto é dimensionada via JS (zoom) e não pode
@@ -156,8 +168,11 @@ img {
     line-height: 1.7 !important;   /* Espaçamento melhor para leitura */
   }
 
-  /* No celular, a foto ocupa 100% da largura disponível para máximo de zoom */
-  .ql-editor img {
+  /* No celular, a foto ocupa 100% da largura disponível para máximo de zoom —
+     EXCETO fotos com tamanho manual do editor (data-tam, 29/09/2026), que
+     respeitam a largura escolhida (ainda limitada a max-width: 100%) */
+  .ql-editor img:not([data-tam]),
+  div[dangerouslySetInnerHTML] img:not([data-tam]) {
     width: 100% !important; 
   }
 }
