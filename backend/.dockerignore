@@ -1,7 +1,7 @@
 # Build limpo: nada de dados locais ou segredos dentro da imagem.
-# (24/09/2026, 2ª queda das fotos: uploads assados na imagem ficavam
-# obsoletos e ainda mascaravam um bind mount vazio. O runtime usa o bind
-# ./backend/uploads:/app/uploads declarado no docker-compose.yml.)
+# (29/09/2026, correção definitiva da 3ª queda: runtime usa o volume nomeado
+# uploads_data:/app/uploads declarado no docker-compose.yml — imune ao desync
+# do bind WSL que causava 404 com arquivos intactos no host.)
 uploads/
 backups/
 node_modules/

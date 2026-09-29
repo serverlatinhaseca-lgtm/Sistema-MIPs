@@ -63,12 +63,10 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage: storage, limits: { fileSize: 10 * 1024 * 1024 } });
 
-// Antirregressão 24/09/2026 (2ª queda das fotos): se o bind mount
-// ./backend/uploads dessincronizar (recreate do container, WSL/reboot), o
-// container enxerga a pasta vazia e o site devolve 404 nas imagens, mesmo com
-// os arquivos intactos no host e as referências intactas no banco.
-// O watchdog (scripts/watchdog.ps1) detecta e reinicia o backend sozinho;
-// este log no boot acelera o diagnóstico manual.
+// Diagnóstico no boot (quedas 24/09 e 29/09/2026): uploads vivem no volume
+// nomeado uploads_data (29/09/2026 em diante). Se refs > 0 e volume vazio, é
+// ausência real no volume — restaurar do tar em backups/uploads-*.tar.gz
+// (espelhado no Drive). O watchdog registra 404 sem auto-restart.
 async function diagnosticarUploads() {
   try {
     const visiveis = fs.readdirSync(uploadDir).filter(f => f !== '.gitkeep').length;
@@ -78,7 +76,7 @@ async function diagnosticarUploads() {
       if (r.rows.length) refs = Object.values(r.rows[0]).filter(v => String(v || '').startsWith('/uploads/')).length;
     } catch { /* tabela pode não existir ainda no primeiro boot */ }
     console.log(`📁 uploads: ${visiveis} arquivo(s) visível(is) no container, ${refs} referência(s) no banco`);
-    if (refs > 0 && visiveis === 0) console.error('⚠️ uploads vazio no container com referências no banco — provável bind dessincronizado: rode `docker compose restart backend`');
+    if (refs > 0 && visiveis === 0) console.error('⚠️ uploads vazio no volume com referências no banco — restaurar backups/uploads-*.tar.gz (Drive) para /app/uploads');
   } catch (err) { console.error('⚠️ falha no diagnóstico de uploads:', err.message); }
 }
 

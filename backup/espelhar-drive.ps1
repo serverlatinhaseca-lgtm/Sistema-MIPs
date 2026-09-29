@@ -26,7 +26,11 @@ while (-not (Test-Path $dest)) {
 }
 
 $srcBackups = Join-Path $base 'backups'
-$srcUploads = Join-Path $base 'backend\uploads'
+# 29/09/2026 (correção definitiva, 3ª queda): uploads vivem no volume nomeado
+# uploads_data — o container de backup gera uploads-AAAAmmdd-HHMMSS.tar.gz ao
+# lado dos dumps, e o filtro abaixo já os leva para Drive\backups.
+# backend\uploads é legado (semente da migração); espelha se ainda tiver arquivos.
+$srcUploadsLegado = Join-Path $base 'backend\uploads'
 if (-not (Test-Path $srcBackups)) { throw "Origem inexistente: $srcBackups" }
 $logdirDrive = Join-Path $dest 'logs'
 New-Item -ItemType Directory -Force -Path (Join-Path $dest 'backups'), (Join-Path $dest 'uploads'), $logdirDrive | Out-Null
@@ -46,10 +50,10 @@ function Invoke-Mirror($origem, $destino, [string[]]$filtros) {
   Write-Log "OK: $origem -> $destino (robocopy exit $LASTEXITCODE)"
   return $true
 }
-Write-Log '=== backups ==='
-$okBackups = Invoke-Mirror $srcBackups (Join-Path $dest 'backups') @('mips-*.dump')
-Write-Log '=== uploads ==='
-$okUploads = if (Test-Path $srcUploads) { Invoke-Mirror $srcUploads (Join-Path $dest 'uploads') @('/XF', 'desktop.ini') } else { Write-Log "AVISO: pasta de uploads inexistente: $srcUploads"; $false }
+Write-Log '=== backups (dumps + uploads-*.tar.gz do volume) ==='
+$okBackups = Invoke-Mirror $srcBackups (Join-Path $dest 'backups') @('mips-*.dump', 'uploads-*.tar.gz')
+Write-Log '=== uploads legado (backend\uploads, semente da migração) ==='
+$okUploads = if ((Test-Path $srcUploadsLegado) -and @(Get-ChildItem -Path $srcUploadsLegado -File -ErrorAction SilentlyContinue).Count) { Invoke-Mirror $srcUploadsLegado (Join-Path $dest 'uploads') @('/XF', 'desktop.ini') } else { Write-Log 'Origem legada vazia/inexistente — uploads oficiais estão nos uploads-*.tar.gz em Drive\backups'; $true }
 if ($okBackups -and $okUploads) { Write-Log 'OK fim' } else { throw "Espelho concluido com falhas - ver $logLocal" }
 # Copia os logs desta execucao para o Drive e limpa logs locais com mais de 30 dias.
 Copy-Item $logLocal, $rbLog $logdirDrive -ErrorAction SilentlyContinue

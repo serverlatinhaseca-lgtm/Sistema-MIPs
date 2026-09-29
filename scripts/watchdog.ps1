@@ -21,13 +21,13 @@ if ($stopped) {
   & $dockerExe compose -f $composeFile start $names
 }
 
-# Fotos da personalização (/uploads) — 24/09/2026, 2ª queda.
-# Causa: o bind ./backend/uploads dessincroniza ao recriar o container
-# (deploy com --build, WSL/reboot) — o container enxerga a pasta vazia e o
-# site dá 404, com arquivos e banco intactos. Cura: restart re-monta o bind.
-# Só reinicia se o arquivo EXISTE no disco (bind dessincronizado); se o
-# arquivo sumiu do disco, apenas registra — restart não adiantaria, precisa
-# restaurar do Drive (G:\Meu Drive\Natan\Backup Sistema\uploads).
+# Fotos da personalização (/uploads) — 29/09/2026, correção definitiva (3ª queda).
+# Antes (bind ./backend/uploads): o bind WSL dessincronizava ao recriar o
+# container e o site dava 404 com arquivos intactos no host — cura era restart.
+# Agora (volume nomeado uploads_data): desync de bind não existe mais; se der
+# 404, é ausência real no volume ou backend fora do ar — só registra, e o
+# diagnóstico no boot (backend/index.js) aponta a contagem no volume.
+# Não usa mais Test-Path no host: backend\uploads é legado (semente da migração).
 try {
   $logDir = Join-Path $env:ProgramData 'MIPs\logs'
   New-Item -ItemType Directory -Force -Path $logDir | Out-Null
@@ -35,7 +35,6 @@ try {
   $portal = Invoke-RestMethod 'http://localhost:7001/api/configuracoes-portal' -TimeoutSec 15
   $urls = @($portal.logo_site, $portal.logo_avaliacao, $portal.imagem_login, $portal.ajuda_icone, $portal.imagem_dashboard) |
     Where-Object { $_ -like '/uploads/*' } | Select-Object -Unique
-  $uploadsDir = 'C:\Users\Marcelo\Projetos\Sistema-MIPs\backend\uploads'
   foreach ($u in $urls) {
     $ok = $false
     try {
@@ -43,13 +42,11 @@ try {
       if ($r.StatusCode -eq 200) { $ok = $true }
     } catch {}
     if ($ok) { continue }
+    # Sem auto-restart: com volume nomeado o 404 indica ausência real no volume
+    # (restaurar do tar em G:\Meu Drive\Natan\Backup Sistema\backups\uploads-*.tar.gz)
+    # ou backend fora do ar (coberto pelo bloco de containers parados acima).
     $nome = Split-Path $u -Leaf
-    if (Test-Path (Join-Path $uploadsDir $nome)) {
-      & $dockerExe compose -f $composeFile restart backend 2>$null | Out-Null
-      "$(Get-Date -Format s) WATCHDOG uploads: $u existe no disco mas dá 404 no site (bind dessincronizado) — backend reiniciado" | Out-File -Append $wlog
-    } else {
-      "$(Get-Date -Format s) WATCHDOG uploads: ARQUIVO AUSENTE no disco: $nome — restaurar de G:\Meu Drive\Natan\Backup Sistema\uploads" | Out-File -Append $wlog
-    }
-    break  # um restart por execução basta; a próxima rodada (5 min) reavalia
+    "$(Get-Date -Format s) WATCHDOG uploads: $u com 404 no site (volume uploads_data) — verificar backend e restaurar do Drive se preciso" | Out-File -Append $wlog
+    break  # um registro por execução basta; a próxima rodada (5 min) reavalia
   }
 } catch {}

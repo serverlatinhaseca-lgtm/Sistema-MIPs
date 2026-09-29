@@ -51,11 +51,13 @@ Atualização segura em produção:
 ```bash
 git pull --ff-only origin main
 docker compose up -d --build
-# Pós-deploy obrigatório (24/09/2026, 2ª queda das fotos): o bind ./backend/uploads
-# pode dessincronizar no recreate — o container enxerga a pasta vazia e o site dá 404.
-docker exec portal_mips_backend ls /app/uploads | wc -l  # tem que bater com ls backend/uploads
-docker compose logs --tail=5 backend  # esperado: "📁 uploads: N arquivo(s) visível(is)"
-# Se zerado ou 404: docker compose restart backend (re-monta o bind)
+# Pós-deploy obrigatório (29/09/2026, correção definitiva da 3ª queda das fotos):
+# uploads vivem no volume nomeado uploads_data (imune ao desync do antigo bind
+# WSL ./backend/uploads). Mesmo assim, confira após todo `up -d --build`:
+# docker exec portal_mips_backend ls /app/uploads | wc -l  # esperado: 43+
+# docker compose logs --tail=5 backend  # esperado: "📁 uploads: N arquivo(s) visível(is)"
+# Se zerado: restaurar backups/uploads-*.tar.gz (espelhado no Drive) para /app/uploads.
+# NUNCA recrie o volume uploads_data sem backup — `down -v` apaga fotos junto com o banco.
 ```
 
 NUNCA rode `docker compose down -v` em produção — apaga o volume `pgdata` e o banco.
