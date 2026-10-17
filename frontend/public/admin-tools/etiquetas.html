@@ -1156,6 +1156,7 @@
             <div id="orderQueue"></div>
             <div class="queue-actions">
               <button class="secondary-button" id="archiveSelectedButton" type="button">Arquivar dia selecionado</button>
+              <button class="secondary-button" id="deleteSelectedButton" type="button">Excluir selecionados</button>
               <button class="secondary-button" id="copyActiveDayButton" type="button">Copiar este dia</button>
               <button class="secondary-button" id="clearButton" type="button">
                 Limpar esta entrega
@@ -1374,11 +1375,22 @@
         <form class="order-edit-card" id="orderEditForm">
           <h2>Editar pedido de etiquetas</h2>
           <p class="subtitle">Altere os dados sem precisar apagar e cadastrar novamente.</p>
-          <label class="field" id="editDestinationField"><span>Setor / local</span><input id="editOrderDestination" type="text" required /></label>
+          <label class="field" id="editDestinationField"><span>Setor / local</span><input id="editOrderDestination" type="text" list="editDestinationList" autocomplete="off" required /><datalist id="editDestinationList"></datalist></label>
+          <label class="field" id="editShiftField" hidden><span>Turno</span><select id="editOrderShift"><option>1º TURNO</option><option>2º TURNO</option><option>3º TURNO</option></select></label>
           <label class="field"><span>Tipo de pão</span><select id="editOrderProduct" required></select></label>
           <label class="field"><span>Quantidade total</span><input id="editOrderQuantity" type="number" min="1" step="1" required /></label>
           <p class="error" id="editOrderError" hidden></p>
           <div class="order-edit-actions"><button class="secondary-button" id="cancelOrderEdit" type="button">Cancelar</button><button class="primary-button" type="submit">Salvar alterações</button></div>
+        </form>
+      </div>
+
+      <div class="order-edit-overlay" id="copyDateOverlay" hidden>
+        <form class="order-edit-card" id="copyDateForm">
+          <h2>Copiar etiquetas para outra data</h2>
+          <p class="subtitle" id="copyDateInfo"></p>
+          <label class="field"><span>Data de destino</span><input id="copyDateInput" type="date" required /></label>
+          <p class="error" id="copyDateError" hidden></p>
+          <div class="order-edit-actions"><button class="secondary-button" id="cancelCopyDate" type="button">Cancelar</button><button class="primary-button" type="submit">Copiar</button></div>
         </form>
       </div>
 
@@ -3056,7 +3068,7 @@
           ? `<div class="batch-list">${orders
               .map((o) =>
                 o.validityOnly
-                  ? `<article class="batch-item"><label><input type="checkbox" data-archive-select="${o.id}" ${state.selectedOrderIds.has(o.id)?"checked":""} aria-label="Selecionar para arquivar"></label><div><strong>ETIQUETAS DE VALIDADE</strong><span>${
+                  ? `<article class="batch-item"><label><input type="checkbox" data-archive-select="${o.id}" ${state.selectedOrderIds.has(o.id)?"checked":""} aria-label="Selecionar pedido"></label><div><strong>ETIQUETAS DE VALIDADE</strong><span>${
                       o.labelCount || o.total
                     } etiquetas • validade de ${
                       o.validityDays
@@ -3066,7 +3078,7 @@
                       addDays(o.date, o.validityDays)
                     )}</small></div><div class="batch-actions"><button class="edit-order" type="button" data-edit-order="${o.id}">Editar</button><button type="button" data-remove="${o.id}">Remover</button></div></article>`
                   : o.delivery === "genericas" && !o.parts?.length
-                  ? `<article class="batch-item"><label><input type="checkbox" data-archive-select="${o.id}" ${state.selectedOrderIds.has(o.id)?"checked":""} aria-label="Selecionar para arquivar"></label><div><strong>${
+                  ? `<article class="batch-item"><label><input type="checkbox" data-archive-select="${o.id}" ${state.selectedOrderIds.has(o.id)?"checked":""} aria-label="Selecionar pedido"></label><div><strong>${
                       o.destination
                     }</strong><span>${
                       o.labelCount || o.total
@@ -3074,7 +3086,7 @@
                       [o.line2, o.line3].filter(Boolean).join(" • ") ||
                       "Somente texto principal"
                     }</small></div><div class="batch-actions"><button class="edit-order" type="button" data-edit-order="${o.id}">Editar</button><button type="button" data-remove="${o.id}">Remover</button></div></article>`
-                  : `<article class="batch-item"><label><input type="checkbox" data-archive-select="${o.id}" ${state.selectedOrderIds.has(o.id)?"checked":""} aria-label="Selecionar para arquivar"></label><div><strong>${o.destination}${
+                  : `<article class="batch-item"><label><input type="checkbox" data-archive-select="${o.id}" ${state.selectedOrderIds.has(o.id)?"checked":""} aria-label="Selecionar pedido"></label><div><strong>${o.destination}${
                       o.shift ? ` • ${o.shift}` : ""
                     }${o.afternoon ? " • TARDE" : ""}</strong><span>${
                       o.total
@@ -3101,9 +3113,11 @@
         document.querySelectorAll("[data-archive-select]").forEach(input => input.onchange=()=>{
           const id=Number(input.dataset.archiveSelect); input.checked ? state.selectedOrderIds.add(id) : state.selectedOrderIds.delete(id);
           el("archiveSelectedButton").disabled=!state.selectedOrderIds.size;
+          el("deleteSelectedButton").disabled=!state.selectedOrderIds.size;
         });
         document.querySelectorAll("[data-edit-order]").forEach(button=>button.onclick=()=>openOrderEdit(Number(button.dataset.editOrder)));
         el("archiveSelectedButton").disabled = !state.selectedOrderIds.size;
+        el("deleteSelectedButton").disabled = !state.selectedOrderIds.size;
         el("copyActiveDayButton").disabled = !orders.length;
         el("clearButton").disabled = !orders.length;
         el("pdfButton").disabled = !labs.length;
@@ -3278,6 +3292,14 @@
         doc.save(pdfName());
       }
 
+      function destinationListFor(order) {
+        if(order.delivery==="igarata")return state.destinations.igarata;
+        if(order.delivery==="paraibuna")return state.destinations[order.route||"cidade"]||[];
+        if(order.delivery==="johnson"||order.delivery==="margarina")return state.destinations.johnson||[];
+        if(order.delivery==="genericas")return state.destinations.genericas||[];
+        return [];
+      }
+
       function openOrderEdit(id) {
         const order=state.orders.find(o=>o.id===id); if(!order)return;
         state.editingOrderId=id;
@@ -3285,6 +3307,10 @@
         el("editDestinationField").hidden=validity;
         el("editOrderDestination").required=!validity;
         el("editOrderDestination").value=order.destination||"";
+        el("editDestinationList").innerHTML=destinationListFor(order).map(name=>`<option value="${escapeHtml(name)}"></option>`).join("");
+        const shiftable=!validity&&["johnson","margarina"].includes(order.delivery);
+        el("editShiftField").hidden=!shiftable;
+        if(shiftable)el("editOrderShift").value=order.shift||state.shift;
         const options=validity
           ? state.validityRules.map(rule=>({id:rule.id,name:rule.name}))
           : productsFor(order.delivery).map(product=>({id:product.id,name:product.shortName}));
@@ -3310,6 +3336,7 @@
           const destination=normalizeName(el("editOrderDestination").value), product=productById(order.delivery,el("editOrderProduct").value);
           if(!destination||!product){el("editOrderError").textContent="Informe o setor/local e selecione um tipo de pão.";el("editOrderError").hidden=false;return;}
           order.destination=destination;order.product={...product};order.total=quantity;order.parts=divide(quantity,product.packageSize);
+          if(["johnson","margarina"].includes(order.delivery))order.shift=el("editOrderShift").value;
           const destinationKey=order.delivery==="paraibuna"?(order.route||"cidade"):order.delivery;
           if(state.destinations[destinationKey]&&!state.destinations[destinationKey].some(name=>name.toLocaleLowerCase("pt-BR")===destination.toLocaleLowerCase("pt-BR")))state.destinations[destinationKey].push(destination);
         }
@@ -3318,23 +3345,37 @@
 
       function validCopyDate(value) { return /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(new Date(`${value}T12:00:00`).getTime()); }
 
-      function copyOrdersToDate(items,sourceDate) {
+      let pendingCopy = null;
+
+      function openCopyDateDialog(items, sourceDate) {
         if(!items.length)return;
-        const target=prompt(`Copiar as etiquetas de ${formatDate(sourceDate)} para qual data?\nUse o formato AAAA-MM-DD.`);
-        if(target===null)return;
-        if(!validCopyDate(target)){alert("Data inválida. Use o formato AAAA-MM-DD.");return;}
+        pendingCopy = { items, sourceDate };
+        el("copyDateInfo").textContent = `Copiar ${items.length} pedido(s) de ${formatDate(sourceDate)} para qual data?`;
+        el("copyDateInput").value = sourceDate || "";
+        el("copyDateError").hidden = true;
+        el("copyDateOverlay").hidden = false;
+      }
+
+      function closeCopyDateDialog() { pendingCopy = null; el("copyDateOverlay").hidden = true; }
+
+      function confirmCopyDate(event) {
+        event.preventDefault();
+        if(!pendingCopy)return;
+        const { items, sourceDate } = pendingCopy;
+        const target = el("copyDateInput").value;
+        if(!validCopyDate(target)){el("copyDateError").textContent="Selecione uma data de destino válida.";el("copyDateError").hidden=false;return;}
         if(target===sourceDate&&!confirm("A data de destino é igual à original. Deseja duplicar mesmo assim?"))return;
         // Sex/sáb a margarina não produz: não copia esses itens para o destino.
         const copiaveis=margarinaBread(target)?items:items.filter(o=>o.delivery!=="margarina");
-        if(!copiaveis.length){alert("Sex/sáb a margarina não produz — nada a copiar para essa data.");return;}
+        if(!copiaveis.length){el("copyDateError").textContent="Sex/sáb a margarina não produz — nada a copiar para essa data.";el("copyDateError").hidden=false;return;}
         const now=Date.now();copiaveis.forEach((item,index)=>{const copy={...item,id:now+index,date:target,product:item.product?{...item.product}:item.product,parts:Array.isArray(item.parts)?[...item.parts]:item.parts,source:"copia"};delete copy.archivedAt;if(copy.validityOnly){const offset=copy.shift==="2º E 3º TURNOS"?state.rules.secondShiftManufactureDays:0;copy.manufactureDate=addDays(target,offset);}state.orders.push(copy);});
-        state.date=target;saveLocal();render();alert(`${copiaveis.length} pedido(s) copiado(s) para ${formatDate(target)}.`);
+        state.date=target;saveLocal();closeCopyDateDialog();render();alert(`${copiaveis.length} pedido(s) copiado(s) para ${formatDate(target)}.`);
       }
 
-      function copyActiveDay() { copyOrdersToDate(activeOrders(),state.date); }
+      function copyActiveDay() { openCopyDateDialog(activeOrders(),state.date); }
 
       function copyArchivedDay(key) {
-        const items=state.archivedOrders.filter(o=>archiveKeyMatches(o,key));copyOrdersToDate(items,items[0]?.date||"");
+        const items=state.archivedOrders.filter(o=>archiveKeyMatches(o,key));openCopyDateDialog(items,items[0]?.date||"");
       }
 
       function clearActive() {
@@ -3370,6 +3411,16 @@
         const ids=new Set(state.orders.filter(o=>dayKeys.has(archiveOrderKey(o))).map(o=>o.id));
         if (!confirm(`Arquivar ${dayKeys.size} arquivo(s) diário(s), contendo ${ids.size} pedido(s)?`)) return;
         archiveOrdersByIds(ids);
+        render();
+      }
+
+      function deleteSelectedOrders() {
+        if (!state.selectedOrderIds.size) return;
+        const ids = new Set(state.selectedOrderIds);
+        if (!confirm(`Excluir ${ids.size} pedido(s) selecionado(s)? Esta ação não pode ser desfeita.`)) return;
+        state.orders = state.orders.filter(o => !ids.has(o.id));
+        state.selectedOrderIds.clear();
+        saveLocal();
         render();
       }
 
@@ -3703,10 +3754,14 @@
       el("quantity").oninput = () => { updateSplit(); };
       el("clearButton").onclick = clearActive;
       el("archiveSelectedButton").onclick = archiveSelected;
+      el("deleteSelectedButton").onclick = deleteSelectedOrders;
       el("copyActiveDayButton").onclick = copyActiveDay;
       el("orderEditForm").onsubmit = saveOrderEdit;
       el("cancelOrderEdit").onclick = closeOrderEdit;
       el("orderEditOverlay").onclick = event => { if(event.target===el("orderEditOverlay")) closeOrderEdit(); };
+      el("copyDateForm").onsubmit = confirmCopyDate;
+      el("cancelCopyDate").onclick = closeCopyDateDialog;
+      el("copyDateOverlay").onclick = event => { if(event.target===el("copyDateOverlay")) closeCopyDateDialog(); };
       el("pdfButton").onclick = downloadPdf;
       el("printButton").onclick = () => window.print();
       loadLocal();
