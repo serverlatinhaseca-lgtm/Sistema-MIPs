@@ -1570,10 +1570,10 @@ async function criarNotificacao(usuarioId, tipo, titulo, mensagem, link, referen
     await pool.query('INSERT INTO notificacoes (usuario_id,tipo,titulo,mensagem,link,referencia) VALUES ($1,$2,$3,$4,$5,$6)', [Number(usuarioId), tipo, titulo, mensagem || '', link || '', referencia || '']);
   } catch (e) { console.error('Erro ao criar notificação:', e.message); }
 }
-// Reclamação nova: líder responsável mencionado + todos os gerentes + Ximene (nutri).
+// Reclamação nova: líder responsável mencionado + Gerentes + Administradores + Ximene (nutri).
 async function destinatariosReclamacao(liderId) {
   try {
-    const r = await pool.query(`SELECT id FROM usuarios WHERE id=$1 OR LOWER(perfil)='gerente' OR nome ILIKE '%ximene%'`, [Number(liderId)]);
+    const r = await pool.query(`SELECT id FROM usuarios WHERE id=$1 OR LOWER(perfil) IN ('gerente','administrador') OR nome ILIKE '%ximene%'`, [Number(liderId)]);
     return [...new Set(r.rows.map(x => Number(x.id)))];
   } catch (e) { console.error('Erro ao buscar destinatários:', e.message); return [Number(liderId)]; }
 }
@@ -1885,9 +1885,9 @@ async function registrarLog(usuarioId, acao, entidade, entidadeId, detalhes) {
 const PERFIS_RH = ['administrador', 'gerente', 'rh'];
 const ehRH = (perfil) => PERFIS_RH.includes(String(perfil || '').toLowerCase());
 // Quem recebe as notificações operacionais do RH (ticket novo/mensagem, folga
-// solicitada, ASO vencido/confirmado). O Administrador saiu da lista em
-// 22/10/2026 a pedido do mantenedor — sobram Gerente e o perfil RH.
-const SQL_DESTINATARIOS_RH = `LOWER(perfil) IN ('gerente','rh')`;
+// solicitada, ASO vencido/confirmado): SOMENTE o perfil RH (22/10/2026).
+// Gerente e Administrador saíram da lista a pedido do mantenedor.
+const SQL_DESTINATARIOS_RH = `LOWER(perfil)='rh'`;
 
 const pdfASO = multer({
   storage: multer.diskStorage({
