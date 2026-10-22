@@ -50,7 +50,7 @@ Autorização permanente do mantenedor (17/09/2026): pode rodar `up -d --build`,
 - Etiquetas: impressão Pimaco 6187; regras de turnos/validades e clientes (Johnson, Igaratá, Paraibuna, genéricas) espalhadas entre `backend/index.js` e `admin-tools/etiquetas.html` — ao mudar regra, verifique os dois lados e o Financeiro.
 - Versão sincronizada em `backend/package.json` + `frontend/package.json` + badge `README.md`.
 - Perfis: Funcionário (sem sidebar) < Líder < Gerente < Administrador (único com backup, usuários, personalização).
-- **Sempre commitar após qualquer alteração** (22/10/2026, pedido do mantenedor): terminou a tarefa, rode `npm test` quando tocar em regra de negócio e faça o commit com mensagem descritiva em português — não deixe trabalho concluído apenas no working tree.
+- **Sempre commitar E dar push após qualquer alteração** (22/10/2026, pedido do mantenedor): terminou a tarefa, rode `npm test` quando tocar em regra de negócio, faça o commit com mensagem descritiva em português e envie com `git push origin main`. Trabalho concluído não fica só no working tree nem só no commit local — tem que estar no GitHub. Só não dê push se o mantenedor pedir explicitamente para segurar.
 
 ## Git nesta máquina
 
@@ -58,8 +58,7 @@ Não existe `git.exe` no Windows (nada em `Program Files`, nem no PATH). O Git f
 
 ```bash
 wsl -e bash -lc 'cd /mnt/c/Users/Marcelo/Projetos/Sistema-MIPs && git status --short'
-wsl -e bash -lc 'cd /mnt/c/Users/Marcelo/Projetos/Sistema-MIPs && git add -A && git commit -m "Assunto: resumo"'
-wsl -e bash -lc 'cd /mnt/c/Users/Marcelo/Projetos/Sistema-MIPs && git push origin main'
+wsl -e bash -lc 'cd /mnt/c/Users/Marcelo/Projetos/Sistema-MIPs && git add -A && git commit -m "Assunto: resumo" && git push origin main'
 ```
 
 `gh` já está autenticado no WSL (`serverlatinhaseca-lgtm`, escopo `repo`) e serve de credential helper — push funciona sem senha. `node`/`npm` também não existem no Windows: teste/build rodam em container (`docker run --rm -v "<repo>/backend:/app" -w /app node:22-alpine npm test`).
