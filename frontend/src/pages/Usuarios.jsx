@@ -5,7 +5,7 @@ import { UserPlus, Trash2, KeyRound, Pencil, Copy, Wand2, Download, Upload, File
 import Sidebar from "../components/Sidebar";
 import API from '../api';
 
-const nomePerfil = (perfil) => ({ leitor: "Funcionário", editor: "Líder", gerente: "Gerente", administrador: "Administrador" }[String(perfil || "").toLowerCase()] || perfil);
+const nomePerfil = (perfil) => ({ leitor: "Funcionário", editor: "Líder", gerente: "Gerente", rh: "RH", administrador: "Administrador" }[String(perfil || "").toLowerCase()] || perfil);
 
 export default function Usuarios() {
   const [usuarios, setUsuarios] = useState([]);
@@ -197,7 +197,7 @@ export default function Usuarios() {
                 </p>
                 <ul className="text-xs text-[var(--text-muted)] mt-2 space-y-0.5">
                   <li>• O modelo já vem com <strong>listas suspensas</strong> preenchidas com os dados atuais: responsáveis (Líderes, Gerentes e Administradores), funções, categorias e setores — cadastrou alguém novo? Baixe o modelo de novo.</li>
-                  <li>• Colunas obrigatórias: <strong>nome | login | perfil</strong> (Funcionario, Lider, Gerente ou Administrador).</li>
+                  <li>• Colunas obrigatórias: <strong>nome | login | perfil</strong> (Funcionario, Lider, Gerente, RH ou Administrador).</li>
                   <li>• Para Funcionario, Lider e Gerente, escolha também <strong>responsavel_login</strong> (quem avalia) e <strong>funcao_modelo</strong> (nome exato da função).</li>
                   <li>• Opcionais: matricula | cpf | categoria_acesso | setores (separados por “;”). Logins já existentes são ignorados.</li>
                 </ul>
@@ -321,6 +321,7 @@ export default function Usuarios() {
                     <option value="Leitor">Funcionário (consulta e recebe avaliações)</option>
                     <option value="Editor">Líder (MIPs e sua equipe)</option>
                     <option value="Gerente">Gerente (acesso geral e avaliação pelo ADM)</option>
+                    <option value="RH">RH (ASO, folgas, banco de horas, atendimento e comunicados)</option>
                     <option value="Administrador">
                       Administrador (Acesso Total)
                     </option>

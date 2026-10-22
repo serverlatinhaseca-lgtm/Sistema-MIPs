@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { AlertTriangle, BookOpen, Calculator, ClipboardCheck, Home, KeyRound, LogOut, Moon, Sun } from "lucide-react";
+import { AlertTriangle, BookOpen, Calculator, ClipboardCheck, Home, KeyRound, LogOut, MessageCircle, Moon, Sun } from "lucide-react";
 import useBranding from "../useBranding";
 import NotificationBell from "./NotificationBell";
 
@@ -35,6 +35,7 @@ export default function LeitorTopbar({ titulo }) {
       {item("/receitas", Calculator, "Receitas")}
       {item("/avaliacoes", ClipboardCheck, "Avaliações")}
       {item("/reclamacoes", AlertTriangle, "Reclamações")}
+      {item("/atendimento", MessageCircle, "Atendimento")}
       {item("/alterar-senha", KeyRound, "Senha")}
       <NotificationBell modo="topo" />
       <button onClick={alternarTema} className="reader-nav-button" title={dark?"Modo claro":"Modo noturno"}>{dark?<Sun size={18}/>:<Moon size={18}/>}<span>{dark?"Claro":"Noturno"}</span></button>

@@ -49,15 +49,15 @@ export default function App() {
         <Route path="/avaliacoes/compartilhada/:token" element={<AvaliacaoCompartilhada />} />
         <Route path="/dashboard" element={<RotaPrivada><Dashboard /></RotaPrivada>} />
         <Route path="/mips" element={<RotaPrivada><ListaMIPs /></RotaPrivada>} />
-        <Route path="/mips/nova" element={<RotaPrivada><CriarMIP /></RotaPrivada>} />
-        <Route path="/mips/:id/editar" element={<RotaPrivada><CriarMIP /></RotaPrivada>} />
+        <Route path="/mips/nova" element={<RotaPrivada perfisPermitidos={['leitor','editor','gerente','administrador']}><CriarMIP /></RotaPrivada>} />
+        <Route path="/mips/:id/editar" element={<RotaPrivada perfisPermitidos={['leitor','editor','gerente','administrador']}><CriarMIP /></RotaPrivada>} />
         <Route path="/mips/:id" element={<RotaPrivada><DetalheMIP /></RotaPrivada>} />
         <Route path="/usuarios" element={<RotaPrivada perfisPermitidos={['administrador']}><Usuarios /></RotaPrivada>} />
-        <Route path="/receitas" element={<RotaPrivada><Receitas /></RotaPrivada>} />
-        <Route path="/avaliacoes" element={<RotaPrivada><Avaliacoes /></RotaPrivada>} />
+        <Route path="/receitas" element={<RotaPrivada perfisPermitidos={['leitor','editor','gerente','administrador']}><Receitas /></RotaPrivada>} />
+        <Route path="/avaliacoes" element={<RotaPrivada perfisPermitidos={['leitor','editor','gerente','administrador']}><Avaliacoes /></RotaPrivada>} />
         <Route path="/alterar-senha" element={<RotaPrivada><AlterarSenha /></RotaPrivada>} />
         <Route path="/configuracoes" element={<RotaPrivada perfisPermitidos={['administrador']}><Configuracoes /></RotaPrivada>} />
-        <Route path="/meu-desempenho" element={<RotaPrivada><MeuDesempenho /></RotaPrivada>} />
+        <Route path="/meu-desempenho" element={<RotaPrivada perfisPermitidos={['leitor','editor','gerente','administrador']}><MeuDesempenho /></RotaPrivada>} />
         <Route path="/reclamacoes" element={<RotaPrivada><Reclamacoes /></RotaPrivada>} />
         <Route path="/aso" element={<RotaPrivada><ASO /></RotaPrivada>} />
         <Route path="/atendimento" element={<RotaPrivada><Atendimento /></RotaPrivada>} />

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { BookOpen, Users, PlusCircle, Calculator, ClipboardCheck, AlertTriangle, Megaphone, Bell } from 'lucide-react';
+import { BookOpen, Users, PlusCircle, Calculator, ClipboardCheck, AlertTriangle, Megaphone, Bell, MessageCircle, HeartPulse, FileText, CalendarDays } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import LeitorTopbar from '../components/LeitorTopbar';
 import useBranding from '../useBranding';
@@ -12,7 +12,20 @@ const ATALHOS_FUNCIONARIO = [
   { rota: '/receitas', titulo: 'Receitas', descricao: 'Calcule os ingredientes para a produção.', Icone: Calculator, fundo: 'bg-orange-100 dark:bg-orange-950/40', cor: 'text-orange-600' },
   { rota: '/avaliacoes', titulo: 'Meu desempenho', descricao: 'Veja suas avaliações e sua evolução.', Icone: ClipboardCheck, fundo: 'bg-green-100 dark:bg-green-950/40', cor: 'text-green-700' },
   { rota: '/reclamacoes', titulo: 'Reclamações', descricao: 'Acompanhe as ocorrências de atendimento.', Icone: AlertTriangle, fundo: 'bg-red-100 dark:bg-red-950/40', cor: 'text-red-600' },
+  { rota: '/atendimento', titulo: 'Atendimento', descricao: 'Abra um ticket e converse com o RH.', Icone: MessageCircle, fundo: 'bg-teal-100 dark:bg-teal-950/40', cor: 'text-teal-700' },
   { rota: '/comunicados', titulo: 'Comunicados', descricao: 'Fique por dentro dos avisos oficiais.', Icone: Megaphone, fundo: 'bg-blue-100 dark:bg-blue-950/40', cor: 'text-blue-600' },
+  { rota: '/notificacoes', titulo: 'Notificações', descricao: 'Revise seus avisos e preferências.', Icone: Bell, fundo: 'bg-violet-100 dark:bg-violet-950/40', cor: 'text-violet-600' },
+];
+
+// Atalhos do perfil RH: só os módulos de RH (+ MIPs e Reclamações em leitura).
+const ATALHOS_RH = [
+  { rota: '/aso', titulo: 'ASO', descricao: 'Exames ocupacionais, vencimentos e PDFs.', Icone: HeartPulse, fundo: 'bg-rose-100 dark:bg-rose-950/40', cor: 'text-rose-600' },
+  { rota: '/banco-horas', titulo: 'Banco de Horas', descricao: 'Publique demonstrativos por competência.', Icone: FileText, fundo: 'bg-sky-100 dark:bg-sky-950/40', cor: 'text-sky-700' },
+  { rota: '/folgas', titulo: 'Folgas', descricao: 'Grade da equipe e solicitações.', Icone: CalendarDays, fundo: 'bg-emerald-100 dark:bg-emerald-950/40', cor: 'text-emerald-700' },
+  { rota: '/atendimento', titulo: 'Atendimento', descricao: 'Todos os tickets abertos pelos funcionários.', Icone: MessageCircle, fundo: 'bg-teal-100 dark:bg-teal-950/40', cor: 'text-teal-700' },
+  { rota: '/comunicados', titulo: 'Comunicados', descricao: 'Crie e acompanhe as leituras.', Icone: Megaphone, fundo: 'bg-blue-100 dark:bg-blue-950/40', cor: 'text-blue-600' },
+  { rota: '/reclamacoes', titulo: 'Reclamações', descricao: 'Consulta das ocorrências de atendimento.', Icone: AlertTriangle, fundo: 'bg-red-100 dark:bg-red-950/40', cor: 'text-red-600' },
+  { rota: '/mips', titulo: 'Manuais (MIPs)', descricao: 'Leia os procedimentos publicados.', Icone: BookOpen, fundo: 'bg-amber-100 dark:bg-amber-950/40', cor: 'text-amber-600' },
   { rota: '/notificacoes', titulo: 'Notificações', descricao: 'Revise seus avisos e preferências.', Icone: Bell, fundo: 'bg-violet-100 dark:bg-violet-950/40', cor: 'text-violet-600' },
 ];
 
@@ -23,9 +36,10 @@ export default function Dashboard() {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const branding = useBranding();
   const isLeitor = String(user.perfil || '').toLowerCase() === 'leitor';
+  const isRH = String(user.perfil || '').toLowerCase() === 'rh';
 
   useEffect(() => {
-    if (isLeitor) return;
+    if (isLeitor || isRH) return;
 
     const fetchStats = async () => {
       try {
@@ -43,7 +57,41 @@ export default function Dashboard() {
       } catch (err) { console.error(err); }
     };
     fetchStats();
-  }, [isLeitor]);
+  }, [isLeitor, isRH]);
+
+  if (isRH) {
+    return (
+      <div className="min-h-screen bg-[var(--bg-main)] flex">
+        <Sidebar />
+        <main className="flex-1 min-w-0 p-4 sm:p-10 max-w-6xl">
+          <header className="mb-5 sm:mb-7">
+            <p className="section-label">Recursos Humanos</p>
+            <h1 className="text-2xl sm:text-3xl font-bold">Olá, {(user.nome || '').split(' ')[0] || 'RH'}!</h1>
+            <p className="text-[var(--text-muted)] text-sm mt-1">Painel do RH — ASO, banco de horas, folgas, atendimento e comunicados.</p>
+          </header>
+
+          <FaixaPainel branding={branding} className="mb-6 rounded-2xl" />
+
+          <h2 className="text-lg font-bold mb-3">Atalhos</h2>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            {ATALHOS_RH.map(({ rota, titulo, descricao, Icone, fundo, cor }) => (
+              <button
+                key={rota}
+                onClick={() => navigate(rota)}
+                className="group flex flex-col items-start gap-3 rounded-2xl border border-[var(--border-color)] bg-[var(--bg-card)] p-4 sm:p-5 text-left shadow-sm hover:border-[var(--primary)] hover:shadow-md active:scale-[0.99] transition-all"
+              >
+                <span className={`w-11 h-11 rounded-xl grid place-items-center ${fundo} ${cor}`}>
+                  <Icone size={22} />
+                </span>
+                <span className="font-bold text-sm sm:text-base leading-tight">{titulo}</span>
+                <span className="text-xs text-[var(--text-muted)] leading-snug">{descricao}</span>
+              </button>
+            ))}
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   if (isLeitor) {
     return (

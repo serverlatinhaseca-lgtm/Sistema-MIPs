@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import useBranding from '../useBranding';
 import NotificationBell from './NotificationBell';
 
-const nomePerfil = (perfil) => ({ leitor: 'Funcionário', editor: 'Líder', gerente: 'Gerente', administrador: 'Administrador' }[String(perfil || '').toLowerCase()] || perfil);
+const nomePerfil = (perfil) => ({ leitor: 'Funcionário', editor: 'Líder', gerente: 'Gerente', rh: 'RH', administrador: 'Administrador' }[String(perfil || '').toLowerCase()] || perfil);
 
 export default function Sidebar({ emDrawer = false, aoNavegar = () => {} }) {
   const navigate = useNavigate();
@@ -21,6 +21,9 @@ export default function Sidebar({ emDrawer = false, aoNavegar = () => {} }) {
 
   // Pasta RH (ASO, Banco de Horas, Folgas, Atendimento, Comunicados) — reativada
   // no menu em 22/10/2026 a pedido do mantenedor para revisão das telas.
+  // O perfil RH (criado em 22/10/2026) vê SOMENTE: Início, Manuais, Reclamações,
+  // pasta RH e Notificações — sem Receitas, Avaliações nem Meu desempenho.
+  const ehPerfilRH = String(user.perfil || '').toLowerCase() === 'rh';
 
   const toggleTheme = () => {
     const isDark = document.documentElement.classList.toggle('dark');
@@ -50,8 +53,10 @@ export default function Sidebar({ emDrawer = false, aoNavegar = () => {} }) {
     {branding.logo_site ? <img src={branding.logo_site} alt="Logo" className="w-9 h-9 object-contain bg-white rounded-lg p-0.5 mb-4" /> : <div className="w-9 h-9 bg-[var(--primary)] rounded-lg flex items-center justify-center text-white font-bold mb-4">M</div>}
     {user.perfil?.toLowerCase() !== 'leitor' && <IconBtn titulo="Dashboard" ativo={isActive('/dashboard')} abrir={() => ir('/dashboard')}><LayoutDashboard size={20} /></IconBtn>}
     <IconBtn titulo="Manuais (MIPs)" ativo={isActive('/mips')} abrir={() => ir('/mips')}><BookOpen size={20} /></IconBtn>
+    {!ehPerfilRH && <>
     <IconBtn titulo="Receitas" ativo={isActive('/receitas')} abrir={() => ir('/receitas')}><Calculator size={20} /></IconBtn>
     <IconBtn titulo={user.perfil?.toLowerCase() === 'leitor' ? 'Meu desempenho' : 'Avaliações'} ativo={isActive('/avaliacoes')} abrir={() => ir('/avaliacoes')}><ClipboardCheck size={20} /></IconBtn>
+    </>}
     <IconBtn titulo="Reclamações" ativo={isActive('/reclamacoes')} abrir={() => ir('/reclamacoes')}><AlertTriangle size={20} /></IconBtn>
     <IconBtn titulo="Atendimento" ativo={isActive('/atendimento')} abrir={() => ir('/atendimento')}><MessageCircle size={20} /></IconBtn>
     <IconBtn titulo="Banco de Horas" ativo={isActive('/banco-horas')} abrir={() => ir('/banco-horas')}><FileText size={20} /></IconBtn>
@@ -92,12 +97,14 @@ export default function Sidebar({ emDrawer = false, aoNavegar = () => {} }) {
           <div onClick={() => ir('/mips')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/mips') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}>
             <BookOpen size={20} className="mr-3" /> Manuais (MIPs)
           </div>
+          {!ehPerfilRH && <>
           <div onClick={() => ir('/receitas')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/receitas') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}>
             <Calculator size={20} className="mr-3" /> Receitas
           </div>
           <div onClick={() => ir('/avaliacoes')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/avaliacoes') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}>
             <ClipboardCheck size={20} className="mr-3" /> {user.perfil?.toLowerCase() === 'leitor' ? 'Meu desempenho' : 'Avaliações'}
           </div>
+          </>}
           <div onClick={() => ir('/reclamacoes')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/reclamacoes') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}><AlertTriangle size={20} className="mr-3" /> Reclamações</div>
           <Pasta titulo="RH" aberta={pastas.rh} alternar={()=>setPastas(v=>({...v,rh:!v.rh}))}>
             <Item icon={<MessageCircle size={18}/>} titulo="Atendimento" ativo={isActive('/atendimento')} abrir={()=>navigate('/atendimento')}/>

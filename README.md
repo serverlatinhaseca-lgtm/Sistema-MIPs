@@ -2,7 +2,7 @@
 
 > Portal interno para padronização operacional, gestão de receitas, avaliações de desempenho, reclamações e ferramentas de produção.
 
-![Versão](https://img.shields.io/badge/versão-2.11.2-ff8d2f)
+![Versão](https://img.shields.io/badge/versão-2.12.0-ff8d2f)
 ![React](https://img.shields.io/badge/React-18-61dafb)
 ![Node.js](https://img.shields.io/badge/Node.js-22-339933)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-4169e1)
@@ -11,6 +11,11 @@
 ## Sobre o sistema
 
 O Sistema Central reúne em um único portal os processos internos da Nova Esperança. A aplicação funciona em computadores e celulares, possui modo claro e escuro e separa os acessos conforme a função de cada usuário.
+
+### Novidades da versão 2.12.0
+
+- **Novo perfil RH**: acesso dedicado a ASO, Banco de Horas, Folgas, Atendimento e Comunicados, com MIPs e Reclamações apenas para consulta. Sem Receitas, Avaliações, Usuários ou Configurações. Pode ser criado em Usuários ou pela planilha de importação (perfil `RH`).
+- **Atendimento liberado para o funcionário**: o topo do portal e o Início agora têm o atalho para abrir ticket e conversar com o RH.
 
 ### Novidades da versão 2.11.2
 

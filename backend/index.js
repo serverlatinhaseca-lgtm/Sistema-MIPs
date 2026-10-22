@@ -410,6 +410,11 @@ const verificarToken = (req, res, next) => {
     const decoded = jwt.verify(token, JWT_SECRET);
     req.usuarioId = decoded.id;
     req.usuarioPerfil = decoded.perfil;
+    // Perfil RH é restrito aos módulos de RH: não usa Receitas nem Avaliações.
+    // Bloqueia na API mesmo que a rota seja aberta direto pela URL.
+    if (String(req.usuarioPerfil || '').toLowerCase() === 'rh' && /^\/api\/(receitas|avaliacoes)\b/i.test(req.path)) {
+      return res.status(403).json({ error: 'Acesso não disponível para o perfil RH' });
+    }
     next();
   } catch (err) { return res.status(401).json({ error: 'Token inválido' }); }
 };
@@ -742,7 +747,7 @@ app.post('/api/upload', verificarToken, upload.single('image'), (req, res) => {
 app.get('/api/mips', verificarToken, async (req, res) => {
   try {
     let query = `SELECT m.*, u.nome as autor_nome FROM mips m LEFT JOIN usuarios u ON m.autor_id = u.id`;
-    if (req.usuarioPerfil === 'Leitor') query += ` WHERE m.status = 'Publicado'`;
+    if (['leitor','rh'].includes(normalizarPerfil(req.usuarioPerfil))) query += ` WHERE m.status = 'Publicado'`;
     query += ` ORDER BY m.criado_em DESC`;
     const result = await pool.query(query);
     res.json(result.rows);
@@ -781,7 +786,7 @@ app.get('/api/mips/buscar', verificarToken, async (req, res) => {
   const { q } = req.query;
   try {
     let query = `SELECT m.*, u.nome as autor_nome FROM mips m LEFT JOIN usuarios u ON m.autor_id = u.id WHERE m.search_vector @@ plainto_tsquery('portuguese', $1)`;
-    if (req.usuarioPerfil === 'Leitor') query += ` AND m.status = 'Publicado'`;
+    if (['leitor','rh'].includes(normalizarPerfil(req.usuarioPerfil))) query += ` AND m.status = 'Publicado'`;
     query += ` ORDER BY m.criado_em DESC`;
     const result = await pool.query(query, [q]);
     res.json(result.rows);
@@ -793,12 +798,16 @@ app.get('/api/mips/:id', verificarToken, async (req, res) => {
   try {
     const result = await pool.query(`SELECT m.*, u.nome as autor_nome FROM mips m LEFT JOIN usuarios u ON m.autor_id = u.id WHERE m.id = $1`, [id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'MIP não encontrada' });
+    // Funcionário e perfil RH só leem MIPs publicadas.
+    if (['leitor','rh'].includes(normalizarPerfil(req.usuarioPerfil)) && result.rows[0].status !== 'Publicado') {
+      return res.status(403).json({ error: 'MIP não disponível' });
+    }
     res.json(result.rows[0]);
   } catch (error) { res.status(500).json({ error: 'Erro buscar' }); }
 });
 
 app.post('/api/mips', verificarToken, async (req, res) => {
-  if (req.usuarioPerfil === 'Leitor') return res.status(403).json({ error: 'Acesso negado' });
+  if (['leitor','rh'].includes(normalizarPerfil(req.usuarioPerfil))) return res.status(403).json({ error: 'Acesso negado' });
   const { codigo, titulo, resumo, objetivo, conteudo, status } = req.body;
   let s = (normalizarPerfil(req.usuarioPerfil) !== 'administrador' && status === 'Publicado') ? 'Em Revisão' : status;
   try {
@@ -812,7 +821,7 @@ app.post('/api/mips', verificarToken, async (req, res) => {
 });
 
 app.put('/api/mips/:id', verificarToken, async (req, res) => {
-  if (req.usuarioPerfil === 'Leitor') return res.status(403).json({ error: 'Acesso negado' });
+  if (['leitor','rh'].includes(normalizarPerfil(req.usuarioPerfil))) return res.status(403).json({ error: 'Acesso negado' });
   const { codigo, titulo, resumo = '', objetivo = '', conteudo = '', status = 'Em Revisão' } = req.body;
   const novoStatus = 'Em Revisão';
   const client = await pool.connect();
@@ -831,7 +840,7 @@ app.put('/api/mips/:id', verificarToken, async (req, res) => {
 });
 
 app.get('/api/mips/:id/versoes', verificarToken, async (req, res) => {
-  if (req.usuarioPerfil === 'Leitor') return res.status(403).json({ error: 'Acesso negado' });
+  if (['leitor','rh'].includes(normalizarPerfil(req.usuarioPerfil))) return res.status(403).json({ error: 'Acesso negado' });
   const [historico, atual] = await Promise.all([
     pool.query(`SELECT v.*,u.nome AS alterado_por_nome FROM mip_versoes v LEFT JOIN usuarios u ON u.id=v.alterado_por WHERE v.mip_id=$1 ORDER BY v.criado_em ASC`, [req.params.id]),
     pool.query('SELECT * FROM mips WHERE id=$1', [req.params.id]),
@@ -861,7 +870,7 @@ app.patch('/api/mips/:id/reprovar', verificarToken, async (req, res) => {
 });
 
 app.delete('/api/mips/:id', verificarToken, async (req, res) => {
-  if (req.usuarioPerfil === 'Leitor') return res.status(403).json({ error: 'Acesso negado' });
+  if (['leitor','rh'].includes(normalizarPerfil(req.usuarioPerfil))) return res.status(403).json({ error: 'Acesso negado' });
   try { await pool.query('DELETE FROM mips WHERE id = $1', [req.params.id]); res.json({ mensagem: 'Excluída' }); } 
   catch (error) { res.status(500).json({ error: 'Erro excluir' }); }
 });
@@ -888,6 +897,7 @@ app.get('/api/usuarios', verificarToken, async (req, res) => {
 app.post('/api/usuarios', verificarToken, async (req, res) => {
   if (String(req.usuarioPerfil || '').toLowerCase() !== 'administrador') return res.status(403).json({ error: 'Acesso negado' });
   const { nome, email, senha, perfil, lider_id = null, modelo_avaliacao_id = null, categoria_acesso_id = null, setor_ids = [], matricula = '', cpf = '' } = req.body;
+  if (!['leitor','editor','gerente','rh','administrador'].includes(normalizarPerfil(perfil))) return res.status(400).json({ error: 'Perfil inválido' });
   if (['leitor','editor','gerente'].includes(normalizarPerfil(perfil)) && !lider_id) return res.status(400).json({ error: 'Selecione o responsável pela avaliação deste usuário' });
   try {
     const hash = await bcrypt.hash(senha, 10);
@@ -916,7 +926,7 @@ app.put('/api/usuarios/:id', verificarToken, async (req, res) => {
   const { nome, email, perfil, lider_id = null, modelo_avaliacao_id = null, categoria_acesso_id = null, setor_ids = null, matricula, cpf } = req.body;
   const perfilNormalizado = String(perfil || '').toLowerCase();
   if (String(req.params.id) === String(req.usuarioId) && perfilNormalizado !== 'administrador') return res.status(400).json({ error: 'O Administrador não pode remover o próprio acesso administrativo' });
-  if (!String(nome || '').trim() || !String(email || '').trim() || !['leitor','editor','gerente','administrador'].includes(perfilNormalizado)) return res.status(400).json({ error: 'Preencha nome, login e perfil corretamente' });
+  if (!String(nome || '').trim() || !String(email || '').trim() || !['leitor','editor','gerente','rh','administrador'].includes(perfilNormalizado)) return res.status(400).json({ error: 'Preencha nome, login e perfil corretamente' });
   if (['leitor','editor','gerente'].includes(perfilNormalizado) && !lider_id) return res.status(400).json({ error: 'Selecione o responsável pela avaliação deste usuário' });
   try {
     let nomeModelo = '';
@@ -961,6 +971,7 @@ const normalizarPerfilImportacao = (valor) => {
   if (['funcionario', 'funcionarios', 'leitor', 'colaborador', 'colaboradores'].includes(v)) return 'Leitor';
   if (['lider', 'lideres', 'editor', 'lideranca'].includes(v)) return 'Editor';
   if (['gerente', 'gerentes', 'gestor', 'gestores'].includes(v)) return 'Gerente';
+  if (['rh', 'r.h', 'recursos humanos', 'recursoshumanos', 'rhumanos'].includes(v)) return 'RH';
   if (['administrador', 'administradores', 'admin', 'adm'].includes(v)) return 'Administrador';
   return null;
 };
@@ -1009,6 +1020,7 @@ app.get('/api/usuarios/modelo-planilha', verificarToken, somenteAdministrador, a
       ['   - Funcionario (ou Leitor): quem recebe avaliação de um Líder.'],
       ['   - Lider (ou Editor): avaliado por um Gerente ou Administrador.'],
       ['   - Gerente: avaliado por um Administrador.'],
+      ['   - RH: acesso aos módulos de RH (ASO, Banco de Horas, Folgas, Atendimento e Comunicados) — sem responsável e sem função.'],
       ['   - Administrador: acesso total, sem responsável e sem função.'],
       ['6. Para Funcionario, Lider e Gerente, escolha também: responsavel_login (quem avalia) + funcao_modelo (nome exato da função).'],
       ['7. Opcionais: matricula | cpf | categoria_acesso | setores (para mais de um setor, combine com " ; " — ex.: Produção; Embalagem).'],
@@ -1030,7 +1042,7 @@ app.get('/api/usuarios/modelo-planilha', verificarToken, somenteAdministrador, a
     try {
       if (AdmZip) {
         const fim = 1 + MAX_LINHAS_MODELO_USUARIOS; // linhas 2..501 (limite da importação)
-        const validacoes = ['<dataValidation type="list" allowBlank="1" showErrorMessage="0" sqref="C2:C' + fim + '"><formula1>"Funcionario,Lider,Gerente,Administrador"</formula1></dataValidation>'];
+        const validacoes = ['<dataValidation type="list" allowBlank="1" showErrorMessage="0" sqref="C2:C' + fim + '"><formula1>"Funcionario,Lider,Gerente,RH,Administrador"</formula1></dataValidation>'];
         if (responsaveis.length) validacoes.push('<dataValidation type="list" allowBlank="1" showErrorMessage="0" sqref="F2:F' + fim + '"><formula1>Listas!$A$2:$A$' + (1 + responsaveis.length) + '</formula1></dataValidation>');
         if (funcoes.length) validacoes.push('<dataValidation type="list" allowBlank="1" showErrorMessage="0" sqref="G2:G' + fim + '"><formula1>Listas!$B$2:$B$' + (1 + funcoes.length) + '</formula1></dataValidation>');
         if (categorias.length) validacoes.push('<dataValidation type="list" allowBlank="1" showErrorMessage="0" sqref="H2:H' + fim + '"><formula1>Listas!$C$2:$C$' + (1 + categorias.length) + '</formula1></dataValidation>');
@@ -1108,7 +1120,7 @@ app.post('/api/usuarios/importar', verificarToken, somenteAdministrador, importa
       const falhar = (motivo) => ignorados.push({ linha: linhaPlanilha, login: login || '—', nome: nome || '—', motivo });
       if (nome.length < 2) { falhar('Informe o nome (mínimo 2 letras)'); continue; }
       if (!login) { falhar('Informe o login'); continue; }
-      if (!perfil) { falhar('Perfil inválido — use: Funcionario, Lider, Gerente ou Administrador'); continue; }
+      if (!perfil) { falhar('Perfil inválido — use: Funcionario, Lider, Gerente, RH ou Administrador'); continue; }
       if (porLogin.has(login.toLowerCase())) { falhar('Login já cadastrado — linha ignorada'); continue; }
       const ehAvaliado = ['Leitor', 'Editor', 'Gerente'].includes(perfil);
       let liderId = null, modeloId = null, modeloNome = '';
@@ -1247,7 +1259,7 @@ app.get('/api/receitas', verificarToken, async (req, res) => {
 });
 
 app.post('/api/receitas', verificarToken, async (req, res) => {
-  if (req.usuarioPerfil === 'Leitor') return res.status(403).json({ error: 'Acesso negado' });
+  if (['leitor','rh'].includes(normalizarPerfil(req.usuarioPerfil))) return res.status(403).json({ error: 'Acesso negado' });
   const { titulo, ingredientes, peso_pao } = req.body;
   const erro = validarReceita(titulo, ingredientes, peso_pao);
   if (erro) return res.status(400).json({ error: erro });
@@ -1263,7 +1275,7 @@ app.post('/api/receitas', verificarToken, async (req, res) => {
 });
 
 app.put('/api/receitas/:id', verificarToken, async (req, res) => {
-  if (req.usuarioPerfil === 'Leitor') return res.status(403).json({ error: 'Acesso negado' });
+  if (['leitor','rh'].includes(normalizarPerfil(req.usuarioPerfil))) return res.status(403).json({ error: 'Acesso negado' });
   const { titulo, ingredientes, peso_pao } = req.body;
   const erro = validarReceita(titulo, ingredientes, peso_pao);
   if (erro) return res.status(400).json({ error: erro });
@@ -1291,7 +1303,7 @@ app.get('/api/ingredientes-sugestoes', verificarToken, async (_req, res) => {
 });
 
 app.get('/api/receitas/:id/versoes', verificarToken, async (req, res) => {
-  if (req.usuarioPerfil === 'Leitor') return res.status(403).json({ error: 'Acesso negado' });
+  if (['leitor','rh'].includes(normalizarPerfil(req.usuarioPerfil))) return res.status(403).json({ error: 'Acesso negado' });
   const [historico, atual] = await Promise.all([
     pool.query(`SELECT v.*,u.nome AS alterado_por_nome FROM receita_versoes v LEFT JOIN usuarios u ON u.id=v.alterado_por WHERE v.receita_id=$1 ORDER BY v.criado_em ASC`, [req.params.id]),
     pool.query('SELECT * FROM receitas WHERE id=$1', [req.params.id]),
@@ -1302,7 +1314,7 @@ app.get('/api/receitas/:id/versoes', verificarToken, async (req, res) => {
 });
 
 app.delete('/api/receitas/:id', verificarToken, async (req, res) => {
-  if (req.usuarioPerfil === 'Leitor') return res.status(403).json({ error: 'Acesso negado' });
+  if (['leitor','rh'].includes(normalizarPerfil(req.usuarioPerfil))) return res.status(403).json({ error: 'Acesso negado' });
   try {
     await pool.query('DELETE FROM receitas WHERE id = $1', [req.params.id]);
     res.json({ mensagem: 'Excluída!' });
@@ -1631,6 +1643,10 @@ const podeRegistrarReclamacao = async (req) => {
   return Boolean(r.rows.length);
 };
 
+// Perfil RH consulta as reclamações (métricas e lista), mas não registra,
+// edita, conclui nem reabre — isso continua em podeRegistrarReclamacao.
+const podeVerReclamacoes = async (req) => ehRH(req.usuarioPerfil) || podeRegistrarReclamacao(req);
+
 app.get('/api/reclamacoes/catalogos', verificarToken, async (req,res) => {
   const [clientes,tipos,lideres,setores,prazos]=await Promise.all([
     pool.query('SELECT id,nome FROM clientes_reclamacao WHERE ativo=TRUE ORDER BY nome'),
@@ -1640,7 +1656,7 @@ app.get('/api/reclamacoes/catalogos', verificarToken, async (req,res) => {
     pool.query('SELECT prazo_verde_min,prazo_amarelo_min,prazo_vermelho_min FROM configuracao_reclamacoes WHERE id=TRUE')
   ]);
   // Funcionário (sem permissão de registrar) não vê quem são os líderes responsáveis.
-  const podeVerLideres = await podeRegistrarReclamacao(req);
+  const podeVerLideres = await podeVerReclamacoes(req);
   res.json({clientes:clientes.rows,tipos:tipos.rows,lideres:podeVerLideres?lideres.rows:[],setores:setores.rows,prazos:prazos.rows[0]});
 });
 
@@ -1672,11 +1688,11 @@ app.get('/api/reclamacoes/metricas', verificarToken, async (req,res) => {
     pool.query(`SELECT r.status AS nome,COUNT(*)::int AS total FROM reclamacoes r ${f.where} GROUP BY r.status`, f.params),
     pool.query(`SELECT COUNT(*) FILTER (WHERE status='aberto')::int AS abertas,COUNT(*) FILTER (WHERE status='aberto' AND prazo_em<NOW())::int AS atrasadas,COUNT(*) FILTER (WHERE status='concluido')::int AS concluidas,COALESCE(ROUND((AVG(EXTRACT(EPOCH FROM (concluido_em-criado_em))/3600) FILTER (WHERE concluido_em IS NOT NULL))::numeric,1),0) AS media_horas FROM reclamacoes ${fs.where}`, fs.params)
   ]);
-  res.json({mes:f.mes,filtros:{mes:f.mes,setor:f.setor,lider_id:Number(req.query.lider_id)||null,tipo_id:Number(req.query.tipo_id)||null,cliente_id:Number(req.query.cliente_id)||null},total:total.rows[0].total,por_tipo:tipo.rows,por_lider:(await podeRegistrarReclamacao(req))?lider.rows:[],por_setor:setor.rows,por_mes:mes.rows,por_cliente:cliente.rows,por_prioridade:prioridade.rows,por_status:status.rows,...prazos.rows[0]});
+  res.json({mes:f.mes,filtros:{mes:f.mes,setor:f.setor,lider_id:Number(req.query.lider_id)||null,tipo_id:Number(req.query.tipo_id)||null,cliente_id:Number(req.query.cliente_id)||null},total:total.rows[0].total,por_tipo:tipo.rows,por_lider:(await podeVerReclamacoes(req))?lider.rows:[],por_setor:setor.rows,por_mes:mes.rows,por_cliente:cliente.rows,por_prioridade:prioridade.rows,por_status:status.rows,...prazos.rows[0]});
 });
 
 app.get('/api/reclamacoes', verificarToken, async (req,res) => {
-  if (!(await podeRegistrarReclamacao(req))) return res.status(403).json({error:'Seu perfil possui acesso apenas às métricas'});
+  if (!(await podeVerReclamacoes(req))) return res.status(403).json({error:'Seu perfil possui acesso apenas às métricas'});
   const f = montarFiltrosReclamacoes(req.query, 'r');
   const r=await pool.query(`SELECT r.*,c.nome AS cliente_nome,t.nome AS tipo_nome,l.nome AS lider_nome,s.nome AS setor_nome,u.nome AS criado_por_nome FROM reclamacoes r JOIN clientes_reclamacao c ON c.id=r.cliente_id JOIN tipos_reclamacao t ON t.id=r.tipo_id JOIN usuarios l ON l.id=r.lider_responsavel_id LEFT JOIN setores_reclamacao s ON s.id=r.setor_id LEFT JOIN usuarios u ON u.id=r.criado_por ${f.where} ORDER BY r.criado_em DESC`, f.params);
   res.json(r.rows);
@@ -1864,7 +1880,10 @@ async function registrarLog(usuarioId, acao, entidade, entidadeId, detalhes) {
   } catch (e) { console.error('Erro ao registrar log:', e.message); }
 }
 
-const ehRH = (perfil) => ['administrador', 'gerente'].includes(String(perfil || '').toLowerCase());
+// RH = Gerente, Administrador e o perfil RH (criado em 22/10/2026).
+// Quem é RH gerencia ASO, Banco de Horas, Folgas, Atendimento e Comunicados.
+const PERFIS_RH = ['administrador', 'gerente', 'rh'];
+const ehRH = (perfil) => PERFIS_RH.includes(String(perfil || '').toLowerCase());
 
 const pdfASO = multer({
   storage: multer.diskStorage({
@@ -2083,7 +2102,7 @@ app.put('/api/asos/:id', verificarToken, async (req, res) => {
       await criarNotificacao(r.rows[0].usuario_id, 'aso_vencido', 'ASO vencido',
         `${r.rows[0].nome_funcionario}: vencimento ${String(venc).slice(0, 10)} — procure o RH`, '/aso', `aso:${r.rows[0].id}:vencido`);
     }
-    const rhs = await pool.query(`SELECT id FROM usuarios WHERE LOWER(perfil) IN ('administrador','gerente')`);
+    const rhs = await pool.query(`SELECT id FROM usuarios WHERE LOWER(perfil) IN ('administrador','gerente','rh')`);
     for (const rh of rhs.rows) {
       if (Number(rh.id) === Number(req.usuarioId)) continue;
       await criarNotificacao(rh.id, 'aso_vencido', 'ASO vencido',
@@ -2193,7 +2212,7 @@ app.post('/api/asos/:id/confirmar-presenca', verificarToken, async (req, res) =>
     'UPDATE asos SET presenca_confirmada=TRUE,presenca_confirmada_em=NOW(),atualizado_em=NOW() WHERE id=$1 RETURNING *', [req.params.id]
   );
   await registrarLog(req.usuarioId, 'confirmar_presenca', 'aso', req.params.id, a.nome_funcionario);
-  const admins = await pool.query(`SELECT id FROM usuarios WHERE LOWER(perfil) IN ('administrador','gerente')`);
+  const admins = await pool.query(`SELECT id FROM usuarios WHERE LOWER(perfil) IN ('administrador','gerente','rh')`);
   for (const adm of admins.rows) {
     await criarNotificacao(adm.id, 'aso_confirmado', 'Presença confirmada', `${a.nome_funcionario} confirmou presença no ASO`, '/aso', `aso:${a.id}:presenca`);
   }
@@ -2527,7 +2546,7 @@ app.post('/api/tickets', verificarToken, async (req, res) => {
     [numero, req.usuarioId, nome, categoria, titulo, String(b.descricao || ''), prioridade, prazo, req.usuarioId]
   );
   await registrarLog(req.usuarioId, 'criar', 'ticket', r.rows[0].id, `${numero} ${titulo}`);
-  const rhs = await pool.query(`SELECT id FROM usuarios WHERE LOWER(perfil) IN ('administrador','gerente')`);
+  const rhs = await pool.query(`SELECT id FROM usuarios WHERE LOWER(perfil) IN ('administrador','gerente','rh')`);
   for (const rh of rhs.rows) {
     if (Number(rh.id) === Number(req.usuarioId)) continue;
     await criarNotificacaoRespeitandoPrefs(rh.id, 'chat_novo', `Novo ticket ${numero}`, `${titulo} · ${prioridade}`, '/atendimento', `ticket:${r.rows[0].id}`);
@@ -2575,7 +2594,7 @@ app.post('/api/tickets/:id/mensagens', verificarToken, chatUpload.single('anexo'
   const autorEhRH = ehRH(req.usuarioPerfil);
   const destinos = autorEhRH
     ? (tick.usuario_id ? [Number(tick.usuario_id)] : [])
-    : (await pool.query(`SELECT id FROM usuarios WHERE LOWER(perfil) IN ('administrador','gerente')`)).rows.map((x) => Number(x.id));
+    : (await pool.query(`SELECT id FROM usuarios WHERE LOWER(perfil) IN ('administrador','gerente','rh')`)).rows.map((x) => Number(x.id));
   for (const uid of destinos) {
     if (uid === Number(req.usuarioId)) continue;
     await criarNotificacaoRespeitandoPrefs(uid, 'chat_msg', `💬 ${tick.numero}`, texto.slice(0, 150) || 'Novo anexo', '/atendimento', `ticket:${tick.id}:msg${r.rows[0].id}`);
@@ -2943,7 +2962,7 @@ async function equipeDoLider(liderId) {
 // Escopo de visualização: RH tudo; líder a própria equipe; funcionário só o próprio.
 async function escopoFolgas(req) {
   const p = String(req.usuarioPerfil || '').toLowerCase();
-  if (['administrador', 'gerente'].includes(p)) return null; // tudo
+  if (PERFIS_RH.includes(p)) return null; // tudo
   if (p === 'editor') return equipeDoLider(req.usuarioId);
   return [Number(req.usuarioId)];
 }
@@ -3093,7 +3112,7 @@ app.post('/api/folgas/solicitacoes', verificarToken, async (req, res) => {
     [req.usuarioId, u.rows[0]?.nome || '', b.data_inicio, b.data_fim, String(b.motivo || '').slice(0, 500)]
   );
   await registrarLog(req.usuarioId, 'solicitar', 'solicitacao_folga', r.rows[0].id, `${b.data_inicio}→${b.data_fim}`);
-  const rhs = await pool.query(`SELECT id FROM usuarios WHERE LOWER(perfil) IN ('administrador','gerente')`);
+  const rhs = await pool.query(`SELECT id FROM usuarios WHERE LOWER(perfil) IN ('administrador','gerente','rh')`);
   for (const rh of rhs.rows) {
     if (Number(rh.id) === Number(req.usuarioId)) continue;
     await criarNotificacaoRespeitandoPrefs(rh.id, 'folga_solicitada', '📅 Solicitação de folga',

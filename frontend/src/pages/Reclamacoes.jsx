@@ -14,6 +14,8 @@ const restante=(fim,agora)=>{const ms=new Date(fim)-agora,atrasado=ms<0,total=Ma
 export default function Reclamacoes(){
   const api=`${API}/api`,user=JSON.parse(localStorage.getItem('user')||'{}'),perfil=user.perfil?.toLowerCase(),headers={Authorization:`Bearer ${localStorage.getItem('token')}`};
   const podeRegistrar=['administrador','editor','gerente'].includes(perfil)||(user.permissoes||[]).includes('reclamacoes.registrar');
+  // Perfil RH consulta as reclamações, mas não registra, edita nem conclui.
+  const podeVerLista=podeRegistrar||perfil==='rh';
   const [catalogos,setCatalogos]=useState({clientes:[],tipos:[],lideres:[],setores:[],prazos:{prazo_verde_min:1440,prazo_amarelo_min:180,prazo_vermelho_min:60}}),[metricas,setMetricas]=useState({por_tipo:[],por_lider:[],por_setor:[],por_mes:[],por_cliente:[],por_prioridade:[]});
   const [itens,setItens]=useState([]),[formAberto,setFormAberto]=useState(false),[editandoId,setEditandoId]=useState(null),[salvando,setSalvando]=useState(false),[agora,setAgora]=useState(new Date()),[filtro,setFiltro]=useState('todos');
   const filtrosVazios=()=>({mes:'',setor:'',lider_id:'',tipo_id:'',cliente_id:''});
@@ -192,13 +194,13 @@ export default function Reclamacoes(){
       <Grafico titulo="Por prioridade"><Barras dados={metricas.por_prioridade||[]} prioridade/></Grafico>
       <Grafico titulo="Evolução mensal" classe="xl:col-span-2"><div className="h-56 flex items-end gap-3 border-b border-[var(--border-color)] overflow-x-auto">{(metricas.por_mes||[]).map(x=><div key={x.mes} className="flex-1 min-w-12 text-center"><strong className="text-xs">{x.total}</strong><div className="bg-[#a65526] rounded-t-lg mx-auto min-h-1" style={{height:`${Math.max(4,x.total/maior(metricas.por_mes)*170)}px`}}/><small className="text-[10px] text-[var(--text-muted)]">{x.mes.slice(5)}/{x.mes.slice(2,4)}</small></div>)}</div></Grafico>
     </section>
-    {podeRegistrar&&<section className="panel-card"><div className="flex flex-wrap items-center justify-between gap-3 mb-5"><h2 className="section-title">Lista de reclamações</h2><div className="flex gap-2">{[['todos','Todas'],['aberto','Em aberto'],['concluido','Concluídas']].map(([v,n])=><button key={v} onClick={()=>setFiltro(v)} className={`px-3 py-2 rounded-lg text-sm font-bold ${filtro===v?'bg-[var(--primary)] text-white':'bg-[var(--bg-main)]'}`}>{n}</button>)}</div></div><div className="grid xl:grid-cols-2 gap-4">{visiveis.map(r=><Cartao key={r.id} r={r} agora={agora} perfil={perfil} mudarStatus={mudarStatus} excluir={excluir} editar={editar}/>)}</div>{!visiveis.length&&<p className="text-[var(--text-muted)]">Nenhum registro neste filtro.</p>}</section>}
+    {podeVerLista&&<section className="panel-card"><div className="flex flex-wrap items-center justify-between gap-3 mb-5"><h2 className="section-title">Lista de reclamações</h2><div className="flex gap-2">{[['todos','Todas'],['aberto','Em aberto'],['concluido','Concluídas']].map(([v,n])=><button key={v} onClick={()=>setFiltro(v)} className={`px-3 py-2 rounded-lg text-sm font-bold ${filtro===v?'bg-[var(--primary)] text-white':'bg-[var(--bg-main)]'}`}>{n}</button>)}</div></div><div className="grid xl:grid-cols-2 gap-4">{visiveis.map(r=><Cartao key={r.id} r={r} agora={agora} perfil={perfil} mudarStatus={mudarStatus} excluir={excluir} editar={editar} somenteLeitura={!podeRegistrar}/>)}</div>{!visiveis.length&&<p className="text-[var(--text-muted)]">Nenhum registro neste filtro.</p>}</section>}
     {formAberto&&<Formulario editando={Boolean(editandoId)} form={form} setForm={setForm} catalogos={catalogos} anexar={anexar} salvar={salvar} salvando={salvando} fechar={()=>{setFormAberto(false);setEditandoId(null);}}/>}{filaCorte.length>0&&<CropModal arquivo={filaCorte[0]} aspecto={null} passo={`imagem ${totalCorte-filaCorte.length+1} de ${totalCorte}`} onFechar={()=>setFilaCorte(v=>v.slice(1))} onConfirmar={confirmarCorte}/>}</main>;
   return perfil==='leitor'?<div className="min-h-screen bg-[var(--bg-main)]"><LeitorTopbar titulo="Métricas de reclamações"/>{conteudo}</div>:<div className="min-h-screen bg-[var(--bg-main)] flex"><Sidebar/>{conteudo}</div>;
 }
 function Metrica({titulo,valor,cor=''}){return <div className="metric-card"><BarChart3 className={cor||'text-[var(--primary)]'}/><div><span>{titulo}</span><strong className={cor}>{valor}</strong></div></div>}
 function Grafico({titulo,children,classe=''}){return <div className={`panel-card ${classe}`}><h2 className="section-title mb-4">{titulo}</h2>{children}</div>}
-function Cartao({r,agora,perfil,mudarStatus,excluir,editar}){
+function Cartao({r,agora,perfil,mudarStatus,excluir,editar,somenteLeitura=false}){
   const p=cores[r.prioridade]||cores.verde,t=restante(r.prazo_em,agora),aberta=r.status==='aberto';
   return <article className={`rounded-2xl border p-5 ${aberta&&t.atrasado?'border-red-500':'border-[var(--border-color)]'} bg-[var(--bg-card)] shadow-sm`}>
     <div className="flex justify-between gap-3">
@@ -211,13 +213,13 @@ function Cartao({r,agora,perfil,mudarStatus,excluir,editar}){
         </div>
         <p className="text-sm text-[var(--primary)] font-bold mt-1">{r.tipo_nome}</p>
       </div>
-      <div className="flex gap-3"><button onClick={()=>editar(r)} className="text-amber-600 h-fit" title="Editar reclamação"><Pencil size={18}/></button>{perfil==='administrador'&&<button onClick={()=>excluir(r.id)} className="text-red-600 h-fit" title="Excluir"><Trash2 size={18}/></button>}</div>
+      <div className="flex gap-3">{!somenteLeitura&&<button onClick={()=>editar(r)} className="text-amber-600 h-fit" title="Editar reclamação"><Pencil size={18}/></button>}{perfil==='administrador'&&<button onClick={()=>excluir(r.id)} className="text-red-600 h-fit" title="Excluir"><Trash2 size={18}/></button>}</div>
     </div>
     <div className={`my-4 p-3 rounded-xl flex items-center gap-3 ${aberta?(t.atrasado?'bg-red-100 text-red-800':'bg-[var(--bg-main)]'):'bg-emerald-50 text-emerald-800'}`}>{aberta?<Clock3 size={20}/>:<CheckCircle2 size={20}/>}<div><strong className="block text-sm">{aberta?(t.atrasado?`Prazo excedido há ${t.texto}`:`Restam ${t.texto}`):'Retorno ao cliente concluído'}</strong><small>{aberta?`Limite: ${new Date(r.prazo_em).toLocaleString('pt-BR')}`:`Concluída em ${new Date(r.concluido_em).toLocaleString('pt-BR')}`}</small></div></div>
     <p className="whitespace-pre-wrap text-sm leading-relaxed">{r.descricao}</p>
     <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mt-4">{(r.anexos||[]).map((a,i)=>ehImagem(a)?<span key={i} title={a.nome} className="relative block h-24 rounded-xl overflow-hidden border border-[var(--border-color)]"><img src={a.url} alt={a.nome} className="w-full h-full object-cover !m-0 !rounded-none"/></span>:<a key={i} href={a.url} target="_blank" rel="noreferrer" className="h-24 rounded-xl border border-[var(--border-color)] grid place-items-center text-center text-xs p-2"><Paperclip size={20}/><span>{a.nome}</span></a>)}</div>
     <p className="text-xs text-[var(--text-muted)] mt-4">Líder: {r.lider_nome}{r.setor_nome?` · Setor: ${r.setor_nome}`:''} · Registrado por {r.criado_por_nome||'Sistema'} em {new Date(r.criado_em).toLocaleString('pt-BR')}</p>
-    <button onClick={()=>mudarStatus(r.id,aberta?'concluido':'aberto')} className={`w-full mt-4 p-3 rounded-xl font-bold flex justify-center items-center ${aberta?'bg-emerald-600 text-white':'bg-[var(--bg-main)]'}`}>{aberta?<><CheckCircle2 size={18} className="mr-2"/>Confirmar retorno e concluir</>:<><RotateCcw size={18} className="mr-2"/>Reabrir reclamação</>}</button>
+    {!somenteLeitura&&<button onClick={()=>mudarStatus(r.id,aberta?'concluido':'aberto')} className={`w-full mt-4 p-3 rounded-xl font-bold flex justify-center items-center ${aberta?'bg-emerald-600 text-white':'bg-[var(--bg-main)]'}`}>{aberta?<><CheckCircle2 size={18} className="mr-2"/>Confirmar retorno e concluir</>:<><RotateCcw size={18} className="mr-2"/>Reabrir reclamação</>}</button>}
   </article>;
 }
 function Formulario({editando,form,setForm,catalogos,anexar,salvar,salvando,fechar}){
