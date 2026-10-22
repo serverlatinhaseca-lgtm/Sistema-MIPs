@@ -68,13 +68,13 @@ export default function ListaMIPs() {
     <div className="min-h-screen bg-[var(--bg-main)] text-[var(--text-main)] flex">
       <Sidebar />
       <main className="flex-1 p-6 sm:p-10 max-w-7xl mx-auto">
-        <header className="flex justify-between items-center mb-8">
+        <header className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-8">
           <div>
-            <h1 className="text-3xl font-bold">Manuais e Procedimentos (MIPs)</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold">Manuais e Procedimentos (MIPs)</h1>
             <p className="text-[var(--text-muted)] text-sm">Consulte ou gerencie os manuais técnicos do sistema.</p>
           </div>
           {['administrador','editor','gerente'].includes(user.perfil?.toLowerCase()) && (
-            <button onClick={() => navigate('/mips/nova')} className="flex items-center bg-[var(--primary)] text-white px-5 py-2.5 rounded-xl hover:opacity-90 font-medium transition-opacity shadow-md">
+            <button onClick={() => navigate('/mips/nova')} className="flex items-center justify-center bg-[var(--primary)] text-white px-5 py-2.5 rounded-xl hover:opacity-90 font-medium transition-opacity shadow-md">
               <PlusCircle size={20} className="mr-2" /> Nova MIP
             </button>
           )}

@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { AlertTriangle, BookOpen, Calculator, ClipboardCheck, KeyRound, LogOut, Moon, Sun } from "lucide-react";
+import { AlertTriangle, BookOpen, Calculator, ClipboardCheck, Home, KeyRound, LogOut, Moon, Sun } from "lucide-react";
 import useBranding from "../useBranding";
+import NotificationBell from "./NotificationBell";
 
 export default function LeitorTopbar({ titulo }) {
   const navigate = useNavigate();
@@ -29,11 +30,13 @@ export default function LeitorTopbar({ titulo }) {
       <div><strong>{branding.nome_site}</strong><small>{titulo}</small></div>
     </div>
     <nav className="reader-nav">
+      {item("/dashboard", Home, "Início")}
       {item("/mips", BookOpen, "MIPs")}
       {item("/receitas", Calculator, "Receitas")}
       {item("/avaliacoes", ClipboardCheck, "Avaliações")}
       {item("/reclamacoes", AlertTriangle, "Reclamações")}
       {item("/alterar-senha", KeyRound, "Senha")}
+      <NotificationBell modo="topo" />
       <button onClick={alternarTema} className="reader-nav-button" title={dark?"Modo claro":"Modo noturno"}>{dark?<Sun size={18}/>:<Moon size={18}/>}<span>{dark?"Claro":"Noturno"}</span></button>
       <button onClick={sair} className="reader-nav-button reader-logout" title="Sair"><LogOut size={18}/><span>Sair</span></button>
     </nav>

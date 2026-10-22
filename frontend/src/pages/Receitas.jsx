@@ -123,11 +123,11 @@ export default function Receitas() {
 
         {receitaAtiva ? (
           <div className="bg-[var(--bg-card)] border border-[var(--border-color)] rounded-2xl p-6 sm:p-10 shadow-sm">
-            <div className="flex justify-between items-center mb-8 print:hidden">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-8 print:hidden">
               <button onClick={() => { setReceitaAtiva(null); setQuantidadeDesejada(''); }} className="flex items-center text-[var(--primary)] font-semibold hover:underline">
                 <ArrowLeft size={20} className="mr-2" /> Voltar às Receitas
               </button>
-              <button onClick={() => window.print()} className="flex items-center bg-[var(--sidebar-bg)] text-[var(--sidebar-text)] px-5 py-2.5 rounded-xl hover:opacity-90 font-medium transition-opacity">
+              <button onClick={() => window.print()} className="flex items-center justify-center bg-[var(--sidebar-bg)] text-[var(--sidebar-text)] px-5 py-2.5 rounded-xl hover:opacity-90 font-medium transition-opacity">
                 <Printer size={20} className="mr-2" /> Imprimir
               </button>
             </div>
@@ -146,6 +146,7 @@ export default function Receitas() {
               <input type="number" min="1" placeholder={receitaAtiva.rendimento_base} className="w-full sm:w-36 text-center text-2xl font-bold p-3 rounded-xl border border-[var(--border-color)] bg-[var(--bg-card)] text-[var(--text-main)] outline-none focus:ring-2 focus:ring-[var(--primary)]" value={quantidadeDesejada} onChange={(e) => setQuantidadeDesejada(e.target.value)} />
             </div>
 
+            <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b-2 border-[var(--border-color)]">
@@ -164,6 +165,7 @@ export default function Receitas() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         ) : (
           <div>
@@ -206,7 +208,7 @@ export default function Receitas() {
             </div>
             
             <form onSubmit={handleSalvar} className="space-y-6">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium mb-1 text-[var(--text-muted)]">Nome da Receita</label>
                   <input required type="text" className="w-full p-3 rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)] text-[var(--text-main)] outline-none focus:ring-2 focus:ring-[var(--primary)]" value={titulo} onChange={e => setTitulo(e.target.value)} placeholder="Ex: Pão Doce 50g" />
@@ -227,7 +229,7 @@ export default function Receitas() {
                 {ingredientes.map((ing, idx) => {
                   const lista = sugIdx === idx ? sugestoesPara(idx) : [];
                   return (
-                  <div key={idx} className="flex gap-4 mb-3 items-center">
+                  <div key={idx} className="flex flex-col sm:flex-row gap-2 sm:gap-4 mb-3 sm:items-center">
                     <div className="relative flex-1">
                       <input required placeholder="Ingrediente (ex: Farinha de Trigo)" className="w-full p-3 rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)] text-[var(--text-main)] outline-none" value={ing.nome} onChange={e => { updateIngrediente(idx, 'nome', e.target.value); setSugIdx(idx); }} onFocus={() => setSugIdx(idx)} onBlur={() => setTimeout(() => setSugIdx(cur => cur === idx ? null : cur), 150)} onKeyDown={e => { if (e.key === 'Escape') setSugIdx(null); }} />
                       {lista.length > 0 && (
@@ -241,7 +243,7 @@ export default function Receitas() {
                         </div>
                       )}
                     </div>
-                    <input required type="number" placeholder="Peso Base (g ou ml)" className="w-40 p-3 rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)] text-[var(--text-main)] outline-none" value={ing.quantidade} onChange={e => updateIngrediente(idx, 'quantidade', e.target.value)} />
+                    <input required type="number" placeholder="Peso Base (g ou ml)" className="w-full sm:w-40 p-3 rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)] text-[var(--text-main)] outline-none" value={ing.quantidade} onChange={e => updateIngrediente(idx, 'quantidade', e.target.value)} />
                     {ingredientes.length > 1 && (
                       <button type="button" onClick={() => removeIngrediente(idx)} className="p-3 text-red-500 hover:bg-red-500/10 rounded-xl transition-colors">
                         <Trash size={20} />
@@ -260,12 +262,12 @@ export default function Receitas() {
           </div>
         ) : receitaAtiva ? (
           <div className="bg-[var(--bg-card)] border border-[var(--border-color)] rounded-2xl p-6 sm:p-10 shadow-sm print:border-none print:shadow-none">
-            <div className="flex justify-between items-center mb-8 print:hidden">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-8 print:hidden">
               <button onClick={() => { setReceitaAtiva(null); setQuantidadeDesejada(''); }} className="flex items-center text-[var(--primary)] font-semibold">
                 <ArrowLeft size={20} className="mr-2" /> Voltar às Receitas
               </button>
               
-              <div className="flex gap-3">
+              <div className="flex flex-wrap gap-2">
                 {['administrador','editor','gerente'].includes(user.perfil?.toLowerCase()) && (
                   <><button onClick={iniciarEdicao} className="flex items-center text-amber-700 px-4 py-2.5 rounded-xl font-medium"><Pencil size={18} className="mr-2"/>Editar</button><button onClick={abrirHistorico} className="flex items-center text-blue-700 px-4 py-2.5 rounded-xl font-medium"><History size={18} className="mr-2"/>Versões</button><button onClick={() => handleExcluirReceita(receitaAtiva.id)} className="flex items-center text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 px-4 py-2.5 rounded-xl font-medium transition-colors">
                     <Trash size={20} className="mr-2" /> Excluir Receita
@@ -278,12 +280,12 @@ export default function Receitas() {
             </div>
 
             <div className="text-center mb-10">
-              <h1 className="text-4xl font-bold mb-2">{receitaAtiva.titulo}</h1>
-              <p className="text-[var(--text-muted)] text-lg">Receita Base calculada para <strong className="text-[var(--text-main)]">{receitaAtiva.rendimento_base}</strong> unidades</p>
+              <h1 className="text-2xl sm:text-4xl font-bold mb-2">{receitaAtiva.titulo}</h1>
+              <p className="text-[var(--text-muted)] text-base sm:text-lg">Receita Base calculada para <strong className="text-[var(--text-main)]">{receitaAtiva.rendimento_base}</strong> unidades</p>
               {receitaAtiva.peso_pao ? <p className="text-[var(--text-muted)] text-sm mt-1">Fórmula: {fmtG(somaPesos(receitaAtiva.ingredientes))} g ÷ {fmtG(receitaAtiva.peso_pao)} g por pão</p> : null}
             </div>
 
-            <div className="bg-[var(--bg-main)] border border-[var(--border-color)] p-6 rounded-2xl mb-10 print:hidden flex items-center justify-between">
+            <div className="bg-[var(--bg-main)] border border-[var(--border-color)] p-6 rounded-2xl mb-10 print:hidden flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h3 className="font-bold text-[var(--text-main)] text-lg flex items-center mb-1"><Calculator size={22} className="mr-2 text-[var(--primary)]"/> Calculadora de Produção</h3>
                 <p className="text-[var(--text-muted)] text-sm">Digite quantos pães deseja produzir hoje:</p>
@@ -312,10 +314,10 @@ export default function Receitas() {
           </div>
         ) : (
           <div>
-            <div className="flex justify-between items-center mb-8">
-              <h1 className="text-3xl font-bold">Calculadora de Receitas</h1>
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-8">
+              <h1 className="text-2xl sm:text-3xl font-bold">Calculadora de Receitas</h1>
               {['administrador','editor','gerente'].includes(user.perfil?.toLowerCase()) && (
-                <button onClick={() => setModoCriacao(true)} className="flex items-center bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white px-5 py-2.5 rounded-xl font-medium transition-colors">
+                <button onClick={() => setModoCriacao(true)} className="flex items-center justify-center bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white px-5 py-2.5 rounded-xl font-medium transition-colors">
                   <Plus size={20} className="mr-2" /> Nova Receita
                 </button>
               )}

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { AlertTriangle, Bell, CalendarCheck, CalendarDays, CheckCheck, CheckCircle2, ClipboardCheck, FileText, FileWarning, HeartPulse, Megaphone, MessageCircle, RotateCcw, Volume2, VolumeX, X } from 'lucide-react';
@@ -45,10 +46,42 @@ export default function NotificationBell({ modo = 'sidebar' }) {
   const [arquivadas, setArquivadas] = useState(0);
   const [aba, setAba] = useState('novas');
   const [aberto, setAberto] = useState(false);
+  const [pos, setPos] = useState({ top: 64, left: 16, width: 340 });
   const [mudo, setMudo] = useState(() => localStorage.getItem('sino-mudo') === '1');
   const navigate = useNavigate();
   const auth = () => ({ headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
-  const audioRef = useRef(null), anteriorRef = useRef(null);
+  const audioRef = useRef(null), anteriorRef = useRef(null), botaoRef = useRef(null);
+
+  function posicionar() {
+    const r = botaoRef.current?.getBoundingClientRect();
+    const largura = Math.min(window.innerWidth - 16, 380);
+    const esquerda = r ? r.right - largura : window.innerWidth - largura - 16;
+    const topo = Math.max(8, Math.min((r?.bottom ?? 56) + 8, window.innerHeight - 120));
+    setPos({
+      top: topo,
+      left: Math.max(8, Math.min(esquerda, window.innerWidth - largura - 8)),
+      width: largura,
+    });
+  }
+
+  function alternar() {
+    if (aberto) { setAberto(false); return; }
+    posicionar();
+    setAberto(true);
+  }
+
+  useEffect(() => {
+    if (!aberto) return;
+    posicionar();
+    const aoRedimensionar = () => posicionar();
+    const aoTeclar = (e) => { if (e.key === 'Escape') setAberto(false); };
+    window.addEventListener('resize', aoRedimensionar);
+    window.addEventListener('keydown', aoTeclar);
+    return () => {
+      window.removeEventListener('resize', aoRedimensionar);
+      window.removeEventListener('keydown', aoTeclar);
+    };
+  }, [aberto]);
 
   function bip() {
     if (localStorage.getItem('sino-mudo') === '1') return;
@@ -119,32 +152,34 @@ export default function NotificationBell({ modo = 'sidebar' }) {
 
   const botao = modo === 'topo'
     ? 'reader-nav-button'
+    : modo === 'icone'
+    ? 'relative w-10 h-10 shrink-0 rounded-lg grid place-items-center text-[var(--sidebar-text)] hover:bg-white/10 transition-colors'
     : modo === 'fixo'
     ? 'fixed top-4 right-4 z-[70] w-11 h-11 rounded-full grid place-items-center bg-[var(--bg-card)] text-[var(--text-main)] border border-[var(--border-color)] shadow-lg'
     : 'p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5 w-full';
 
   return <>
-    <button onClick={() => setAberto(v => !v)} className={botao} title="Notificações" aria-label={`Notificações${naoLidas ? ` (${naoLidas} não lidas)` : ''}`}>
+    <button ref={botaoRef} onClick={alternar} className={botao} title="Notificações" aria-label={`Notificações${naoLidas ? ` (${naoLidas} não lidas)` : ''}`}>
       <span className="relative">
-        <Bell size={modo === 'topo' ? 18 : 20} className={modo === 'topo' || modo === 'fixo' ? '' : 'mr-3'} />
+        <Bell size={modo === 'topo' ? 18 : 20} className={modo === 'topo' || modo === 'fixo' || modo === 'icone' ? '' : 'mr-3'} />
         {naoLidas > 0 && <span className="absolute -top-2 -right-2 min-w-5 h-5 px-1 rounded-full bg-red-600 text-white text-[11px] font-bold grid place-items-center">{naoLidas > 9 ? '9+' : naoLidas}</span>}
       </span>
-      {modo === 'topo' ? <span>Notificações</span> : modo === 'fixo' ? null : <span className="flex-1 text-left">Notificações{naoLidas > 0 ? ` (${naoLidas})` : ''}</span>}
+      {modo === 'topo' ? <span>Notificações</span> : modo === 'fixo' || modo === 'icone' ? null : <span className="flex-1 text-left">Notificações{naoLidas > 0 ? ` (${naoLidas})` : ''}</span>}
     </button>
-    {aberto && <>
+    {aberto && createPortal(<>
       <div className="fixed inset-0 z-[80]" onClick={() => setAberto(false)} />
-      <section className="no-print fixed top-16 right-4 z-[90] w-[min(92vw,380px)] max-h-[70vh] flex flex-col panel-card !p-0 overflow-hidden shadow-2xl" role="dialog" aria-label="Central de notificações">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-color)]">
-          <div className="flex gap-1">
-            {[['novas', `Novas${naoLidas > 0 ? ` (${naoLidas})` : ''}`], ['arquivadas', `Arquivadas${arquivadas > 0 ? ` (${arquivadas})` : ''}`]].map(([v, t]) => <button key={v} onClick={() => setAba(v)} className={`px-3 py-1.5 rounded-lg text-sm font-bold ${aba === v ? 'bg-[var(--primary)] text-white' : 'hover:bg-[var(--bg-main)]'}`}>{t}</button>)}
+      <section className="no-print fixed z-[90] flex flex-col panel-card !p-0 overflow-hidden shadow-2xl" style={{ top: pos.top, left: pos.left, width: pos.width, maxHeight: `calc(100dvh - ${pos.top + 8}px)` }} role="dialog" aria-label="Central de notificações">
+        <div className="flex items-center justify-between gap-2 px-3 py-2.5 border-b border-[var(--border-color)]">
+          <div className="flex gap-1 min-w-0">
+            {[['novas', `Novas${naoLidas > 0 ? ` (${naoLidas})` : ''}`], ['arquivadas', `Arquivadas${arquivadas > 0 ? ` (${arquivadas})` : ''}`]].map(([v, t]) => <button key={v} onClick={() => setAba(v)} className={`px-2.5 py-1.5 rounded-lg text-[13px] font-bold whitespace-nowrap ${aba === v ? 'bg-[var(--primary)] text-white' : 'hover:bg-[var(--bg-main)]'}`}>{t}</button>)}
           </div>
-          <div className="flex gap-1">
+          <div className="flex gap-0.5 shrink-0">
             <button onClick={alternarMudo} className="p-2 rounded-lg hover:bg-[var(--bg-main)]" title={mudo ? 'Ativar som' : 'Silenciar'}>{mudo ? <VolumeX size={18} /> : <Volume2 size={18} />}</button>
             {aba === 'novas' && naoLidas > 0 && <button onClick={marcarTodas} className="p-2 rounded-lg hover:bg-[var(--bg-main)]" title="Arquivar todas"><CheckCheck size={18} /></button>}
             <button onClick={() => setAberto(false)} className="p-2 rounded-lg hover:bg-[var(--bg-main)]" aria-label="Fechar"><X size={18} /></button>
           </div>
         </div>
-        <div className="overflow-auto">
+        <div className="flex-1 min-h-0 overflow-auto">
           {!itens.length && <p className="p-5 text-sm text-center text-[var(--text-muted)]">{aba === 'novas' ? 'Nada novo por aqui.' : 'Nenhuma notificação arquivada.'}</p>}
           {itens.map(n => {
             const { Icone, cor, fundo } = porTipo[n.tipo] || porTipo.mip_revisao;
@@ -162,5 +197,5 @@ export default function NotificationBell({ modo = 'sidebar' }) {
           })}
         </div>
       </section>
-    </>}</>;
+    </>, document.body)}</>;
 }

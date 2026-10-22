@@ -374,10 +374,10 @@ export default function Avaliacoes() {
           >
             ← Voltar às avaliações
           </button>
-          <div className="flex justify-between mb-7">
+          <div className="flex flex-col sm:flex-row sm:justify-between gap-4 mb-7">
             <div>
               <p className="section-label">Avaliação mensal</p>
-              <h1 className="text-3xl font-bold">
+              <h1 className="text-2xl sm:text-3xl font-bold">
                 {editandoId ? "Editar avaliação" : "Registrar desempenho"}
               </h1>
             </div>
@@ -534,10 +534,10 @@ export default function Avaliacoes() {
     <div className="min-h-screen bg-[var(--bg-main)] flex">
       <Sidebar />
       <main className="flex-1 p-4 sm:p-8 overflow-x-hidden">
-        <header className="flex justify-between gap-4 mb-7">
+        <header className="flex flex-col sm:flex-row sm:justify-between gap-4 mb-7">
           <div>
             <p className="section-label">Gestão de pessoas</p>
-            <h1 className="text-3xl font-bold">Avaliações mensais</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold">Avaliações mensais</h1>
             <p className="text-[var(--text-muted)]">
               As avaliações são vinculadas aos usuários do sistema.
             </p>

@@ -26,7 +26,7 @@ export default function AlterarSenha() {
       const atualizado = { ...user, deve_alterar_senha: false };
       localStorage.setItem("user", JSON.stringify(atualizado));
       alert("Senha alterada com sucesso.");
-      navigate(user.perfil?.toLowerCase() === "leitor" ? "/avaliacoes" : "/dashboard");
+      navigate("/dashboard");
     } catch (e) { setErro(e.response?.data?.error || "Erro ao alterar senha."); }
     finally { setSalvando(false); }
   }

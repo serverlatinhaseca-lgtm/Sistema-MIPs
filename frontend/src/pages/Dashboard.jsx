@@ -1,10 +1,20 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { BookOpen, Users, PlusCircle, Calculator, ClipboardCheck, AlertTriangle } from 'lucide-react';
+import { BookOpen, Users, PlusCircle, Calculator, ClipboardCheck, AlertTriangle, Megaphone, Bell } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
+import LeitorTopbar from '../components/LeitorTopbar';
 import useBranding from '../useBranding';
 import API from '../api';
+
+const ATALHOS_FUNCIONARIO = [
+  { rota: '/mips', titulo: 'Manuais (MIPs)', descricao: 'Consulte os procedimentos da operação.', Icone: BookOpen, fundo: 'bg-amber-100 dark:bg-amber-950/40', cor: 'text-amber-600' },
+  { rota: '/receitas', titulo: 'Receitas', descricao: 'Calcule os ingredientes para a produção.', Icone: Calculator, fundo: 'bg-orange-100 dark:bg-orange-950/40', cor: 'text-orange-600' },
+  { rota: '/avaliacoes', titulo: 'Meu desempenho', descricao: 'Veja suas avaliações e sua evolução.', Icone: ClipboardCheck, fundo: 'bg-green-100 dark:bg-green-950/40', cor: 'text-green-700' },
+  { rota: '/reclamacoes', titulo: 'Reclamações', descricao: 'Acompanhe as ocorrências de atendimento.', Icone: AlertTriangle, fundo: 'bg-red-100 dark:bg-red-950/40', cor: 'text-red-600' },
+  { rota: '/comunicados', titulo: 'Comunicados', descricao: 'Fique por dentro dos avisos oficiais.', Icone: Megaphone, fundo: 'bg-blue-100 dark:bg-blue-950/40', cor: 'text-blue-600' },
+  { rota: '/notificacoes', titulo: 'Notificações', descricao: 'Revise seus avisos e preferências.', Icone: Bell, fundo: 'bg-violet-100 dark:bg-violet-950/40', cor: 'text-violet-600' },
+];
 
 export default function Dashboard() {
   const [stats, setStats] = useState({ totalMips: 0, totalUsuarios: 0, totalReceitas: 0, avaliacoesPendentes: 0 });
@@ -12,12 +22,10 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const branding = useBranding();
+  const isLeitor = String(user.perfil || '').toLowerCase() === 'leitor';
 
   useEffect(() => {
-    if (user.perfil?.toLowerCase() === 'leitor') {
-      navigate('/avaliacoes');
-      return;
-    }
+    if (isLeitor) return;
 
     const fetchStats = async () => {
       try {
@@ -35,28 +43,59 @@ export default function Dashboard() {
       } catch (err) { console.error(err); }
     };
     fetchStats();
-  }, [navigate, user.perfil]);
+  }, [isLeitor]);
+
+  if (isLeitor) {
+    return (
+      <div className="min-h-screen bg-[var(--bg-main)] text-[var(--text-main)]">
+        <LeitorTopbar titulo="Início" />
+        <main className="p-4 sm:p-8 max-w-5xl mx-auto">
+          <header className="mb-5 sm:mb-7">
+            <h1 className="text-2xl sm:text-3xl font-bold">Olá, {(user.nome || '').split(' ')[0] || 'colaborador'}!</h1>
+            <p className="text-[var(--text-muted)] text-sm mt-1">Bem-vindo ao {branding.nome_site}. Use os atalhos abaixo.</p>
+          </header>
+
+          <FaixaPainel branding={branding} className="mb-6 rounded-2xl" />
+
+          <h2 className="text-lg font-bold mb-3">Atalhos</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
+            {ATALHOS_FUNCIONARIO.map(({ rota, titulo, descricao, Icone, fundo, cor }) => (
+              <button
+                key={rota}
+                onClick={() => navigate(rota)}
+                className="group flex flex-col items-start gap-3 rounded-2xl border border-[var(--border-color)] bg-[var(--bg-card)] p-4 sm:p-5 text-left shadow-sm hover:border-[var(--primary)] hover:shadow-md active:scale-[0.99] transition-all"
+              >
+                <span className={`w-11 h-11 rounded-xl grid place-items-center ${fundo} ${cor}`}>
+                  <Icone size={22} />
+                </span>
+                <span className="font-bold text-sm sm:text-base leading-tight">{titulo}</span>
+                <span className="text-xs text-[var(--text-muted)] leading-snug">{descricao}</span>
+              </button>
+            ))}
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[var(--bg-main)] flex">
       <Sidebar />
 
-      <main className="flex-1 p-6 sm:p-10">
-        <header className="flex justify-between items-center mb-8">
+      <main className="flex-1 min-w-0 p-4 sm:p-10">
+        <header className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-[var(--text-main)]">Olá, {user.nome}!</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-[var(--text-main)]">Olá, {user.nome}!</h1>
             <p className="text-[var(--text-muted)] text-sm">Bem-vindo ao painel de controle do {branding.nome_site}.</p>
           </div>
           {['administrador','editor','gerente'].includes(user.perfil?.toLowerCase()) && (
-            <button onClick={() => navigate('/mips/nova')} className="flex items-center bg-amber-600 text-white px-5 py-2.5 rounded-xl hover:bg-amber-700 font-medium transition-colors shadow-md">
+            <button onClick={() => navigate('/mips/nova')} className="flex items-center justify-center bg-amber-600 text-white px-5 py-2.5 rounded-xl hover:bg-amber-700 font-medium transition-colors shadow-md">
               <PlusCircle size={20} className="mr-2" /> Nova MIP
             </button>
           )}
         </header>
 
-        <section className="-mx-6 sm:-mx-10 mb-8 h-56 sm:h-72 relative overflow-hidden bg-gradient-to-r from-amber-700 via-amber-800 to-stone-950">
-          {(branding.imagem_dashboard || '/faixa-dashboard.jpg') && <img key={branding.imagem_dashboard || 'padrao'} src={branding.imagem_dashboard || '/faixa-dashboard.jpg'} alt="" className="absolute inset-0 w-full h-full object-contain" onError={e => { e.currentTarget.style.display = 'none'; }} />}
-        </section>
+        <FaixaPainel branding={branding} className="-mx-4 sm:-mx-10 mb-8" />
 
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6 mb-10">
           <div onClick={() => navigate('/mips')} className="bg-[var(--bg-card)] border border-[var(--border-color)] p-6 rounded-2xl shadow-sm cursor-pointer hover:border-amber-600 transition-all">
@@ -120,6 +159,21 @@ export default function Dashboard() {
         </div>
       </main>
     </div>
+  );
+}
+
+function FaixaPainel({ branding, className = '' }) {
+  const src = branding.imagem_dashboard || '/faixa-dashboard.jpg';
+  return (
+    <section className={`faixa-dashboard relative h-40 sm:h-auto sm:aspect-[4/1] overflow-hidden bg-stone-950 ${className}`}>
+      <img
+        key={src}
+        src={src}
+        alt="Campanhas e novidades"
+        className="absolute -left-px -top-px object-cover object-center"
+        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+      />
+    </section>
   );
 }
 

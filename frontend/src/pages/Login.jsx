@@ -35,8 +35,7 @@ export default function Login() {
   // Se já existe sessão válida (token não expirado), não exibe o login.
   const sessaoAtiva = obterSessao();
   if (sessaoAtiva) {
-    const perfil = String(sessaoAtiva.perfil || '').toLowerCase();
-    return <Navigate to={sessaoAtiva.user?.deve_alterar_senha ? '/alterar-senha' : (perfil === 'leitor' ? '/avaliacoes' : '/dashboard')} replace />;
+    return <Navigate to={sessaoAtiva.user?.deve_alterar_senha ? '/alterar-senha' : '/dashboard'} replace />;
   }
 
   const handleLogin = async (e) => {
@@ -53,7 +52,7 @@ export default function Login() {
       localStorage.setItem('user', JSON.stringify(response.data.user));
       const chaveModal = `avaliacao_modal_visto_${response.data.user.id}`;
       if (['leitor','editor','gerente'].includes(response.data.user.perfil?.toLowerCase()) && localStorage.getItem(chaveModal) !== '1') sessionStorage.setItem('mostrar_avaliacoes_modal', '1');
-      navigate(response.data.deve_alterar_senha ? '/alterar-senha' : (response.data.user.perfil?.toLowerCase() === 'leitor' ? '/avaliacoes' : '/dashboard'));
+      navigate(response.data.deve_alterar_senha ? '/alterar-senha' : '/dashboard');
     } catch (err) {
       setErro(err.response?.data?.error || 'Erro ao fazer login. Verifique suas credenciais.');
     }

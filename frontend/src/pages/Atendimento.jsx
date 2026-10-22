@@ -253,7 +253,7 @@ export default function Atendimento() {
         <form onSubmit={criarTicket} className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4">
           <div className="bg-[var(--bg-card)] rounded-2xl p-6 w-full max-w-md space-y-3">
             <h2 className="font-bold text-lg text-[var(--text-main)]">Novo ticket</h2>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <label className="block text-sm">Categoria
                 <select value={form.categoria} onChange={(e) => setForm((v) => ({ ...v, categoria: e.target.value }))} className={campo}>
                   {CATEGORIAS.map((c) => <option key={c}>{c}</option>)}
@@ -282,7 +282,7 @@ export default function Atendimento() {
   );
 
   if (perfil === 'leitor') {
-    return <div className="min-h-screen bg-[var(--bg-main)]"><LeitorTopbar /><main className="p-6 sm:p-10 max-w-6xl">{conteudo}</main></div>;
+    return <div className="min-h-screen bg-[var(--bg-main)]"><LeitorTopbar /><main className="p-4 sm:p-10 max-w-6xl">{conteudo}</main></div>;
   }
-  return <div className="min-h-screen bg-[var(--bg-main)] flex"><Sidebar /><main className="flex-1 p-6 sm:p-10">{conteudo}</main></div>;
+  return <div className="min-h-screen bg-[var(--bg-main)] flex"><Sidebar /><main className="flex-1 min-w-0 p-4 sm:p-10">{conteudo}</main></div>;
 }

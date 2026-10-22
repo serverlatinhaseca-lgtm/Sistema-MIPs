@@ -111,7 +111,7 @@ export default function Comunicados() {
             <label className="block text-sm">Mensagem
               <textarea value={form.mensagem} onChange={(e) => setForm((v) => ({ ...v, mensagem: e.target.value }))} rows={4} className={campo} />
             </label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <label className="block text-sm">Prioridade
                 <select value={form.prioridade} onChange={(e) => setForm((v) => ({ ...v, prioridade: e.target.value }))} className={campo}>
                   <option>Normal</option><option>Alta</option><option>Urgente</option>
@@ -138,7 +138,7 @@ export default function Comunicados() {
   );
 
   if (perfil === 'leitor') {
-    return <div className="min-h-screen bg-[var(--bg-main)]"><LeitorTopbar /><main className="p-6 sm:p-10 max-w-4xl">{conteudo}</main></div>;
+    return <div className="min-h-screen bg-[var(--bg-main)]"><LeitorTopbar /><main className="p-4 sm:p-10 max-w-4xl">{conteudo}</main></div>;
   }
-  return <div className="min-h-screen bg-[var(--bg-main)] flex"><Sidebar /><main className="flex-1 p-6 sm:p-10">{conteudo}</main></div>;
+  return <div className="min-h-screen bg-[var(--bg-main)] flex"><Sidebar /><main className="flex-1 min-w-0 p-4 sm:p-10">{conteudo}</main></div>;
 }

@@ -12,7 +12,6 @@ import AlterarSenha from './pages/AlterarSenha';
 import Configuracoes from './pages/Configuracoes';
 import MeuDesempenho from './pages/MeuDesempenho';
 import AvaliacaoLoginModal from './components/AvaliacaoLoginModal';
-import NotificationBell from './components/NotificationBell';
 import NotificationPopup from './components/NotificationPopup';
 import LinoChat from './components/LinoChat';
 import FerramentasAdmin from './pages/FerramentasAdmin';
@@ -37,7 +36,7 @@ function RotaPrivada({ children, perfisPermitidos }) {
   }
   const user = sessao.user || {};
   if (user.deve_alterar_senha && window.location.pathname !== '/alterar-senha') return <Navigate to="/alterar-senha" replace />;
-  return <><AvaliacaoLoginModal /><NotificationBell modo="fixo" /><NotificationPopup /><LinoChat />{children}</>;
+  return <><AvaliacaoLoginModal /><NotificationPopup /><LinoChat />{children}</>;
 }
 
 export default function App() {

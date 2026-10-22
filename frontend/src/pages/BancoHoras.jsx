@@ -135,7 +135,7 @@ export default function BancoHoras() {
         </form>
         <form onSubmit={enviarIndividual} className="rounded-2xl border border-[var(--border-color)] bg-[var(--bg-card)] p-5 space-y-3">
           <h2 className="font-bold text-[var(--text-main)]">Upload individual (publica direto)</h2>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label className="block text-sm col-span-2">Funcionário (nome ou matrícula do login)
               <input value={ind.nome_funcionario} onChange={(e) => setInd((v) => ({ ...v, nome_funcionario: e.target.value }))} required className={campo} />
             </label>
@@ -228,7 +228,7 @@ export default function BancoHoras() {
   );
 
   if (perfil === 'leitor') {
-    return <div className="min-h-screen bg-[var(--bg-main)]"><LeitorTopbar /><main className="p-6 sm:p-10 max-w-4xl">{conteudoFunc}</main></div>;
+    return <div className="min-h-screen bg-[var(--bg-main)]"><LeitorTopbar /><main className="p-4 sm:p-10 max-w-4xl">{conteudoFunc}</main></div>;
   }
-  return <div className="min-h-screen bg-[var(--bg-main)] flex"><Sidebar /><main className="flex-1 p-6 sm:p-10">{ehRH ? conteudoRH : conteudoFunc}</main></div>;
+  return <div className="min-h-screen bg-[var(--bg-main)] flex"><Sidebar /><main className="flex-1 min-w-0 p-4 sm:p-10">{ehRH ? conteudoRH : conteudoFunc}</main></div>;
 }

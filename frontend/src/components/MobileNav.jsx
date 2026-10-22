@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
 import Sidebar from './Sidebar';
+import NotificationBell from './NotificationBell';
 import useBranding from '../useBranding';
 
 // Barra + menu lateral para celular nos perfis com Sidebar
 // (Líder, Gerente, Administrador). O Leitor já tem o LeitorTopbar.
 export default function MobileNav() {
   const [aberto, setAberto] = useState(false);
+  const [desktop, setDesktop] = useState(() => window.matchMedia('(min-width: 768px)').matches);
   const location = useLocation();
   const branding = useBranding();
 
@@ -16,6 +18,12 @@ export default function MobileNav() {
   const ehLeitor = String(user.perfil || '').toLowerCase() === 'leitor';
 
   useEffect(() => { setAberto(false); }, [location.pathname]);
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)');
+    const atualizar = () => setDesktop(mq.matches);
+    mq.addEventListener('change', atualizar);
+    return () => mq.removeEventListener('change', atualizar);
+  }, []);
   useEffect(() => {
     document.body.style.overflow = aberto ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
@@ -32,7 +40,8 @@ export default function MobileNav() {
         {branding.logo_site
           ? <img src={branding.logo_site} alt="Logo" className="w-8 h-8 object-contain bg-white rounded-lg p-0.5" />
           : <div className="w-8 h-8 bg-[var(--primary)] rounded-lg flex items-center justify-center text-white font-bold">M</div>}
-        <span className="font-bold truncate">{branding.nome_site}</span>
+        <span className="font-bold truncate flex-1 min-w-0">{branding.nome_site}</span>
+        {!desktop && <NotificationBell modo="icone" />}
       </header>
 
       {aberto && (

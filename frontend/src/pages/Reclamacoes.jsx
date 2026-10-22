@@ -153,7 +153,7 @@ export default function Reclamacoes(){
   const Barras=({dados,prioridade=false})=><div className="space-y-3">{dados.map(x=><div key={x.nome}><div className="flex justify-between gap-3 text-sm mb-1"><span className="truncate">{cores[x.nome]?.nome||x.nome}</span><strong>{x.total}</strong></div><div className="h-3 bg-[var(--bg-main)] rounded-full overflow-hidden"><div className="h-full rounded-full" style={{width:`${x.total/maior(dados)*100}%`,background:prioridade?(cores[x.nome]?.cor||'#a65526'):'#d97706'}}/></div></div>)}{!dados.length&&<p className="text-[var(--text-muted)]">Sem dados.</p>}</div>;
   const conteudo=<main className="flex-1 p-4 sm:p-8 max-w-[1500px] w-full mx-auto">
     <header className="flex flex-col sm:flex-row justify-between gap-4 mb-7">
-      <div><p className="section-label">Qualidade e atendimento</p><h1 className="text-3xl font-bold">Reclamações</h1><p className="text-[var(--text-muted)]">Prazos, ocorrências e indicadores de atendimento.</p></div>
+      <div><p className="section-label">Qualidade e atendimento</p><h1 className="text-2xl sm:text-3xl font-bold">Reclamações</h1><p className="text-[var(--text-muted)]">Prazos, ocorrências e indicadores de atendimento.</p></div>
       <div className="flex flex-wrap gap-2 items-start">
         {podeRegistrar&&<button onClick={exportarPDF} className="border border-[var(--border-color)] bg-[var(--bg-card)] px-5 py-3 rounded-xl font-bold flex items-center h-fit"><Printer size={18} className="mr-2"/>Imprimir</button>}
         {podeRegistrar&&<button onClick={()=>{setEditandoId(null);setForm(formVazio());setFormAberto(true);}} className="bg-[var(--primary)] text-white px-5 py-3 rounded-xl font-bold flex items-center h-fit"><Plus className="mr-2"/>Nova reclamação</button>}

@@ -2,7 +2,7 @@
 
 > Portal interno para padronização operacional, gestão de receitas, avaliações de desempenho, reclamações e ferramentas de produção.
 
-![Versão](https://img.shields.io/badge/versão-2.10.0-ff8d2f)
+![Versão](https://img.shields.io/badge/versão-2.11.2-ff8d2f)
 ![React](https://img.shields.io/badge/React-18-61dafb)
 ![Node.js](https://img.shields.io/badge/Node.js-22-339933)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-4169e1)
@@ -11,6 +11,18 @@
 ## Sobre o sistema
 
 O Sistema Central reúne em um único portal os processos internos da Nova Esperança. A aplicação funciona em computadores e celulares, possui modo claro e escuro e separa os acessos conforme a função de cada usuário.
+
+### Novidades da versão 2.11.2
+
+- Coluna `setores` do modelo de importação de usuários também com lista suspensa (escolha um setor e complete com `;` para combinar vários).
+
+### Novidades da versão 2.11.1
+
+- Modelo de importação de usuários agora com **listas suspensas automáticas** (perfil, responsável, função, categoria) geradas na hora com os dados atuais — Líderes novos já aparecem; aba de instruções com exemplo de linha.
+
+### Novidades da versão 2.11.0
+
+- **Usuários — cadastro em massa por planilha**: botão "Baixar modelo da planilha" (.xlsx com aba de instruções) e "Importar planilha" na tela Gerenciamento de Usuários; senha padrão **"1234"** para todos os importados, com troca obrigatória no primeiro acesso; relatório de linhas criadas/ignoradas.
 
 ### Novidades da versão 2.10.0
 

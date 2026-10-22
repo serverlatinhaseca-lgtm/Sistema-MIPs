@@ -124,8 +124,22 @@ body {
 div[dangerouslySetInnerHTML] img,
 img {
   max-width: 100% !important;
-  height: auto !important;
   border-radius: 8px; /* Bordinha arredondada para ficar bonito */
+}
+/* Altura automática (mantém a proporção) — EXCETO fotos com altura manual do
+   transform do editor (atributo height), que definem o formato exato */
+.ql-editor img:not([height]),
+.ql-snow .ql-editor img:not([height]),
+div[dangerouslySetInnerHTML] img:not([height]),
+img:not([height]) {
+  height: auto !important;
+}
+/* Altura manual do transform (atributo height): renderiza o valor exato nos
+   navegadores modernos; onde sem suporte, cai para auto (proporcional) */
+.ql-editor img[height],
+.ql-snow .ql-editor img[height],
+div[dangerouslySetInnerHTML] img[height] {
+  height: attr(height px, auto);
 }
 /* Centraliza por padrão — EXCETO fotos com posição manual do editor de MIP
    (data-ali, 29/09/2026): essas usam o estilo inline gravado (float + margens
@@ -150,6 +164,29 @@ img:not([data-ali]) {
   border-radius: 0;
 }
 
+/* Faixa do Dashboard: a arte preenche a seção inteira (cover com 1px de
+   sangria anti-fresta) e não pode herdar margem/arredondamento/altura das
+   regras globais de img — o !important acima venceria as utilities */
+.faixa-dashboard img {
+  width: calc(100% + 2px) !important;
+  height: calc(100% + 2px) !important;
+  max-width: none !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  display: block;
+}
+
+/* Ícone do Lino: não pode herdar margem/altura globais de img — senão a arte
+   desce 15px e fica cortada na base do círculo */
+.lino-icone img {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  display: block;
+}
+
 /* Aumenta o tamanho da fonte apenas quando estiver no celular (telas menores que 768px) */
 @media (max-width: 768px) {
   .reader-topbar { position: static; padding: 12px; align-items: flex-start; flex-direction: column; }
@@ -169,10 +206,11 @@ img:not([data-ali]) {
   }
 
   /* No celular, a foto ocupa 100% da largura disponível para máximo de zoom —
-     EXCETO fotos com tamanho manual do editor (data-tam, 29/09/2026), que
-     respeitam a largura escolhida (ainda limitada a max-width: 100%) */
-  .ql-editor img:not([data-tam]),
-  div[dangerouslySetInnerHTML] img:not([data-tam]) {
+     EXCETO fotos com tamanho manual do editor (data-tam/atributo width,
+     29/09/2026), que respeitam a largura escolhida (ainda limitada a
+     max-width: 100%) */
+  .ql-editor img:not([data-tam]):not([width]),
+  div[dangerouslySetInnerHTML] img:not([data-tam]):not([width]) {
     width: 100% !important; 
   }
 }

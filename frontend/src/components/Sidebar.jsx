@@ -2,6 +2,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { AlertTriangle, LayoutDashboard, BookOpen, Calculator, Users, ClipboardCheck, Sun, Moon, LogOut, KeyRound, Settings, Tag, Folder, ChevronDown, ChevronRight, Pin, PinOff, HeartPulse, MessageCircle, Megaphone, Building2, FileText, CalendarDays } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import useBranding from '../useBranding';
+import NotificationBell from './NotificationBell';
 
 const nomePerfil = (perfil) => ({ leitor: 'Funcionário', editor: 'Líder', gerente: 'Gerente', administrador: 'Administrador' }[String(perfil || '').toLowerCase()] || perfil);
 
@@ -10,12 +11,17 @@ export default function Sidebar({ emDrawer = false, aoNavegar = () => {} }) {
   const location = useLocation();
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const [dark, setDark] = useState(document.documentElement.classList.contains('dark'));
-  const [pastas, setPastas] = useState({ferramentas:location.pathname.startsWith('/ferramentas'),configuracao:['/usuarios','/configuracoes'].includes(location.pathname)});
+  const [pastas, setPastas] = useState({ferramentas:location.pathname.startsWith('/ferramentas'),configuracao:['/usuarios','/configuracoes'].includes(location.pathname),rh:['/aso','/banco-horas','/folgas','/atendimento','/comunicados'].includes(location.pathname)});
   const [modo, setModo] = useState(() => localStorage.getItem('sidebar-modo') || 'fixa');
   const [visivel, setVisivel] = useState(false);
+  const [desktop, setDesktop] = useState(() => window.matchMedia('(min-width: 768px)').matches);
   const flutuante = modo === 'flutuante' && !emDrawer;
   const alternarModo = () => { const v = modo === 'fixa' ? 'flutuante' : 'fixa'; setModo(v); localStorage.setItem('sidebar-modo', v); setVisivel(false); };
   const branding = useBranding();
+
+  // Pasta RH (ASO, Banco de Horas, Folgas, Atendimento, Comunicados) — em polimento,
+  // oculta do menu por enquanto. Para reativar, basta trocar para `true`.
+  const RH_ATIVO = false;
 
   const toggleTheme = () => {
     const isDark = document.documentElement.classList.toggle('dark');
@@ -30,6 +36,13 @@ export default function Sidebar({ emDrawer = false, aoNavegar = () => {} }) {
     }
   }, []);
 
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)');
+    const atualizar = () => setDesktop(mq.matches);
+    mq.addEventListener('change', atualizar);
+    return () => mq.removeEventListener('change', atualizar);
+  }, []);
+
   const isActive = (path) => location.pathname === path;
   const ir = (rota) => { aoNavegar(); navigate(rota); setVisivel(false); };
 
@@ -41,10 +54,13 @@ export default function Sidebar({ emDrawer = false, aoNavegar = () => {} }) {
     <IconBtn titulo="Receitas" ativo={isActive('/receitas')} abrir={() => ir('/receitas')}><Calculator size={20} /></IconBtn>
     <IconBtn titulo={user.perfil?.toLowerCase() === 'leitor' ? 'Meu desempenho' : 'Avaliações'} ativo={isActive('/avaliacoes')} abrir={() => ir('/avaliacoes')}><ClipboardCheck size={20} /></IconBtn>
     <IconBtn titulo="Reclamações" ativo={isActive('/reclamacoes')} abrir={() => ir('/reclamacoes')}><AlertTriangle size={20} /></IconBtn>
+    {RH_ATIVO && <>
     <IconBtn titulo="Atendimento" ativo={isActive('/atendimento')} abrir={() => ir('/atendimento')}><MessageCircle size={20} /></IconBtn>
     <IconBtn titulo="Banco de Horas" ativo={isActive('/banco-horas')} abrir={() => ir('/banco-horas')}><FileText size={20} /></IconBtn>
     <IconBtn titulo="Folgas" ativo={isActive('/folgas')} abrir={() => ir('/folgas')}><CalendarDays size={20} /></IconBtn>
+    <IconBtn titulo="Comunicados" ativo={isActive('/comunicados')} abrir={() => ir('/comunicados')}><Megaphone size={20} /></IconBtn>
     <IconBtn titulo={user.perfil?.toLowerCase() === 'leitor' ? 'Meu ASO' : 'ASO'} ativo={isActive('/aso')} abrir={() => ir('/aso')}><HeartPulse size={20} /></IconBtn>
+    </>}
     {['editor','gerente'].includes(user.perfil?.toLowerCase()) && <IconBtn titulo="Meu desempenho" ativo={isActive('/meu-desempenho')} abrir={() => ir('/meu-desempenho')}><ClipboardCheck size={20} /></IconBtn>}
     {user.perfil?.toLowerCase() === 'administrador' && <>
       <IconBtn titulo="Usuários" ativo={isActive('/usuarios')} abrir={() => ir('/usuarios')}><Users size={20} /></IconBtn>
@@ -65,8 +81,9 @@ export default function Sidebar({ emDrawer = false, aoNavegar = () => {} }) {
       <div>
         <div className="flex items-center space-x-3 mb-10">
           {branding.logo_site ? <img src={branding.logo_site} alt="Logo" className="w-10 h-10 object-contain bg-white rounded-xl p-1" /> : <div className="w-10 h-10 bg-[var(--primary)] rounded-xl flex items-center justify-center text-white font-bold text-xl">M</div>}
-          <span className="font-bold text-lg text-[var(--sidebar-text)]">{branding.nome_site}</span>
-          {!emDrawer && <button onClick={alternarModo} title={flutuante ? 'Fixar barra lateral' : 'Barra flutuante (aparece ao passar o mouse)'} aria-label="Alternar barra fixa ou flutuante" className="ml-auto p-2 rounded-lg text-[var(--sidebar-text)] opacity-70 hover:opacity-100 hover:bg-white/5">{flutuante ? <Pin size={20} /> : <PinOff size={20} />}</button>}
+          <span className="font-bold text-lg text-[var(--sidebar-text)] truncate min-w-0 flex-1">{branding.nome_site}</span>
+          {desktop && <NotificationBell modo="icone" />}
+          {!emDrawer && <button onClick={alternarModo} title={flutuante ? 'Fixar barra lateral' : 'Barra flutuante (aparece ao passar o mouse)'} aria-label="Alternar barra fixa ou flutuante" className="p-2 rounded-lg text-[var(--sidebar-text)] opacity-70 hover:opacity-100 hover:bg-white/5">{flutuante ? <Pin size={20} /> : <PinOff size={20} />}</button>}
         </div>
 
         <nav className="space-y-2">
@@ -85,11 +102,13 @@ export default function Sidebar({ emDrawer = false, aoNavegar = () => {} }) {
             <ClipboardCheck size={20} className="mr-3" /> {user.perfil?.toLowerCase() === 'leitor' ? 'Meu desempenho' : 'Avaliações'}
           </div>
           <div onClick={() => ir('/reclamacoes')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/reclamacoes') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}><AlertTriangle size={20} className="mr-3" /> Reclamações</div>
-          <div onClick={() => ir('/atendimento')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/atendimento') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}><MessageCircle size={20} className="mr-3" /> Atendimento</div>
-          <div onClick={() => ir('/banco-horas')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/banco-horas') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}><FileText size={20} className="mr-3" /> {user.perfil?.toLowerCase() === 'leitor' ? 'Meu Banco de Horas' : 'Banco de Horas'}</div>
-          <div onClick={() => ir('/folgas')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/folgas') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}><CalendarDays size={20} className="mr-3" /> {user.perfil?.toLowerCase() === 'leitor' ? 'Minhas Folgas' : 'Folgas'}</div>
-          <div onClick={() => ir('/comunicados')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/comunicados') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}><Megaphone size={20} className="mr-3" /> Comunicados</div>
-          <div onClick={() => ir('/aso')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/aso') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}><HeartPulse size={20} className="mr-3" /> {user.perfil?.toLowerCase() === 'leitor' ? 'Meu ASO' : 'ASO'}</div>
+          {RH_ATIVO && <Pasta titulo="RH" aberta={pastas.rh} alternar={()=>setPastas(v=>({...v,rh:!v.rh}))}>
+            <Item icon={<MessageCircle size={18}/>} titulo="Atendimento" ativo={isActive('/atendimento')} abrir={()=>navigate('/atendimento')}/>
+            <Item icon={<FileText size={18}/>} titulo={user.perfil?.toLowerCase() === 'leitor' ? 'Meu Banco de Horas' : 'Banco de Horas'} ativo={isActive('/banco-horas')} abrir={()=>navigate('/banco-horas')}/>
+            <Item icon={<CalendarDays size={18}/>} titulo={user.perfil?.toLowerCase() === 'leitor' ? 'Minhas Folgas' : 'Folgas'} ativo={isActive('/folgas')} abrir={()=>navigate('/folgas')}/>
+            <Item icon={<Megaphone size={18}/>} titulo="Comunicados" ativo={isActive('/comunicados')} abrir={()=>navigate('/comunicados')}/>
+            <Item icon={<HeartPulse size={18}/>} titulo={user.perfil?.toLowerCase() === 'leitor' ? 'Meu ASO' : 'ASO'} ativo={isActive('/aso')} abrir={()=>navigate('/aso')}/>
+          </Pasta>}
           {['editor','gerente'].includes(user.perfil?.toLowerCase()) && <div onClick={() => ir('/meu-desempenho')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/meu-desempenho') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}><ClipboardCheck size={20} className="mr-3" /> Meu desempenho</div>}
           {user.perfil?.toLowerCase() === 'administrador' && <>
             <Pasta titulo="Ferramentas" aberta={pastas.ferramentas} alternar={()=>setPastas(v=>({...v,ferramentas:!v.ferramentas}))}>

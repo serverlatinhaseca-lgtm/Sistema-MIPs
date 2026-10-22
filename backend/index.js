@@ -17,6 +17,7 @@ const { excelSerialToISO } = require('./aso');
 const { CATEGORIAS_TICKET, STATUS_TICKET, PRIORIDADES_TICKET, SLA_HORAS, numeroTicket, prazoSLA } = require('./tickets');
 const AdmZip = (() => { try { return require('adm-zip'); } catch { return null; } })();
 const { MODELOS, TIPOS_FOLGA, TIMES, gerarFolgasCiclo } = require('./folgas');
+const { NIVEIS: NIVEIS_AJUDA, filtrarPorNivel } = require('./ajuda');
 const MODELOS_AVALIACAO = require('./modelos-avaliacao.json');
 const CLIENTES_INICIAIS = require('./clientes-iniciais.json');
 const executarArquivo = promisify(execFile);
@@ -181,6 +182,7 @@ async function inicializarBancoEAdmin() {
         ativo BOOLEAN NOT NULL DEFAULT TRUE,
         criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+      ALTER TABLE ajuda_respostas ADD COLUMN IF NOT EXISTS nivel VARCHAR(20) NOT NULL DEFAULT 'funcionario';
       INSERT INTO configuracoes_portal (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
       CREATE TABLE IF NOT EXISTS ferramentas_admin_estado (
         chave VARCHAR(60) PRIMARY KEY,
@@ -608,33 +610,73 @@ app.put('/api/configuracoes-portal', verificarToken, async (req, res) => {
 
 // AJUDA — Lino (chat fake com respostas pré-programadas, editáveis em Configurações).
 async function inicializarAjuda() {
+  // [pergunta, gatilhos, resposta, nível mínimo de acesso]
   const padrao = [
-    ['O que são MIPs?', 'mip,manual,manuais,procedimento,procedimentos', 'Os MIPs são os manuais de procedimento da Nova Esperança: cada um explica o passo a passo de uma tarefa (produção, embalagem, higiene...). Você pode ler, pesquisar e imprimir. Manuais novos passam por revisão antes de serem publicados.'],
-    ['Como funciona a calculadora de receitas?', 'receita,receitas,rendimento,peso,pao,paes,calculadora,massa,ingrediente,fornada', 'Na página Receitas, abra uma receita e diga quantos pães quer produzir: o sistema calcula o peso de cada ingrediente. O rendimento é automático: soma dos pesos dividida pelo peso unitário do pão.'],
-    ['Onde vejo minhas avaliações?', 'avaliacao,avaliacoes,desempenho,nota,performance,avaliar', 'Suas avaliações ficam em Avaliações (funcionário) ou Meu desempenho (líder e gerente). Todo mês seu responsável registra uma avaliação e você acompanha o histórico por lá.'],
-    ['Como registro uma reclamação?', 'reclamacao,reclamacoes,cliente,mofado,reclamar,queixa', 'Quem tem permissão registra em Reclamações → Nova reclamação: cliente, tipo (a prioridade entra sozinha — pão mofado, por exemplo, é imediata), líder responsável e descrição. O líder mencionado, a gerência e a nutri são avisados na hora.'],
-    ['Para que servem as notificações?', 'notificacao,notificacoes,sino,aviso,avisos,som,apita', 'O sino no canto superior direito junta todos os avisos: reclamações novas, MIPs aguardando revisão ou aprovadas e avaliações publicadas. Ele apita quando chega algo novo e tudo fica registrado para ver depois.'],
-    ['Esqueci minha senha', 'senha,login,entrar,acesso,alterar,esqueci', 'Em Minha senha você troca sua senha quando quiser. Se não consegue entrar, peça ao administrador para redefinir.'],
-    ['O que são as Etiquetas?', 'etiqueta,etiquetas,pimaco,caixa,caixas,ferramenta,imprimir,impressao', 'As Etiquetas (Pimaco 6187) e Pacotes/Caixas ficam com o Administrador, no menu Ferramentas. Fale com ele para gerar impressões.'],
-    ['Quem é você?', 'lino,voce,quem,ajuda,oi,ola,opa,bom dia,boa tarde,boa noite', 'Eu sou o Lino, ajudante do Portal - Nova Esperança! Posso explicar as funções do sistema: pergunte sobre MIPs, receitas, avaliações, reclamações ou senha.'],
+    ['O que são MIPs?', 'mip,manual,manuais,procedimento,procedimentos', 'Os MIPs são os manuais de procedimento da Nova Esperança: cada um explica o passo a passo de uma tarefa (produção, embalagem, higiene...). Você pode ler, pesquisar e imprimir. Manuais novos passam por revisão antes de serem publicados.', 'funcionario'],
+    ['Como encontro um manual (MIP)?', 'mip,mips,encontrar,localizar,pesquisar,buscar,codigo,consultar', 'Abra Manuais (MIPs) no Início ou na barra lateral. Pesquise pelo título ou pelo código (ex.: MIP-01) e toque no cartão para ler. Só aparecem os manuais já publicados.', 'funcionario'],
+    ['Como funciona a calculadora de receitas?', 'receita,receitas,rendimento,peso,pao,paes,calculadora,massa,ingrediente,fornada', 'Na página Receitas, abra uma receita e diga quantos pães quer produzir: o sistema calcula o peso de cada ingrediente. O rendimento é automático: soma dos pesos dividida pelo peso unitário do pão.', 'funcionario'],
+    ['Onde vejo minhas avaliações?', 'avaliacao,avaliacoes,desempenho,nota,performance,avaliar', 'Suas avaliações ficam em Avaliações (funcionário) ou Meu desempenho (líder e gerente). Todo mês seu responsável registra uma avaliação e você acompanha o histórico por lá.', 'funcionario'],
+    ['Como acompanho as reclamações?', 'reclamacao,reclamacoes,acompanhar,metricas,indicadores,painel,cliente,setor,prazo', 'A página Reclamações mostra os indicadores por tipo, setor, líder, cliente e prioridade. Funcionários consultam os números; registrar, editar ou concluir reclamações é tarefa de líderes, gerentes e administradores (ou de quem tiver a permissão).', 'funcionario'],
+    ['Como vejo os comunicados?', 'comunicado,comunicados,mural,aviso,avisos,oficial', 'Abra Comunicados pelo atalho do Início. Lá ficam os avisos oficiais da empresa, com data e conteúdo completo.', 'funcionario'],
+    ['Para que servem as notificações?', 'notificacao,notificacoes,sino,aviso,avisos,som,apita', 'O sino no canto superior direito junta todos os avisos: reclamações novas, MIPs aguardando revisão ou aprovadas e avaliações publicadas. Ele apita quando chega algo novo e tudo fica registrado para ver depois.', 'funcionario'],
+    ['Esqueci minha senha', 'senha,login,entrar,acesso,alterar,esqueci', 'Em Minha senha você troca sua senha quando quiser. Se não consegue entrar, peça ao administrador para redefinir.', 'funcionario'],
+    ['Para que serve o Início?', 'inicio,dashboard,painel,atalho,atalhos,campanha,faixa,banner', 'O Início reúne a faixa de campanhas e os atalhos para Manuais, Receitas, Meu desempenho, Reclamações, Comunicados e Notificações. No celular, os atalhos viram cartões grandes para toque.', 'funcionario'],
+    ['Quem é você?', 'lino,voce,quem,ajuda,oi,ola,opa,bom dia,boa tarde,boa noite', 'Eu sou o Lino, ajudante do Portal - Nova Esperança! Posso explicar as funções do sistema: pergunte sobre MIPs, receitas, avaliações, reclamações ou senha.', 'funcionario'],
+
+    ['Como criar uma MIP?', 'criar,nova,mip,mips,cadastrar,manual,procedimento', 'Em Manuais (MIPs) → Nova MIP, preencha código, título, resumo, objetivo e conteúdo. Ao salvar, a MIP fica Em Revisão e o Administrador é avisado para aprovar. Você pode salvar como Rascunho e concluir depois.', 'lider'],
+    ['Como corrigir uma MIP reprovada?', 'corrigir,correcao,reprovada,reprovado,revisao,editar,reenviar', 'Abra a MIP reprovada, leia as Correções solicitadas pelo Administrador e clique em Editar. Ajuste o conteúdo e salve: a MIP volta para Em Revisão. Ao editar qualquer MIP publicada, ela também retorna para aprovação.', 'lider'],
+    ['Como avaliar minha equipe?', 'avaliar,avaliacao,avaliacoes,equipe,funcionario,colaborador,nota,desempenho', 'Em Avaliações → Nova avaliação, escolha o colaborador do seu time e o mês. Responda as competências do modelo, escreva as observações e publique. O funcionário recebe uma notificação e vê o resultado em Meu desempenho. A meta é 80%.', 'lider'],
+    ['Como registro uma reclamação?', 'reclamacao,reclamacoes,cliente,mofado,reclamar,queixa', 'Em Reclamações → Nova reclamação, selecione cliente, tipo, líder responsável, setor e descrição. A prioridade e o prazo entram automaticamente pelo tipo; anexe até 10 fotos. O líder, a gerência e a nutri são avisados.', 'lider'],
+    ['Como concluir uma reclamação?', 'concluir,reabrir,retorno,prazo,atrasada,status', 'Na lista de Reclamações, cada cartão mostra o prazo. Depois do retorno ao cliente, clique em Confirmar retorno e concluir. Se precisar voltar a tratar, use Reabrir reclamação.', 'lider'],
+    ['Como funcionam os prazos das reclamações?', 'prazo,prazos,prioridade,verde,amarelo,vermelho,atraso,urgencia', 'O tipo da reclamação sugere a prioridade: verde (não urgente), amarelo (média) e vermelho (imediata). Cada prioridade tem um prazo configurado pelo Administrador; cartões atrasados ficam destacados em vermelho.', 'lider'],
+    ['Onde vejo meu desempenho como líder?', 'meu,desempenho,lider,minha,avaliacao,historico', 'Use Meu desempenho no menu. Líderes são avaliados por gerentes ou administradores; gerentes são avaliados pelo Administrador. Você vê o histórico mensal, o percentual e o gráfico de evolução.', 'lider'],
+    ['Como funciona a aprovação das MIPs?', 'aprovacao,aprovar,publicado,publicar,revisao', 'Quem cria ou edita envia a MIP para Em Revisão. Somente o Administrador aprova, reprova com orientações ou publica diretamente. Após a aprovação, o manual fica disponível para todos os funcionários.', 'lider'],
+
+    ['Como avaliar líderes e equipes?', 'avaliar,lider,gerente,equipe,colaborador,avaliacao', 'Em Avaliações você pode registrar avaliações dos líderes e dos demais colaboradores. Escolha o colaborador, o mês e o modelo, responda as competências e publique. Gerentes são avaliados somente pelo Administrador.', 'gerente'],
+    ['Como acompanhar o desempenho da equipe?', 'desempenho,equipe,historico,grafico,relatorio,meta,percentual', 'Em Avaliações, use os filtros por colaborador e mês e abra o histórico. É possível imprimir ou compartilhar a avaliação por link. A meta de desempenho é 80%.', 'gerente'],
+    ['Como gerenciar as reclamações?', 'gerenciar,reclamacao,reclamacoes,setor,filtro,concluir,acompanhar', 'Em Reclamações, filtre por mês, setor, líder, tipo ou cliente. Veja prazos e prioridades, edite os dados e conclua ou reabra o atendimento. A exclusão de reclamações é exclusiva do Administrador.', 'gerente'],
+    ['Como usar os relatórios de reclamações?', 'relatorio,relatorios,metricas,indicadores,imprimir,cliente,setor', 'A página Reclamações reúne gráficos por tipo, setor, líder, cliente, prioridade e mês. Use os filtros e o botão de impressão para gerar o relatório do período.', 'gerente'],
+    ['Posso aprovar MIPs?', 'aprovar,publicar,revisao,aprovacao', 'Não. Gerentes podem consultar, criar e editar MIPs, mas a aprovação, a reprovação e a publicação são exclusivas do Administrador. Ao salvar uma edição, a MIP volta para Em Revisão.', 'gerente'],
+    ['Como funciona a hierarquia das avaliações?', 'hierarquia,quem,avalia,avaliador,lider,gerente', 'Funcionários são avaliados pelos líderes; líderes, por gerentes ou administradores; gerentes, pelo Administrador. Cada usuário precisa ter um responsável e uma função/modelo de avaliação definidos no cadastro.', 'gerente'],
+
+    ['Como aprovar ou reprovar uma MIP?', 'aprovar,reprovar,mip,correcao,publicar,revisao', 'Abra a MIP Em Revisão. Use Aprovar para publicar ou Reprovar para solicitar correções, explicando o que deve ser ajustado. O autor recebe notificação e, após corrigir, a MIP volta para Em Revisão.', 'administrador'],
+    ['Como publicar uma MIP diretamente?', 'publicar,direto,publicado,diretamente,status', 'Ao criar uma MIP, escolha Status Inicial → Publicado Diretamente. Em MIPs já existentes, use Aprovar na tela do manual. Só o Administrador vê essa opção.', 'administrador'],
+    ['Como cadastrar um usuário?', 'usuario,usuarios,cadastrar,novo,perfil,importar,planilha', 'Em Usuários → Novo Usuário, informe nome, login, perfil, líder responsável e função/modelo de avaliação. Para Funcionário, Líder e Gerente o responsável e o modelo são obrigatórios. Também é possível importar vários usuários por planilha .xlsx; os importados usam a senha 1234 e trocam no primeiro acesso.', 'administrador'],
+    ['Como redefinir a senha de alguém?', 'redefinir,senha,temporaria,usuario,acesso,esqueceu', 'Em Usuários, clique no ícone de chave do usuário, gere ou digite uma senha temporária e confirme. O usuário deverá trocá-la no próximo acesso. A senha antiga não pode ser recuperada.', 'administrador'],
+    ['Como criar modelos de avaliação?', 'modelo,modelos,avaliacao,pergunta,perguntas,criterios,copiar', 'Em Configurações → Avaliações, crie um modelo, adicione as competências, perguntas e critérios e marque as que exigem observação. Use Copiar modelo para reaproveitar uma estrutura e depois vincule o modelo ao usuário em Usuários.', 'administrador'],
+    ['Como personalizar o portal?', 'configuracao,configuracoes,logo,login,banner,faixa,dashboard,icone,identidade', 'Em Configurações → Portal você troca o nome, logos, imagem do login, faixa do painel inicial e ícone do Lino. As imagens passam por um corte guiado antes de salvar.', 'administrador'],
+    ['Como editar os tópicos do Lino?', 'lino,ajuda,topico,topicos,pergunta,resposta,nivel', 'Em Configurações → Ajuda (Lino), cadastre pergunta, palavras-chave, resposta e o nível de acesso (Funcionário, Líder, Gerente ou Administrador). Cada usuário vê os tópicos do seu nível e dos níveis inferiores.', 'administrador'],
+    ['Como gerar etiquetas e caixas?', 'etiqueta,etiquetas,pimaco,caixa,caixas,imprimir,impressao,ferramenta', 'Em Ferramentas, abra Etiquetas (Pimaco 6187) ou Pacotes e Caixas. Preencha os dados, ajuste a impressão e use uma impressora compatível. As regras de turnos e clientes são aplicadas automaticamente.', 'administrador'],
+    ['Como gerar ou restaurar um backup?', 'backup,backups,restaurar,copia,seguranca,postgres', 'Em Configurações → Backup do banco, clique em Gerar backup agora para criar uma cópia. Para restaurar, escolha um arquivo, informe sua senha de Administrador e confirme; o sistema cria antes um backup automático do estado atual.', 'administrador'],
+    ['Como gerenciar os catálogos de reclamações?', 'catalogo,catalogos,cliente,clientes,tipo,tipos,setor,setores,prazos', 'Em Configurações → Reclamações, cadastre clientes, tipos, setores e prazos por prioridade. O tipo define a prioridade sugerida e o setor aparece na reclamação a partir do líder responsável.', 'administrador'],
+    ['Como excluir uma reclamação?', 'excluir,apagar,reclamacao,definitivamente', 'Somente o Administrador pode excluir definitivamente uma reclamação. Na lista, use o ícone de lixeira no cartão. Para encerrar sem apagar, use Confirmar retorno e concluir.', 'administrador'],
   ];
-  for (const [pergunta, gatilhos, resposta] of padrao) {
-    const existe = await pool.query('SELECT 1 FROM ajuda_respostas WHERE pergunta=$1 LIMIT 1', [pergunta]);
-    if (!existe.rows.length) await pool.query('INSERT INTO ajuda_respostas (pergunta,gatilhos,resposta) VALUES ($1,$2,$3)', [pergunta, gatilhos, resposta]);
+  for (const [pergunta, gatilhos, resposta, nivel] of padrao) {
+    const existe = await pool.query('SELECT id FROM ajuda_respostas WHERE pergunta=$1 LIMIT 1', [pergunta]);
+    if (!existe.rows.length) {
+      await pool.query('INSERT INTO ajuda_respostas (pergunta,gatilhos,resposta,nivel) VALUES ($1,$2,$3,$4)', [pergunta, gatilhos, resposta, nivel]);
+    } else if (nivel !== 'funcionario') {
+      // Migra as respostas antigas (que nasceram sem nível) sem sobrescrever
+      // uma classificação já ajustada manualmente pelo Administrador.
+      await pool.query("UPDATE ajuda_respostas SET nivel=$2 WHERE pergunta=$1 AND nivel='funcionario'", [pergunta, nivel]);
+    }
   }
   await pool.query(`UPDATE ajuda_respostas SET gatilhos='lino,voce,quem,ajuda,oi,ola,opa,bom dia,boa tarde,boa noite', resposta='Eu sou o Lino, ajudante do Portal - Nova Esperança! Posso explicar as funções do sistema: pergunte sobre MIPs, receitas, avaliações, reclamações ou senha.' WHERE pergunta='Quem é você?' AND resposta LIKE '%mascote%'`);
+  await pool.query("UPDATE ajuda_respostas SET nivel='administrador' WHERE pergunta='O que são as Etiquetas?' AND nivel='funcionario'");
   // Renome 19/09/2026: Portal MIPs → Portal - Nova Esperança (atualiza linhas já gravadas).
   await pool.query(`UPDATE ajuda_respostas SET resposta = REPLACE(resposta, 'Portal MIPs', 'Portal - Nova Esperança') WHERE resposta LIKE '%Portal MIPs%'`);
 }
-app.get('/api/ajuda/respostas', verificarToken, async (_req, res) => {
-  const r = await pool.query('SELECT id,pergunta,gatilhos,resposta FROM ajuda_respostas WHERE ativo=TRUE ORDER BY id');
-  res.json(r.rows);
+app.get('/api/ajuda/respostas', verificarToken, async (req, res) => {
+  const r = await pool.query(`SELECT id,pergunta,gatilhos,resposta,nivel FROM ajuda_respostas WHERE ativo=TRUE ORDER BY CASE nivel WHEN 'funcionario' THEN 0 WHEN 'lider' THEN 1 WHEN 'gerente' THEN 2 ELSE 3 END, id`);
+  res.json(filtrarPorNivel(r.rows, req.usuarioPerfil));
 });
 app.post('/api/configuracoes/ajuda/respostas', verificarToken, async (req, res) => {
   if (normalizarPerfil(req.usuarioPerfil) !== 'administrador') return res.status(403).json({ error: 'Acesso negado' });
   const pergunta = String(req.body?.pergunta || '').trim(), resposta = String(req.body?.resposta || '').trim(), gatilhos = String(req.body?.gatilhos || '').trim();
+  const nivel = String(req.body?.nivel || 'funcionario').toLowerCase();
   if (pergunta.length < 3 || resposta.length < 3) return res.status(400).json({ error: 'Informe a pergunta e a resposta' });
-  const r = await pool.query('INSERT INTO ajuda_respostas (pergunta,gatilhos,resposta) VALUES ($1,$2,$3) RETURNING *', [pergunta, gatilhos, resposta]);
+  if (!NIVEIS_AJUDA.includes(nivel)) return res.status(400).json({ error: 'Nível de acesso inválido' });
+  const r = await pool.query('INSERT INTO ajuda_respostas (pergunta,gatilhos,resposta,nivel) VALUES ($1,$2,$3,$4) RETURNING *', [pergunta, gatilhos, resposta, nivel]);
   res.status(201).json(r.rows[0]);
 });
 app.put('/api/configuracoes/ajuda/respostas/:id', verificarToken, async (req, res) => {
@@ -646,6 +688,11 @@ app.put('/api/configuracoes/ajuda/respostas/:id', verificarToken, async (req, re
       if (v.length < minimo) return res.status(400).json({ error: 'Texto muito curto' });
       vals.push(v); sets.push(`${campo}=$${vals.length}`);
     }
+  }
+  if (req.body?.nivel !== undefined) {
+    const nivel = String(req.body.nivel || '').toLowerCase();
+    if (!NIVEIS_AJUDA.includes(nivel)) return res.status(400).json({ error: 'Nível de acesso inválido' });
+    vals.push(nivel); sets.push(`nivel=$${vals.length}`);
   }
   if (!sets.length) return res.status(400).json({ error: 'Nada para atualizar' });
   vals.push(req.params.id);
@@ -898,6 +945,223 @@ app.delete('/api/usuarios/:id', verificarToken, async (req, res) => {
     await pool.query('DELETE FROM usuarios WHERE id = $1', [req.params.id]);
     res.json({ mensagem: 'Excluído!' });
   } catch (err) { res.status(500).json({ error: 'Erro' }); }
+});
+
+// IMPORTAÇÃO DE USUÁRIOS POR PLANILHA (cadastro em massa, senha padrão "1234").
+// Colunas do modelo (aba "Usuarios"): nome | login | perfil | matricula | cpf |
+// responsavel_login | funcao_modelo | categoria_acesso | setores.
+// - perfil aceito: Funcionario (ou Leitor), Lider (ou Editor), Gerente, Administrador.
+// - Funcionario/Lider/Gerente exigem responsavel_login + funcao_modelo.
+// - categoria_acesso e setores são opcionais (setores separados por ";" ou ",").
+// - Todos os criados recebem senha padrão "1234" (hash bcrypt) + deve_alterar_senha=TRUE.
+const SENHA_PADRAO_IMPORTACAO_USUARIOS = '1234';
+const importarUsuariosXLSX = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+const normalizarPerfilImportacao = (valor) => {
+  const v = String(valor || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (['funcionario', 'funcionarios', 'leitor', 'colaborador', 'colaboradores'].includes(v)) return 'Leitor';
+  if (['lider', 'lideres', 'editor', 'lideranca'].includes(v)) return 'Editor';
+  if (['gerente', 'gerentes', 'gestor', 'gestores'].includes(v)) return 'Gerente';
+  if (['administrador', 'administradores', 'admin', 'adm'].includes(v)) return 'Administrador';
+  return null;
+};
+const CABECALHO_USUARIOS = ['nome', 'login', 'perfil', 'matricula', 'cpf', 'responsavel_login', 'funcao_modelo', 'categoria_acesso', 'setores'];
+
+// Modelo da planilha para download (abas "Usuarios" + "Listas" oculta + "Instruções").
+// As listas suspensas são geradas na hora com os dados atuais do banco: todo
+// Líder/Gerente/Administrador cadastrado (inclusive adicionado manualmente) já
+// aparece como opção em responsavel_login; funções, categorias e setores idem.
+// Basta baixar o modelo de novo para ver os cadastros mais recentes.
+const MAX_LINHAS_MODELO_USUARIOS = 500;
+app.get('/api/usuarios/modelo-planilha', verificarToken, somenteAdministrador, async (req, res) => {
+  if (!XLSX) return res.status(500).json({ error: 'Gerador de planilha indisponível no servidor' });
+  try {
+    const [usuariosDb, modelosDb, categoriasDb, setoresDb] = await Promise.all([
+      pool.query(`SELECT email FROM usuarios WHERE LOWER(perfil) IN ('editor','gerente','administrador') ORDER BY email`),
+      pool.query('SELECT nome FROM modelos_avaliacao WHERE ativo=TRUE ORDER BY nome'),
+      pool.query('SELECT nome FROM categorias_acesso ORDER BY nome'),
+      pool.query('SELECT nome FROM setores_reclamacao WHERE ativo=TRUE ORDER BY nome'),
+    ]);
+    const unicos = (lista) => [...new Set(lista.map((v) => String(v || '').trim()).filter(Boolean))].slice(0, 200);
+    const responsaveis = unicos(usuariosDb.rows.map((u) => u.email));
+    const funcoes = unicos(modelosDb.rows.map((m) => m.nome));
+    const categorias = unicos(categoriasDb.rows.map((c) => c.nome));
+    const setores = unicos(setoresDb.rows.map((s) => s.nome));
+    // Aba "Usuarios": só o cabeçalho — colunas C, F, G, H e I têm lista suspensa.
+    const ws = XLSX.utils.aoa_to_sheet([CABECALHO_USUARIOS]);
+    ws['!cols'] = [
+      { wch: 26 }, { wch: 18 }, { wch: 15 }, { wch: 12 }, { wch: 18 },
+      { wch: 20 }, { wch: 24 }, { wch: 20 }, { wch: 28 },
+    ];
+    // Aba "Listas" (oculta): opções vivas do banco que alimentam as suspensas.
+    const listasAoa = [['responsavel_login (quem pode avaliar)', 'funcao_modelo (nome exato)', 'categoria_acesso (nome exato)', 'setores (combine com " ; ")']];
+    const altura = Math.max(responsaveis.length, funcoes.length, categorias.length, setores.length, 1);
+    for (let i = 0; i < altura; i++) listasAoa.push([responsaveis[i] || '', funcoes[i] || '', categorias[i] || '', setores[i] || '']);
+    const wsListas = XLSX.utils.aoa_to_sheet(listasAoa);
+    wsListas['!cols'] = [{ wch: 36 }, { wch: 36 }, { wch: 36 }, { wch: 36 }];
+    const instrucoes = [
+      ['IMPORTAÇÃO DE USUÁRIOS — COMO PREENCHER'],
+      [''],
+      ['1. Preencha uma linha por usuário na aba "Usuarios". Não altere o nome das colunas.'],
+      ['2. As colunas perfil, responsavel_login, funcao_modelo, categoria_acesso e setores já vêm com LISTA SUSPENSA (setinha na célula) preenchida com os dados atuais do sistema — é só escolher. Também dá para digitar.'],
+      [`3. Cadastrou um Líder, função, categoria ou setor novo? Baixe o modelo de novo: as listas são geradas na hora (${responsaveis.length} responsável(is), ${funcoes.length} função(ões), ${categorias.length} categoria(s), ${setores.length} setor(es) neste arquivo).`],
+      ['4. Colunas obrigatórias: nome | login | perfil.'],
+      ['5. Perfil aceito (pode usar qualquer um destes nomes):'],
+      ['   - Funcionario (ou Leitor): quem recebe avaliação de um Líder.'],
+      ['   - Lider (ou Editor): avaliado por um Gerente ou Administrador.'],
+      ['   - Gerente: avaliado por um Administrador.'],
+      ['   - Administrador: acesso total, sem responsável e sem função.'],
+      ['6. Para Funcionario, Lider e Gerente, escolha também: responsavel_login (quem avalia) + funcao_modelo (nome exato da função).'],
+      ['7. Opcionais: matricula | cpf | categoria_acesso | setores (para mais de um setor, combine com " ; " — ex.: Produção; Embalagem).'],
+      ['8. Exemplo de linha: Maria Silva | maria.silva | Funcionario | 1001 | 123.456.789-00 | aline | Embalagem | (vazio) | Embalagem; Logística'],
+      ['9. SENHA PADRÃO: todos os usuários importados recebem a senha "1234".'],
+      ['   Cada pessoa deve trocar a senha no primeiro acesso (o sistema exige a troca).'],
+      ['10. Se o login já existir no sistema, aquela linha é ignorada (relatório mostra o motivo).'],
+      ['11. Salve o arquivo como .xlsx e importe na tela Gerenciamento de Usuários → Importar planilha.'],
+    ];
+    const ws2 = XLSX.utils.aoa_to_sheet(instrucoes);
+    ws2['!cols'] = [{ wch: 115 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Usuarios');
+    XLSX.utils.book_append_sheet(wb, wsListas, 'Listas');
+    XLSX.utils.book_append_sheet(wb, ws2, 'Instruções');
+    let buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    // Listas suspensas (validação de dados) aplicadas direto no XML, pois o gerador
+    // não as emite. Se algo falhar, o modelo é entregue mesmo assim, só sem as setinhas.
+    try {
+      if (AdmZip) {
+        const fim = 1 + MAX_LINHAS_MODELO_USUARIOS; // linhas 2..501 (limite da importação)
+        const validacoes = ['<dataValidation type="list" allowBlank="1" showErrorMessage="0" sqref="C2:C' + fim + '"><formula1>"Funcionario,Lider,Gerente,Administrador"</formula1></dataValidation>'];
+        if (responsaveis.length) validacoes.push('<dataValidation type="list" allowBlank="1" showErrorMessage="0" sqref="F2:F' + fim + '"><formula1>Listas!$A$2:$A$' + (1 + responsaveis.length) + '</formula1></dataValidation>');
+        if (funcoes.length) validacoes.push('<dataValidation type="list" allowBlank="1" showErrorMessage="0" sqref="G2:G' + fim + '"><formula1>Listas!$B$2:$B$' + (1 + funcoes.length) + '</formula1></dataValidation>');
+        if (categorias.length) validacoes.push('<dataValidation type="list" allowBlank="1" showErrorMessage="0" sqref="H2:H' + fim + '"><formula1>Listas!$C$2:$C$' + (1 + categorias.length) + '</formula1></dataValidation>');
+        // Setores também têm setinha (escolha um e complete com " ; " para combinar vários).
+        if (setores.length) validacoes.push('<dataValidation type="list" allowBlank="1" showErrorMessage="0" sqref="I2:I' + fim + '"><formula1>Listas!$D$2:$D$' + (1 + setores.length) + '</formula1></dataValidation>');
+        const zip = new AdmZip(buf);
+        const wbEntry = zip.getEntry('xl/workbook.xml');
+        if (wbEntry) {
+          const wbXml = zip.readAsText(wbEntry).replace('<sheet name="Listas"', '<sheet name="Listas" state="hidden"');
+          zip.deleteFile('xl/workbook.xml');
+          zip.addFile('xl/workbook.xml', Buffer.from(wbXml, 'utf8'));
+        }
+        const wsEntry = zip.getEntry('xl/worksheets/sheet1.xml');
+        if (wsEntry) {
+          const wsXml = zip.readAsText(wsEntry);
+          if (wsXml.includes('</sheetData>')) {
+            const bloco = '<dataValidations count="' + validacoes.length + '">' + validacoes.join('') + '</dataValidations>';
+            zip.deleteFile('xl/worksheets/sheet1.xml');
+            zip.addFile('xl/worksheets/sheet1.xml', Buffer.from(wsXml.replace('</sheetData>', '</sheetData>' + bloco), 'utf8'));
+            buf = zip.toBuffer();
+          }
+        }
+      }
+    } catch (e) { console.error('Modelo de usuários entregue sem listas suspensas:', e.message); }
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="modelo-importacao-usuarios.xlsx"');
+    res.send(buf);
+  } catch (e) { res.status(500).json({ error: 'Erro ao gerar o modelo da planilha' }); }
+});
+
+// Importação em massa: recebe .xlsx (campo "arquivo"), cria usuários com senha "1234".
+app.post('/api/usuarios/importar', verificarToken, somenteAdministrador, importarUsuariosXLSX.single('arquivo'), async (req, res) => {
+  if (!XLSX) return res.status(500).json({ error: 'Leitor de planilha indisponível no servidor' });
+  if (!req.file) return res.status(400).json({ error: 'Anexe a planilha (.xlsx) preenchida a partir do modelo' });
+  let registros;
+  try {
+    const wb = XLSX.read(req.file.buffer, { type: 'buffer' });
+    const ws = wb.Sheets['Usuarios'] || wb.Sheets[wb.SheetNames[0]];
+    registros = XLSX.utils.sheet_to_json(ws, { defval: '' });
+    // Cabeçalhos tolerantes a maiúsculas/minúsculas e espaços ("Nome" = "nome").
+    registros = registros.map((row) => {
+      const normalizada = {};
+      for (const [k, v] of Object.entries(row)) normalizada[String(k || '').trim().toLowerCase()] = v;
+      return normalizada;
+    });
+  } catch (e) { return res.status(400).json({ error: 'Não foi possível ler a planilha. Use o modelo oficial (.xlsx)' }); }
+  if (!registros.length) return res.status(400).json({ error: 'A planilha não possui linhas para importar' });
+  if (registros.length > 500) return res.status(400).json({ error: 'Máximo de 500 linhas por importação' });
+  try {
+    const [usuariosDb, modelosDb, categoriasDb, setoresDb] = await Promise.all([
+      pool.query('SELECT id, email, perfil FROM usuarios'),
+      pool.query('SELECT id, nome FROM modelos_avaliacao WHERE ativo=TRUE'),
+      pool.query('SELECT id, nome FROM categorias_acesso'),
+      pool.query('SELECT id, nome FROM setores_reclamacao WHERE ativo=TRUE'),
+    ]);
+    const porLogin = new Map(usuariosDb.rows.map((u) => [String(u.email || '').trim().toLowerCase(), u]));
+    const modeloPorNome = new Map(modelosDb.rows.map((m) => [String(m.nome || '').trim().toLowerCase(), m]));
+    const categoriaPorNome = new Map(categoriasDb.rows.map((c) => [String(c.nome || '').trim().toLowerCase(), c]));
+    const setorPorNome = new Map(setoresDb.rows.map((s) => [String(s.nome || '').trim().toLowerCase(), s]));
+    const hashPadrao = await bcrypt.hash(SENHA_PADRAO_IMPORTACAO_USUARIOS, 10);
+    let criados = 0;
+    const ignorados = [];
+    for (let i = 0; i < registros.length; i++) {
+      const linhaPlanilha = i + 2; // +1 cabeçalho, +1 base 1
+      const r = registros[i];
+      const nome = String(r.nome ?? '').trim();
+      const login = String(r.login ?? '').trim();
+      const perfil = normalizarPerfilImportacao(r.perfil);
+      const matricula = String(r.matricula ?? '').trim();
+      const cpf = String(r.cpf ?? '').trim();
+      const responsavelLogin = String(r.responsavel_login ?? r.responsavel ?? '').trim().toLowerCase();
+      const funcaoModeloNome = String(r.funcao_modelo ?? r.funcao ?? r.modelo ?? '').trim();
+      const categoriaNome = String(r.categoria_acesso ?? r.categoria ?? '').trim();
+      const setoresTexto = String(r.setores ?? r.setor ?? '').trim();
+      const falhar = (motivo) => ignorados.push({ linha: linhaPlanilha, login: login || '—', nome: nome || '—', motivo });
+      if (nome.length < 2) { falhar('Informe o nome (mínimo 2 letras)'); continue; }
+      if (!login) { falhar('Informe o login'); continue; }
+      if (!perfil) { falhar('Perfil inválido — use: Funcionario, Lider, Gerente ou Administrador'); continue; }
+      if (porLogin.has(login.toLowerCase())) { falhar('Login já cadastrado — linha ignorada'); continue; }
+      const ehAvaliado = ['Leitor', 'Editor', 'Gerente'].includes(perfil);
+      let liderId = null, modeloId = null, modeloNome = '';
+      if (ehAvaliado) {
+        if (!responsavelLogin) { falhar('Informe o responsavel_login (quem avalia este usuário)'); continue; }
+        const responsavel = porLogin.get(responsavelLogin);
+        if (!responsavel) { falhar(`Responsável "${responsavelLogin}" não encontrado (use um login já cadastrado)`); continue; }
+        const esperados = perfil === 'Leitor' ? ['editor'] : perfil === 'Editor' ? ['gerente', 'administrador'] : ['administrador'];
+        if (!esperados.includes(String(responsavel.perfil || '').toLowerCase())) {
+          falhar(`Responsável "${responsavelLogin}" não tem o perfil adequado (${perfil === 'Leitor' ? 'precisa ser Líder' : perfil === 'Editor' ? 'precisa ser Gerente ou Administrador' : 'precisa ser Administrador'})`);
+          continue;
+        }
+        liderId = Number(responsavel.id);
+        if (!funcaoModeloNome) { falhar('Informe a funcao_modelo (nome exato da função de avaliação)'); continue; }
+        const modelo = modeloPorNome.get(funcaoModeloNome.toLowerCase());
+        if (!modelo) { falhar(`Função "${funcaoModeloNome}" não encontrada (use o nome exato do cadastro em Modelos)`); continue; }
+        modeloId = Number(modelo.id);
+        modeloNome = modelo.nome;
+      }
+      let categoriaId = null;
+      if (categoriaNome) {
+        const cat = categoriaPorNome.get(categoriaNome.toLowerCase());
+        if (!cat) { falhar(`Categoria "${categoriaNome}" não encontrada`); continue; }
+        categoriaId = Number(cat.id);
+      }
+      const setorIds = [];
+      if (setoresTexto) {
+        const nomes = setoresTexto.split(/[;,\n]+/).map((s) => s.trim()).filter(Boolean);
+        let setorOk = true;
+        for (const n of nomes) {
+          const s = setorPorNome.get(n.toLowerCase());
+          if (!s) { falhar(`Setor "${n}" não encontrado`); setorOk = false; break; }
+          setorIds.push(Number(s.id));
+        }
+        if (!setorOk) continue;
+      }
+      try {
+        const ins = await pool.query(
+          'INSERT INTO usuarios (nome,email,senha,perfil,setor,cargo,matricula,cpf,lider_id,modelo_avaliacao_id,categoria_acesso_id,deve_alterar_senha) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,TRUE) RETURNING id',
+          [nome, login, hashPadrao, perfil, modeloNome, modeloNome, matricula, cpf, liderId, modeloId, categoriaId]
+        );
+        try { await salvarSetoresUsuario(Number(ins.rows[0].id), setorIds); }
+        catch (e) { await pool.query('DELETE FROM usuarios WHERE id=$1', [ins.rows[0].id]); falhar(e.message || 'Setores inválidos'); continue; }
+        porLogin.set(login.toLowerCase(), { id: ins.rows[0].id, email: login, perfil });
+        criados++;
+      } catch (e) {
+        if (e.code === '23505') falhar('Login já cadastrado — linha ignorada');
+        else falhar('Erro ao salvar no banco');
+      }
+    }
+    await registrarLog(req.usuarioId, 'importar', 'usuario', null, `${criados} criados, ${ignorados.length} ignorados (senha padrão ${SENHA_PADRAO_IMPORTACAO_USUARIOS})`);
+    res.json({ criados, ignorados, senha_padrao: SENHA_PADRAO_IMPORTACAO_USUARIOS });
+  } catch (e) { res.status(500).json({ error: 'Erro ao importar a planilha' }); }
 });
 
 // RECEITAS

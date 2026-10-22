@@ -323,7 +323,7 @@ export default function Folgas() {
   );
 
   if (perfil === 'leitor') {
-    return <div className="min-h-screen bg-[var(--bg-main)]"><LeitorTopbar /><main className="p-6 sm:p-10 max-w-4xl">{conteudoFunc}</main></div>;
+    return <div className="min-h-screen bg-[var(--bg-main)]"><LeitorTopbar /><main className="p-4 sm:p-10 max-w-4xl">{conteudoFunc}</main></div>;
   }
-  return <div className="min-h-screen bg-[var(--bg-main)] flex"><Sidebar /><main className="flex-1 p-6 sm:p-10">{ehRH ? conteudoRH : conteudoFunc}</main></div>;
+  return <div className="min-h-screen bg-[var(--bg-main)] flex"><Sidebar /><main className="flex-1 min-w-0 p-4 sm:p-10">{ehRH ? conteudoRH : conteudoFunc}</main></div>;
 }

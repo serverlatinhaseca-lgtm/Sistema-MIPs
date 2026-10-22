@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { UserPlus, Trash2, KeyRound, Pencil, Copy, Wand2 } from "lucide-react";
+import { UserPlus, Trash2, KeyRound, Pencil, Copy, Wand2, Download, Upload, FileSpreadsheet, XCircle, CheckCircle2 } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 import API from '../api';
 
@@ -27,6 +27,8 @@ export default function Usuarios() {
   const [usuarioSenha, setUsuarioSenha] = useState(null);
   const [senhaTemporaria, setSenhaTemporaria] = useState("");
   const [senhaRedefinida, setSenhaRedefinida] = useState(false);
+  const [importando, setImportando] = useState(false);
+  const [resultadoImportacao, setResultadoImportacao] = useState(null);
 
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem("user") || "{}");
@@ -124,6 +126,45 @@ export default function Usuarios() {
     } catch (err) { alert(err.response?.data?.error || "Erro ao redefinir senha."); }
   };
 
+  const baixarModelo = async () => {
+    try {
+      const res = await axios.get(`${API}/api/usuarios/modelo-planilha`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        responseType: "blob",
+      });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "modelo-importacao-usuarios.xlsx";
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      alert(err.response?.data?.error || "Erro ao baixar o modelo da planilha.");
+    }
+  };
+
+  const importarPlanilha = async (e) => {
+    const arquivo = e.target.files?.[0];
+    e.target.value = "";
+    if (!arquivo) return;
+    if (!confirm(`Importar "${arquivo.name}"?\n\nTodos os usuários da planilha serão cadastrados com a senha padrão "1234" e deverão trocá-la no primeiro acesso.`)) return;
+    setImportando(true);
+    setResultadoImportacao(null);
+    try {
+      const form = new FormData();
+      form.append("arquivo", arquivo);
+      const res = await axios.post(`${API}/api/usuarios/importar`, form, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      });
+      setResultadoImportacao(res.data);
+      carregarUsuarios();
+    } catch (err) {
+      alert(err.response?.data?.error || "Erro ao importar a planilha.");
+    } finally {
+      setImportando(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[var(--bg-main)] text-[var(--text-main)] flex">
       <Sidebar />
@@ -143,6 +184,60 @@ export default function Usuarios() {
             <UserPlus size={20} className="mr-2" /> Novo Usuário
           </button>
         </header>
+
+        <section className="bg-[var(--bg-card)] border border-[var(--border-color)] rounded-2xl shadow-sm p-5 mb-6">
+          <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+            <div className="flex items-start gap-3 flex-1">
+              <span className="p-2.5 rounded-xl bg-[var(--primary)]/10 text-[var(--primary)]"><FileSpreadsheet size={22} /></span>
+              <div>
+                <h2 className="font-bold text-lg leading-tight">Cadastro em massa por planilha</h2>
+                <p className="text-sm text-[var(--text-muted)] mt-1">
+                  <strong>Passo 1:</strong> baixe o modelo. <strong>Passo 2:</strong> preencha uma linha por usuário. <strong> Passo 3:</strong> importe o arquivo <strong>.xlsx</strong> aqui.
+                  Todos os importados recebem a <strong>senha padrão “1234”</strong> e o sistema exige a troca no primeiro acesso.
+                </p>
+                <ul className="text-xs text-[var(--text-muted)] mt-2 space-y-0.5">
+                  <li>• O modelo já vem com <strong>listas suspensas</strong> preenchidas com os dados atuais: responsáveis (Líderes, Gerentes e Administradores), funções, categorias e setores — cadastrou alguém novo? Baixe o modelo de novo.</li>
+                  <li>• Colunas obrigatórias: <strong>nome | login | perfil</strong> (Funcionario, Lider, Gerente ou Administrador).</li>
+                  <li>• Para Funcionario, Lider e Gerente, escolha também <strong>responsavel_login</strong> (quem avalia) e <strong>funcao_modelo</strong> (nome exato da função).</li>
+                  <li>• Opcionais: matricula | cpf | categoria_acesso | setores (separados por “;”). Logins já existentes são ignorados.</li>
+                </ul>
+              </div>
+            </div>
+            <div className="flex flex-col sm:flex-row lg:flex-col gap-2 shrink-0">
+              <button onClick={baixarModelo} className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-[var(--border-color)] hover:opacity-80 font-medium text-sm">
+                <Download size={18} /> Baixar modelo da planilha
+              </button>
+              <label className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-medium text-sm cursor-pointer ${importando ? "opacity-60 pointer-events-none" : ""} bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)]`}>
+                <Upload size={18} /> {importando ? "Importando..." : "Importar planilha (.xlsx)"}
+                <input type="file" accept=".xlsx,.xls" className="hidden" onChange={importarPlanilha} disabled={importando} />
+              </label>
+            </div>
+          </div>
+          {resultadoImportacao && (
+            <div className="mt-4 rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)] p-4">
+              <div className="flex items-start justify-between gap-3">
+                <p className="flex items-center gap-2 font-semibold text-sm">
+                  <CheckCircle2 size={18} className="text-emerald-600" />
+                  Importação concluída: {resultadoImportacao.criados} usuário(s) criado(s) com a senha padrão “1234”
+                  {!!resultadoImportacao.ignorados?.length && ` · ${resultadoImportacao.ignorados.length} linha(s) ignorada(s)`}
+                </p>
+                <button onClick={() => setResultadoImportacao(null)} className="text-[var(--text-muted)] hover:opacity-70" title="Fechar relatório"><XCircle size={18} /></button>
+              </div>
+              {!!resultadoImportacao.ignorados?.length && (
+                <div className="mt-3 max-h-48 overflow-auto rounded-xl border border-[var(--border-color)]">
+                  <table className="w-full text-left text-xs">
+                    <thead><tr className="bg-black/5"><th className="p-2">Linha</th><th className="p-2">Login</th><th className="p-2">Nome</th><th className="p-2">Motivo</th></tr></thead>
+                    <tbody>
+                      {resultadoImportacao.ignorados.map((e, i) => (
+                        <tr key={i} className="border-t border-[var(--border-color)]/50"><td className="p-2">{e.linha}</td><td className="p-2">{e.login}</td><td className="p-2">{e.nome}</td><td className="p-2">{e.motivo}</td></tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+        </section>
 
         {mostrarModal && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
@@ -188,7 +283,7 @@ export default function Usuarios() {
                     placeholder="******"
                   />
                 </div>}
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm font-medium mb-1 text-[var(--text-muted)]">
                       Matrícula
