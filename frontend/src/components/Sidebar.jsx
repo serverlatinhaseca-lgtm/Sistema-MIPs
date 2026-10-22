@@ -19,9 +19,8 @@ export default function Sidebar({ emDrawer = false, aoNavegar = () => {} }) {
   const alternarModo = () => { const v = modo === 'fixa' ? 'flutuante' : 'fixa'; setModo(v); localStorage.setItem('sidebar-modo', v); setVisivel(false); };
   const branding = useBranding();
 
-  // Pasta RH (ASO, Banco de Horas, Folgas, Atendimento, Comunicados) — em polimento,
-  // oculta do menu por enquanto. Para reativar, basta trocar para `true`.
-  const RH_ATIVO = false;
+  // Pasta RH (ASO, Banco de Horas, Folgas, Atendimento, Comunicados) — reativada
+  // no menu em 22/10/2026 a pedido do mantenedor para revisão das telas.
 
   const toggleTheme = () => {
     const isDark = document.documentElement.classList.toggle('dark');
@@ -54,13 +53,11 @@ export default function Sidebar({ emDrawer = false, aoNavegar = () => {} }) {
     <IconBtn titulo="Receitas" ativo={isActive('/receitas')} abrir={() => ir('/receitas')}><Calculator size={20} /></IconBtn>
     <IconBtn titulo={user.perfil?.toLowerCase() === 'leitor' ? 'Meu desempenho' : 'Avaliações'} ativo={isActive('/avaliacoes')} abrir={() => ir('/avaliacoes')}><ClipboardCheck size={20} /></IconBtn>
     <IconBtn titulo="Reclamações" ativo={isActive('/reclamacoes')} abrir={() => ir('/reclamacoes')}><AlertTriangle size={20} /></IconBtn>
-    {RH_ATIVO && <>
     <IconBtn titulo="Atendimento" ativo={isActive('/atendimento')} abrir={() => ir('/atendimento')}><MessageCircle size={20} /></IconBtn>
     <IconBtn titulo="Banco de Horas" ativo={isActive('/banco-horas')} abrir={() => ir('/banco-horas')}><FileText size={20} /></IconBtn>
     <IconBtn titulo="Folgas" ativo={isActive('/folgas')} abrir={() => ir('/folgas')}><CalendarDays size={20} /></IconBtn>
     <IconBtn titulo="Comunicados" ativo={isActive('/comunicados')} abrir={() => ir('/comunicados')}><Megaphone size={20} /></IconBtn>
     <IconBtn titulo={user.perfil?.toLowerCase() === 'leitor' ? 'Meu ASO' : 'ASO'} ativo={isActive('/aso')} abrir={() => ir('/aso')}><HeartPulse size={20} /></IconBtn>
-    </>}
     {['editor','gerente'].includes(user.perfil?.toLowerCase()) && <IconBtn titulo="Meu desempenho" ativo={isActive('/meu-desempenho')} abrir={() => ir('/meu-desempenho')}><ClipboardCheck size={20} /></IconBtn>}
     {user.perfil?.toLowerCase() === 'administrador' && <>
       <IconBtn titulo="Usuários" ativo={isActive('/usuarios')} abrir={() => ir('/usuarios')}><Users size={20} /></IconBtn>
@@ -102,13 +99,13 @@ export default function Sidebar({ emDrawer = false, aoNavegar = () => {} }) {
             <ClipboardCheck size={20} className="mr-3" /> {user.perfil?.toLowerCase() === 'leitor' ? 'Meu desempenho' : 'Avaliações'}
           </div>
           <div onClick={() => ir('/reclamacoes')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/reclamacoes') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}><AlertTriangle size={20} className="mr-3" /> Reclamações</div>
-          {RH_ATIVO && <Pasta titulo="RH" aberta={pastas.rh} alternar={()=>setPastas(v=>({...v,rh:!v.rh}))}>
+          <Pasta titulo="RH" aberta={pastas.rh} alternar={()=>setPastas(v=>({...v,rh:!v.rh}))}>
             <Item icon={<MessageCircle size={18}/>} titulo="Atendimento" ativo={isActive('/atendimento')} abrir={()=>navigate('/atendimento')}/>
             <Item icon={<FileText size={18}/>} titulo={user.perfil?.toLowerCase() === 'leitor' ? 'Meu Banco de Horas' : 'Banco de Horas'} ativo={isActive('/banco-horas')} abrir={()=>navigate('/banco-horas')}/>
             <Item icon={<CalendarDays size={18}/>} titulo={user.perfil?.toLowerCase() === 'leitor' ? 'Minhas Folgas' : 'Folgas'} ativo={isActive('/folgas')} abrir={()=>navigate('/folgas')}/>
             <Item icon={<Megaphone size={18}/>} titulo="Comunicados" ativo={isActive('/comunicados')} abrir={()=>navigate('/comunicados')}/>
             <Item icon={<HeartPulse size={18}/>} titulo={user.perfil?.toLowerCase() === 'leitor' ? 'Meu ASO' : 'ASO'} ativo={isActive('/aso')} abrir={()=>navigate('/aso')}/>
-          </Pasta>}
+          </Pasta>
           {['editor','gerente'].includes(user.perfil?.toLowerCase()) && <div onClick={() => ir('/meu-desempenho')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/meu-desempenho') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}><ClipboardCheck size={20} className="mr-3" /> Meu desempenho</div>}
           {user.perfil?.toLowerCase() === 'administrador' && <>
             <Pasta titulo="Ferramentas" aberta={pastas.ferramentas} alternar={()=>setPastas(v=>({...v,ferramentas:!v.ferramentas}))}>
