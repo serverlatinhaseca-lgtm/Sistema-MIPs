@@ -1884,6 +1884,10 @@ async function registrarLog(usuarioId, acao, entidade, entidadeId, detalhes) {
 // Quem é RH gerencia ASO, Banco de Horas, Folgas, Atendimento e Comunicados.
 const PERFIS_RH = ['administrador', 'gerente', 'rh'];
 const ehRH = (perfil) => PERFIS_RH.includes(String(perfil || '').toLowerCase());
+// Quem recebe as notificações operacionais do RH (ticket novo/mensagem, folga
+// solicitada, ASO vencido/confirmado). O Administrador saiu da lista em
+// 22/10/2026 a pedido do mantenedor — sobram Gerente e o perfil RH.
+const SQL_DESTINATARIOS_RH = `LOWER(perfil) IN ('gerente','rh')`;
 
 const pdfASO = multer({
   storage: multer.diskStorage({
@@ -2102,7 +2106,7 @@ app.put('/api/asos/:id', verificarToken, async (req, res) => {
       await criarNotificacao(r.rows[0].usuario_id, 'aso_vencido', 'ASO vencido',
         `${r.rows[0].nome_funcionario}: vencimento ${String(venc).slice(0, 10)} — procure o RH`, '/aso', `aso:${r.rows[0].id}:vencido`);
     }
-    const rhs = await pool.query(`SELECT id FROM usuarios WHERE LOWER(perfil) IN ('administrador','gerente','rh')`);
+    const rhs = await pool.query(`SELECT id FROM usuarios WHERE ${SQL_DESTINATARIOS_RH}`);
     for (const rh of rhs.rows) {
       if (Number(rh.id) === Number(req.usuarioId)) continue;
       await criarNotificacao(rh.id, 'aso_vencido', 'ASO vencido',
@@ -2212,8 +2216,8 @@ app.post('/api/asos/:id/confirmar-presenca', verificarToken, async (req, res) =>
     'UPDATE asos SET presenca_confirmada=TRUE,presenca_confirmada_em=NOW(),atualizado_em=NOW() WHERE id=$1 RETURNING *', [req.params.id]
   );
   await registrarLog(req.usuarioId, 'confirmar_presenca', 'aso', req.params.id, a.nome_funcionario);
-  const admins = await pool.query(`SELECT id FROM usuarios WHERE LOWER(perfil) IN ('administrador','gerente','rh')`);
-  for (const adm of admins.rows) {
+  const destinosAso = await pool.query(`SELECT id FROM usuarios WHERE ${SQL_DESTINATARIOS_RH}`);
+  for (const adm of destinosAso.rows) {
     await criarNotificacao(adm.id, 'aso_confirmado', 'Presença confirmada', `${a.nome_funcionario} confirmou presença no ASO`, '/aso', `aso:${a.id}:presenca`);
   }
   res.json(upd.rows[0]);
@@ -2546,7 +2550,7 @@ app.post('/api/tickets', verificarToken, async (req, res) => {
     [numero, req.usuarioId, nome, categoria, titulo, String(b.descricao || ''), prioridade, prazo, req.usuarioId]
   );
   await registrarLog(req.usuarioId, 'criar', 'ticket', r.rows[0].id, `${numero} ${titulo}`);
-  const rhs = await pool.query(`SELECT id FROM usuarios WHERE LOWER(perfil) IN ('administrador','gerente','rh')`);
+  const rhs = await pool.query(`SELECT id FROM usuarios WHERE ${SQL_DESTINATARIOS_RH}`);
   for (const rh of rhs.rows) {
     if (Number(rh.id) === Number(req.usuarioId)) continue;
     await criarNotificacaoRespeitandoPrefs(rh.id, 'chat_novo', `Novo ticket ${numero}`, `${titulo} · ${prioridade}`, '/atendimento', `ticket:${r.rows[0].id}`);
@@ -2594,7 +2598,7 @@ app.post('/api/tickets/:id/mensagens', verificarToken, chatUpload.single('anexo'
   const autorEhRH = ehRH(req.usuarioPerfil);
   const destinos = autorEhRH
     ? (tick.usuario_id ? [Number(tick.usuario_id)] : [])
-    : (await pool.query(`SELECT id FROM usuarios WHERE LOWER(perfil) IN ('administrador','gerente','rh')`)).rows.map((x) => Number(x.id));
+    : (await pool.query(`SELECT id FROM usuarios WHERE ${SQL_DESTINATARIOS_RH}`)).rows.map((x) => Number(x.id));
   for (const uid of destinos) {
     if (uid === Number(req.usuarioId)) continue;
     await criarNotificacaoRespeitandoPrefs(uid, 'chat_msg', `💬 ${tick.numero}`, texto.slice(0, 150) || 'Novo anexo', '/atendimento', `ticket:${tick.id}:msg${r.rows[0].id}`);
@@ -3112,7 +3116,7 @@ app.post('/api/folgas/solicitacoes', verificarToken, async (req, res) => {
     [req.usuarioId, u.rows[0]?.nome || '', b.data_inicio, b.data_fim, String(b.motivo || '').slice(0, 500)]
   );
   await registrarLog(req.usuarioId, 'solicitar', 'solicitacao_folga', r.rows[0].id, `${b.data_inicio}→${b.data_fim}`);
-  const rhs = await pool.query(`SELECT id FROM usuarios WHERE LOWER(perfil) IN ('administrador','gerente','rh')`);
+  const rhs = await pool.query(`SELECT id FROM usuarios WHERE ${SQL_DESTINATARIOS_RH}`);
   for (const rh of rhs.rows) {
     if (Number(rh.id) === Number(req.usuarioId)) continue;
     await criarNotificacaoRespeitandoPrefs(rh.id, 'folga_solicitada', '📅 Solicitação de folga',
