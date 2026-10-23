@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { AlertTriangle, Bell, CalendarCheck, CalendarDays, CheckCheck, CheckCircle2, ClipboardCheck, FileText, FileWarning, HeartPulse, Megaphone, MessageCircle, RotateCcw, Volume2, VolumeX, X } from 'lucide-react';
+import { AlertTriangle, Bell, CalendarCheck, CalendarDays, CheckCheck, CheckCircle2, ClipboardCheck, FileText, FileWarning, Ghost, HeartPulse, Megaphone, MessageCircle, RotateCcw, Volume2, VolumeX, X } from 'lucide-react';
 import API from '../api';
 
 const porTipo = {
@@ -23,6 +23,7 @@ const porTipo = {
   banco_horas: { Icone: FileText, cor: '#0f766e', fundo: '#ccfbf1' },
   folga: { Icone: CalendarDays, cor: '#1d4ed8', fundo: '#dbeafe' },
   folga_solicitada: { Icone: CalendarDays, cor: '#a16207', fundo: '#fef9c3' },
+  desabafo: { Icone: Ghost, cor: '#6d28d9', fundo: '#ede9fe' },
 };
 
 function tempoRel(iso) {

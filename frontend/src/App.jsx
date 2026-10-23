@@ -22,6 +22,8 @@ import Comunicados from './pages/Comunicados';
 import Notificacoes from './pages/Notificacoes';
 import BancoHoras from './pages/BancoHoras';
 import Folgas from './pages/Folgas';
+import Desabafo from './pages/Desabafo';
+import Desabafos from './pages/Desabafos';
 import InstallPrompt from './components/InstallPrompt';
 import MobileNav from './components/MobileNav';
 
@@ -47,6 +49,8 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Login />} />
         <Route path="/avaliacoes/compartilhada/:token" element={<AvaliacaoCompartilhada />} />
+        {/* Página pública: fica fora do RotaPrivada para não registrar o usuário. */}
+        <Route path="/desabafo" element={<Desabafo />} />
         <Route path="/dashboard" element={<RotaPrivada><Dashboard /></RotaPrivada>} />
         <Route path="/mips" element={<RotaPrivada><ListaMIPs /></RotaPrivada>} />
         <Route path="/mips/nova" element={<RotaPrivada perfisPermitidos={['leitor','editor','gerente','administrador']}><CriarMIP /></RotaPrivada>} />
@@ -63,6 +67,7 @@ export default function App() {
         <Route path="/atendimento" element={<RotaPrivada><Atendimento /></RotaPrivada>} />
         <Route path="/comunicados" element={<RotaPrivada><Comunicados /></RotaPrivada>} />
         <Route path="/notificacoes" element={<RotaPrivada><Notificacoes /></RotaPrivada>} />
+        <Route path="/desabafos" element={<RotaPrivada perfisPermitidos={['rh','administrador']}><Desabafos /></RotaPrivada>} />
         <Route path="/banco-horas" element={<RotaPrivada><BancoHoras /></RotaPrivada>} />
         <Route path="/folgas" element={<RotaPrivada><Folgas /></RotaPrivada>} />
         <Route path="/ferramentas/etiquetas" element={<RotaPrivada perfisPermitidos={['administrador']}><FerramentasAdmin /></RotaPrivada>} />

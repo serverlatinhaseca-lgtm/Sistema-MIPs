@@ -14,7 +14,7 @@ const { prepararAvaliacao } = require('./avaliacoes');
 const { calcularASO, classificarFaixa, normalizarFaixaPlanilha, FAIXAS_VALIDAS } = require('./aso');
 const XLSX = (() => { try { return require('xlsx'); } catch { return null; } })();
 const { excelSerialToISO } = require('./aso');
-const { CATEGORIAS_TICKET, STATUS_TICKET, PRIORIDADES_TICKET, SLA_HORAS, numeroTicket, prazoSLA } = require('./tickets');
+const { CATEGORIAS_TICKET, STATUS_TICKET, PRIORIDADES_TICKET, SLA_HORAS, numeroTicket, prazoSLA, statusAposMensagem, ticketEncerrado } = require('./tickets');
 const AdmZip = (() => { try { return require('adm-zip'); } catch { return null; } })();
 const { MODELOS, TIPOS_FOLGA, TIMES, gerarFolgasCiclo } = require('./folgas');
 const { NIVEIS: NIVEIS_AJUDA, filtrarPorNivel } = require('./ajuda');
@@ -1884,6 +1884,10 @@ async function registrarLog(usuarioId, acao, entidade, entidadeId, detalhes) {
 // Quem é RH gerencia ASO, Banco de Horas, Folgas, Atendimento e Comunicados.
 const PERFIS_RH = ['administrador', 'gerente', 'rh'];
 const ehRH = (perfil) => PERFIS_RH.includes(String(perfil || '').toLowerCase());
+// Gestão dos módulos ASO, Comunicados e Banco de Horas: só Administrador e
+// Gerente. O perfil RH usa essas telas como funcionário (vê apenas o próprio
+// registro), conforme pedido do mantenedor em 23/10/2026.
+const perfilGestorRH = (perfil) => ['administrador', 'gerente'].includes(normalizarPerfil(perfil));
 // Quem recebe as notificações operacionais do RH (ticket novo/mensagem, folga
 // solicitada, ASO vencido/confirmado): SOMENTE o perfil RH (22/10/2026).
 // Gerente e Administrador saíram da lista a pedido do mantenedor.
@@ -1960,7 +1964,7 @@ app.get('/api/locais-exame', verificarToken, async (req, res) => {
 });
 
 app.post('/api/locais-exame', verificarToken, async (req, res) => {
-  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  if (!perfilGestorRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
   const b = req.body || {};
   const nome = String(b.nome || '').trim();
   if (nome.length < 2) return res.status(400).json({ error: 'Informe o nome do local' });
@@ -1978,7 +1982,7 @@ app.post('/api/locais-exame', verificarToken, async (req, res) => {
 });
 
 app.put('/api/locais-exame/:id', verificarToken, async (req, res) => {
-  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  if (!perfilGestorRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
   const b = req.body || {};
   const nome = String(b.nome || '').trim();
   if (nome.length < 2) return res.status(400).json({ error: 'Informe o nome do local' });
@@ -1995,7 +1999,7 @@ app.put('/api/locais-exame/:id', verificarToken, async (req, res) => {
 });
 
 app.delete('/api/locais-exame/:id', verificarToken, async (req, res) => {
-  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  if (!perfilGestorRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
   const fut = await pool.query(
     `SELECT COUNT(*)::int AS total FROM agendamentos_aso WHERE local_id=$1 AND realizado=FALSE AND data_hora >= NOW()`,
     [req.params.id]
@@ -2014,7 +2018,7 @@ app.get('/api/asos', verificarToken, async (req, res) => {
   try {
     const { faixa, busca } = req.query;
     const conds = [], params = [];
-    if (!ehRH(req.usuarioPerfil)) { params.push(req.usuarioId); conds.push('(a.usuario_id=$' + params.length + ')'); }
+    if (!perfilGestorRH(req.usuarioPerfil)) { params.push(req.usuarioId); conds.push('(a.usuario_id=$' + params.length + ')'); }
     if (faixa && FAIXAS_VALIDAS.includes(String(faixa))) { params.push(String(faixa)); conds.push(`faixa=$${params.length}`); }
     if (busca) { params.push(`%${String(busca).trim()}%`); conds.push(`(nome_funcionario ILIKE $${params.length} OR matricula ILIKE $${params.length})`); }
     const r = await pool.query(
@@ -2028,7 +2032,7 @@ app.get('/api/asos', verificarToken, async (req, res) => {
 
 app.get('/api/asos/resumo', verificarToken, async (req, res) => {
   try {
-    if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+    if (!perfilGestorRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
     const r = await pool.query(`SELECT faixa,COUNT(*)::int AS total FROM asos GROUP BY faixa`);
     const contadores = { Vermelho: 0, Laranja: 0, Amarelo: 0, Verde: 0, Pendente: 0 };
     for (const x of r.rows) if (contadores[x.faixa] !== undefined) contadores[x.faixa] = x.total;
@@ -2053,7 +2057,7 @@ app.get('/api/asos/meu', verificarToken, async (req, res) => {
 });
 
 app.post('/api/asos', verificarToken, async (req, res) => {
-  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  if (!perfilGestorRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
   const b = req.body || {};
   const nome = String(b.nome_funcionario || '').trim();
   if (nome.length < 2) return res.status(400).json({ error: 'Informe o nome do funcionário' });
@@ -2078,7 +2082,7 @@ app.post('/api/asos', verificarToken, async (req, res) => {
 });
 
 app.put('/api/asos/:id', verificarToken, async (req, res) => {
-  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  if (!perfilGestorRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
   const atual = await pool.query('SELECT * FROM asos WHERE id=$1', [req.params.id]);
   if (!atual.rows.length) return res.status(404).json({ error: 'ASO não encontrado' });
   const b = req.body || {};
@@ -2120,7 +2124,7 @@ app.put('/api/asos/:id', verificarToken, async (req, res) => {
 // Preserva faixa_importada da planilha; faixa calculada segue a regra do prompt.
 const importarXLSX = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 app.post('/api/asos/importar', verificarToken, importarXLSX.single('arquivo'), async (req, res) => {
-  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  if (!perfilGestorRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
   let linhas = Array.isArray(req.body?.linhas) ? req.body.linhas : [];
   if (req.file) {
     if (!XLSX) return res.status(500).json({ error: 'Leitor de planilha indisponível no servidor' });
@@ -2185,14 +2189,14 @@ app.post('/api/asos/importar', verificarToken, importarXLSX.single('arquivo'), a
 });
 
 app.post('/api/asos/recalcular', verificarToken, async (req, res) => {
-  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  if (!perfilGestorRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
   const r = await recalcularASOs();
   await registrarLog(req.usuarioId, 'recalcular', 'aso', null, `${r.atualizados} recalculados`);
   res.json(r);
 });
 
 app.post('/api/asos/:id/pdf', verificarToken, pdfASO.single('pdf'), async (req, res) => {
-  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  if (!perfilGestorRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
   if (!req.file) return res.status(400).json({ error: 'Envie o PDF do exame' });
   const url = `/uploads/${req.file.filename}`;
   const r = await pool.query('UPDATE asos SET pdf_url=$1,atualizado_em=NOW() WHERE id=$2 RETURNING *', [url, req.params.id]);
@@ -2209,7 +2213,7 @@ app.post('/api/asos/:id/confirmar-presenca', verificarToken, async (req, res) =>
   const r = await pool.query('SELECT * FROM asos WHERE id=$1', [req.params.id]);
   if (!r.rows.length) return res.status(404).json({ error: 'ASO não encontrado' });
   const a = r.rows[0];
-  if (!ehRH(req.usuarioPerfil) && Number(a.usuario_id) !== Number(req.usuarioId)) {
+  if (!perfilGestorRH(req.usuarioPerfil) && Number(a.usuario_id) !== Number(req.usuarioId)) {
     return res.status(403).json({ error: 'Você só pode confirmar o próprio ASO' });
   }
   const upd = await pool.query(
@@ -2228,7 +2232,7 @@ app.get('/api/agendamentos-aso', verificarToken, async (req, res) => {
   try {
     let q = `SELECT ag.*, l.nome AS local_nome FROM agendamentos_aso ag LEFT JOIN locais_exame l ON l.id=ag.local_id`;
     const params = [];
-    if (!ehRH(req.usuarioPerfil)) { params.push(req.usuarioId); q += ` WHERE ag.usuario_id=$${params.length}`; }
+    if (!perfilGestorRH(req.usuarioPerfil)) { params.push(req.usuarioId); q += ` WHERE ag.usuario_id=$${params.length}`; }
     q += ' ORDER BY ag.data_hora';
     const r = await pool.query(q, params);
     res.json(r.rows);
@@ -2236,7 +2240,7 @@ app.get('/api/agendamentos-aso', verificarToken, async (req, res) => {
 });
 
 app.post('/api/agendamentos-aso', verificarToken, async (req, res) => {
-  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  if (!perfilGestorRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
   const b = req.body || {};
   const nome = String(b.nome_funcionario || '').trim();
   if (!b.aso_id || !b.data_hora || !nome) return res.status(400).json({ error: 'Informe funcionário, ASO e data/hora' });
@@ -2261,7 +2265,7 @@ app.post('/api/agendamentos-aso', verificarToken, async (req, res) => {
 });
 
 app.put('/api/agendamentos-aso/:id', verificarToken, async (req, res) => {
-  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  if (!perfilGestorRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
   const b = req.body || {};
   const sets = [], vals = [];
   if (b.data_hora) { vals.push(b.data_hora); sets.push(`data_hora=$${vals.length}`); }
@@ -2282,7 +2286,7 @@ app.put('/api/agendamentos-aso/:id', verificarToken, async (req, res) => {
 });
 
 app.delete('/api/agendamentos-aso/:id', verificarToken, async (req, res) => {
-  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  if (!perfilGestorRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
   const r = await pool.query('DELETE FROM agendamentos_aso WHERE id=$1 RETURNING id', [req.params.id]);
   if (!r.rows.length) return res.status(404).json({ error: 'Agendamento não encontrado' });
   await registrarLog(req.usuarioId, 'excluir', 'agendamento_aso', req.params.id, '');
@@ -2293,7 +2297,7 @@ app.post('/api/agendamentos-aso/:id/confirmar', verificarToken, async (req, res)
   const r = await pool.query('SELECT * FROM agendamentos_aso WHERE id=$1', [req.params.id]);
   if (!r.rows.length) return res.status(404).json({ error: 'Agendamento não encontrado' });
   const ag = r.rows[0];
-  if (!ehRH(req.usuarioPerfil) && Number(ag.usuario_id) !== Number(req.usuarioId)) {
+  if (!perfilGestorRH(req.usuarioPerfil) && Number(ag.usuario_id) !== Number(req.usuarioId)) {
     return res.status(403).json({ error: 'Você só pode confirmar o próprio agendamento' });
   }
   const upd = await pool.query('UPDATE agendamentos_aso SET presenca_confirmada=TRUE WHERE id=$1 RETURNING *', [req.params.id]);
@@ -2335,7 +2339,7 @@ async function inicializarFase2() {
       categoria VARCHAR(20) NOT NULL DEFAULT 'Outro',
       titulo VARCHAR(220) NOT NULL,
       descricao TEXT NOT NULL DEFAULT '',
-      status VARCHAR(25) NOT NULL DEFAULT 'Aberto',
+      status VARCHAR(25) NOT NULL DEFAULT 'Atendendo',
       prioridade VARCHAR(10) NOT NULL DEFAULT 'Média',
       prazo_sla TIMESTAMP,
       fechado_em TIMESTAMP,
@@ -2346,6 +2350,11 @@ async function inicializarFase2() {
     CREATE INDEX IF NOT EXISTS tickets_status_idx ON tickets (status);
     CREATE INDEX IF NOT EXISTS tickets_usuario_idx ON tickets (usuario_id);
     ALTER TABLE tickets ADD COLUMN IF NOT EXISTS criado_por INT REFERENCES usuarios(id) ON DELETE SET NULL;
+    ALTER TABLE tickets ALTER COLUMN status SET DEFAULT 'Atendendo';
+    -- Migração para os 3 status enxutos (23/10/2026).
+    UPDATE tickets SET status='Atendendo' WHERE status IN ('Aberto','Em andamento');
+    UPDATE tickets SET status='Pendente' WHERE status='Aguardando funcionário';
+    UPDATE tickets SET status='Concluído' WHERE status IN ('Resolvido','Fechado');
     CREATE TABLE IF NOT EXISTS ticket_mensagens (
       id SERIAL PRIMARY KEY,
       ticket_id INT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
@@ -2358,6 +2367,14 @@ async function inicializarFase2() {
       criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     CREATE INDEX IF NOT EXISTS ticket_mensagens_ticket_idx ON ticket_mensagens (ticket_id, criado_em);
+    -- Desabafo anônimo (23/10/2026): enviado antes do login, sem vínculo com usuário.
+    CREATE TABLE IF NOT EXISTS desabafos (
+      id SERIAL PRIMARY KEY,
+      mensagem TEXT NOT NULL,
+      setor VARCHAR(60) NOT NULL DEFAULT '',
+      lido_em TIMESTAMP,
+      criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 }
 
@@ -2444,7 +2461,7 @@ const SEGMENTOS_COMUNICADO = ['todos', 'leitor', 'editor', 'gerente', 'administr
 const PRIORIDADES_COMUNICADO = ['Normal', 'Alta', 'Urgente'];
 
 app.get('/api/comunicados', verificarToken, async (req, res) => {
-  if (ehRH(req.usuarioPerfil)) {
+  if (perfilGestorRH(req.usuarioPerfil)) {
     const r = await pool.query(
       `SELECT c.*, u.nome AS criado_por_nome,
        (SELECT COUNT(*)::int FROM comunicado_leituras l WHERE l.comunicado_id=c.id) AS leituras,
@@ -2464,7 +2481,7 @@ app.get('/api/comunicados', verificarToken, async (req, res) => {
 });
 
 app.post('/api/comunicados', verificarToken, async (req, res) => {
-  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  if (!perfilGestorRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
   const b = req.body || {};
   const titulo = String(b.titulo || '').trim();
   if (titulo.length < 3) return res.status(400).json({ error: 'Informe o título do comunicado' });
@@ -2481,14 +2498,14 @@ app.post('/api/comunicados', verificarToken, async (req, res) => {
 });
 
 app.post('/api/comunicados/:id/enviar', verificarToken, async (req, res) => {
-  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  if (!perfilGestorRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
   const total = await enviarComunicado(req.params.id);
   if (total === null) return res.status(404).json({ error: 'Comunicado não encontrado ou já enviado' });
   res.json({ destinatarios: total });
 });
 
 app.post('/api/comunicados/:id/reenviar', verificarToken, async (req, res) => {
-  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  if (!perfilGestorRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
   const c = await pool.query('SELECT * FROM comunicados WHERE id=$1', [req.params.id]);
   if (!c.rows.length) return res.status(404).json({ error: 'Comunicado não encontrado' });
   await pool.query('UPDATE comunicados SET enviado_em=NULL WHERE id=$1', [req.params.id]);
@@ -2497,7 +2514,7 @@ app.post('/api/comunicados/:id/reenviar', verificarToken, async (req, res) => {
 });
 
 app.get('/api/comunicados/:id/leituras', verificarToken, async (req, res) => {
-  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  if (!perfilGestorRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
   const r = await pool.query(
     `SELECT u.nome, l.lido_em FROM comunicado_leituras l JOIN usuarios u ON u.id=l.usuario_id WHERE l.comunicado_id=$1 ORDER BY l.lido_em DESC`,
     [req.params.id]
@@ -2513,18 +2530,22 @@ app.post('/api/comunicados/:id/ler', verificarToken, async (req, res) => {
 // ---- Tickets / Chat interno ----
 app.get('/api/tickets', verificarToken, async (req, res) => {
   try {
-    const { status, categoria, busca } = req.query;
+    const { status, categoria, busca, situacao, de, ate } = req.query;
     const conds = [], params = [];
     if (!ehRH(req.usuarioPerfil)) { params.push(req.usuarioId); conds.push(`t.usuario_id=$${params.length}`); }
     if (status && STATUS_TICKET.includes(String(status))) { params.push(String(status)); conds.push(`t.status=$${params.length}`); }
+    else if (String(situacao || '') === 'historico') conds.push(`t.status='Concluído'`);
+    else if (String(situacao || '') === 'ativos') conds.push(`t.status<>'Concluído'`);
     if (categoria && CATEGORIAS_TICKET.includes(String(categoria))) { params.push(String(categoria)); conds.push(`t.categoria=$${params.length}`); }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(String(de || ''))) { params.push(String(de)); conds.push(`t.criado_em >= $${params.length}::date`); }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(String(ate || ''))) { params.push(String(ate)); conds.push(`t.criado_em < ($${params.length}::date + INTERVAL '1 day')`); }
     if (busca) {
       params.push(`%${String(busca).trim()}%`);
       conds.push(`(t.numero ILIKE $${params.length} OR t.titulo ILIKE $${params.length} OR EXISTS (SELECT 1 FROM ticket_mensagens m WHERE m.ticket_id=t.id AND m.texto ILIKE $${params.length}))`);
     }
     const r = await pool.query(
       `SELECT t.*, (SELECT COUNT(*)::int FROM ticket_mensagens m WHERE m.ticket_id=t.id) AS mensagens,
-       CASE WHEN t.prazo_sla IS NOT NULL AND t.status NOT IN ('Resolvido','Fechado') AND t.prazo_sla < NOW() THEN TRUE ELSE FALSE END AS sla_estourado
+       CASE WHEN t.prazo_sla IS NOT NULL AND t.status <> 'Concluído' AND t.prazo_sla < NOW() THEN TRUE ELSE FALSE END AS sla_estourado
        FROM tickets t ${conds.length ? 'WHERE ' + conds.join(' AND ') : ''} ORDER BY t.atualizado_em DESC LIMIT 200`,
       params
     );
@@ -2532,7 +2553,21 @@ app.get('/api/tickets', verificarToken, async (req, res) => {
   } catch (e) { res.status(500).json({ error: 'Erro ao listar tickets' }); }
 });
 
-app.post('/api/tickets', verificarToken, async (req, res) => {
+// Contadores do sino/badge: Atendendo = na fila do RH.
+app.get('/api/tickets/resumo', verificarToken, async (req, res) => {
+  try {
+    if (!ehRH(req.usuarioPerfil)) return res.json({ atendendo: 0, pendentes: 0, concluidos: 0 });
+    const r = await pool.query(
+      `SELECT COUNT(*) FILTER (WHERE status='Atendendo')::int AS atendendo,
+              COUNT(*) FILTER (WHERE status='Pendente')::int AS pendentes,
+              COUNT(*) FILTER (WHERE status='Concluído')::int AS concluidos
+       FROM tickets`
+    );
+    res.json(r.rows[0]);
+  } catch (e) { res.status(500).json({ error: 'Erro ao contar tickets' }); }
+});
+
+app.post('/api/tickets', verificarToken, chatUpload.single('anexo'), async (req, res) => {
   const b = req.body || {};
   const titulo = String(b.titulo || '').trim();
   if (titulo.length < 3) return res.status(400).json({ error: 'Informe o assunto' });
@@ -2545,11 +2580,19 @@ app.post('/api/tickets', verificarToken, async (req, res) => {
   const u = await pool.query('SELECT nome FROM usuarios WHERE id=$1', [req.usuarioId]);
   const nome = u.rows[0]?.nome || '';
   const r = await pool.query(
-    `INSERT INTO tickets (numero,usuario_id,nome_solicitante,categoria,titulo,descricao,prioridade,prazo_sla,criado_por)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+    `INSERT INTO tickets (numero,usuario_id,nome_solicitante,categoria,titulo,descricao,status,prioridade,prazo_sla,criado_por)
+     VALUES ($1,$2,$3,$4,$5,$6,'Atendendo',$7,$8,$9) RETURNING *`,
     [numero, req.usuarioId, nome, categoria, titulo, String(b.descricao || ''), prioridade, prazo, req.usuarioId]
   );
-  await registrarLog(req.usuarioId, 'criar', 'ticket', r.rows[0].id, `${numero} ${titulo}`);
+  // Anexo enviado na abertura entra como primeira mensagem do ticket.
+  if (req.file) {
+    await pool.query(
+      `INSERT INTO ticket_mensagens (ticket_id,usuario_id,nome_autor,texto,anexo_url,anexo_nome,anexo_tipo)
+       VALUES ($1,$2,$3,'',$4,$5,$6)`,
+      [r.rows[0].id, req.usuarioId, nome, `/uploads/${req.file.filename}`, req.file.originalname, req.file.mimetype]
+    );
+  }
+  await registrarLog(req.usuarioId, 'criar', 'ticket', r.rows[0].id, `${numero} ${titulo}${req.file ? ' [anexo]' : ''}`);
   const rhs = await pool.query(`SELECT id FROM usuarios WHERE ${SQL_DESTINATARIOS_RH}`);
   for (const rh of rhs.rows) {
     if (Number(rh.id) === Number(req.usuarioId)) continue;
@@ -2579,8 +2622,8 @@ app.post('/api/tickets/:id/mensagens', verificarToken, chatUpload.single('anexo'
   if (!ehRH(req.usuarioPerfil) && Number(tick.usuario_id) !== Number(req.usuarioId)) {
     return res.status(403).json({ error: 'Você só participa dos próprios tickets' });
   }
-  if (['Resolvido', 'Fechado'].includes(tick.status) && !ehRH(req.usuarioPerfil)) {
-    return res.status(400).json({ error: 'Ticket encerrado. Abra um novo se precisar.' });
+  if (ticketEncerrado(tick.status) && !ehRH(req.usuarioPerfil)) {
+    return res.status(400).json({ error: 'Ticket concluído. Abra um novo se precisar.' });
   }
   const texto = String(req.body?.texto || '').trim();
   const anexo = req.file ? `/uploads/${req.file.filename}` : '';
@@ -2592,10 +2635,13 @@ app.post('/api/tickets/:id/mensagens', verificarToken, chatUpload.single('anexo'
     [req.params.id, req.usuarioId, u.rows[0]?.nome || '', texto, anexo,
      req.file ? req.file.originalname : '', req.file ? req.file.mimetype : '']
   );
-  await pool.query(`UPDATE tickets SET atualizado_em=NOW(), status=CASE WHEN status='Resolvido' THEN 'Em andamento' ELSE status END WHERE id=$1`, [req.params.id]);
+  // Resposta do RH deixa aguardando o funcionário; mensagem do funcionário volta
+  // para a fila do RH (Atendendo). Ticket concluído reabre quando o RH responde.
+  const autorEhRH = ehRH(req.usuarioPerfil);
+  const novoStatus = statusAposMensagem(tick.status, autorEhRH);
+  await pool.query('UPDATE tickets SET atualizado_em=NOW(), status=$2 WHERE id=$1', [req.params.id, novoStatus]);
   await registrarLog(req.usuarioId, 'mensagem', 'ticket', req.params.id, texto.slice(0, 120) || '[anexo]');
   // Notifica o outro lado: RH ↔ solicitante.
-  const autorEhRH = ehRH(req.usuarioPerfil);
   const destinos = autorEhRH
     ? (tick.usuario_id ? [Number(tick.usuario_id)] : [])
     : (await pool.query(`SELECT id FROM usuarios WHERE ${SQL_DESTINATARIOS_RH}`)).rows.map((x) => Number(x.id));
@@ -2619,8 +2665,8 @@ app.patch('/api/tickets/:id', verificarToken, async (req, res) => {
   if (b.categoria && CATEGORIAS_TICKET.includes(String(b.categoria))) { vals.push(String(b.categoria)); sets.push(`categoria=$${vals.length}`); }
   if (!sets.length) return res.status(400).json({ error: 'Nada para atualizar' });
   let fechadoSql = 'fechado_em';
-  if (b.status === 'Fechado') fechadoSql = 'NOW()';
-  else if (b.status === 'Aberto') fechadoSql = 'NULL';
+  if (b.status === 'Concluído') fechadoSql = 'NOW()';
+  else if (STATUS_TICKET.includes(String(b.status))) fechadoSql = 'NULL';
   vals.push(req.params.id);
   const r = await pool.query(
     `UPDATE tickets SET ${sets.join(', ')}, atualizado_em=NOW(), fechado_em=${fechadoSql} WHERE id=$${vals.length} RETURNING *`,
@@ -2629,12 +2675,90 @@ app.patch('/api/tickets/:id', verificarToken, async (req, res) => {
   if (!r.rows.length) return res.status(404).json({ error: 'Ticket não encontrado' });
   await registrarLog(req.usuarioId, 'atualizar', 'ticket', req.params.id, JSON.stringify(b).slice(0, 200));
   if (r.rows[0].usuario_id && Number(r.rows[0].usuario_id) !== Number(req.usuarioId)) {
-    const tipo = b.status === 'Fechado' ? 'chat_fechado' : 'chat_update';
+    const tipo = b.status === 'Concluído' ? 'chat_fechado' : 'chat_update';
     await criarNotificacaoRespeitandoPrefs(r.rows[0].usuario_id, tipo,
-      b.status === 'Fechado' ? `Ticket ${r.rows[0].numero} fechado` : `Ticket ${r.rows[0].numero} atualizado`,
+      b.status === 'Concluído' ? `Ticket ${r.rows[0].numero} concluído` : `Ticket ${r.rows[0].numero} atualizado`,
       `Status: ${r.rows[0].status}`, '/atendimento', `ticket:${r.rows[0].id}:${r.rows[0].status}`);
   }
   res.json(r.rows[0]);
+});
+
+// ---- Desabafo anônimo (23/10/2026) ----
+// Preenchido na tela pública, antes do login: não guarda usuário, IP nem horário
+// de identificação. Chega para o RH e para o Administrador.
+const SETORES_DESABAFO = ['Produção', 'Confeitaria', 'Padaria', 'Atendimento', 'Logística', 'Limpeza', 'Administrativo', 'Outro'];
+const enviosDesabafo = new Map();
+function podeEnviarDesabafo(ip) {
+  const agora = Date.now(), janela = 10 * 60 * 1000, max = 5;
+  const historico = (enviosDesabafo.get(ip) || []).filter((t) => agora - t < janela);
+  if (historico.length >= max) return false;
+  historico.push(agora);
+  enviosDesabafo.set(ip, historico);
+  return true;
+}
+
+app.post('/api/desabafos', async (req, res) => {
+  try {
+    if (!podeEnviarDesabafo(req.ip || 'desconhecido')) {
+      return res.status(429).json({ error: 'Muitos envios seguidos. Aguarde alguns minutos.' });
+    }
+    const mensagem = String(req.body?.mensagem || '').trim();
+    if (mensagem.length < 10) return res.status(400).json({ error: 'Escreva pelo menos 10 caracteres.' });
+    if (mensagem.length > 4000) return res.status(400).json({ error: 'Mensagem muito longa (máximo 4000 caracteres).' });
+    const setor = SETORES_DESABAFO.includes(String(req.body?.setor)) ? String(req.body.setor) : '';
+    const r = await pool.query('INSERT INTO desabafos (mensagem,setor) VALUES ($1,$2) RETURNING id', [mensagem, setor]);
+    const dest = await pool.query(`SELECT id FROM usuarios WHERE LOWER(perfil) IN ('rh','administrador')`);
+    for (const u of dest.rows) {
+      await criarNotificacao(u.id, 'desabafo', '🤫 Novo desabafo anônimo', setor ? `Setor: ${setor}` : 'Sem setor informado', '/desabafos', `desabafo:${r.rows[0].id}`);
+    }
+    res.status(201).json({ ok: true });
+  } catch (e) { res.status(500).json({ error: 'Não foi possível enviar agora. Tente novamente.' }); }
+});
+
+const podeVerDesabafos = (perfil) => ['rh', 'administrador'].includes(normalizarPerfil(perfil));
+
+app.get('/api/desabafos', verificarToken, async (req, res) => {
+  if (!podeVerDesabafos(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH e ao Administrador' });
+  try {
+    const r = await pool.query('SELECT * FROM desabafos ORDER BY criado_em DESC LIMIT 300');
+    res.json(r.rows);
+  } catch (e) { res.status(500).json({ error: 'Erro ao listar desabafos' }); }
+});
+
+app.patch('/api/desabafos/:id/lido', verificarToken, async (req, res) => {
+  if (!podeVerDesabafos(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH e ao Administrador' });
+  try {
+    const r = await pool.query('UPDATE desabafos SET lido_em=NOW() WHERE id=$1 RETURNING *', [req.params.id]);
+    if (!r.rows.length) return res.status(404).json({ error: 'Desabafo não encontrado' });
+    res.json(r.rows[0]);
+  } catch (e) { res.status(500).json({ error: 'Erro ao marcar desabafo' }); }
+});
+
+// Indicadores do painel do RH (mesmo desenho do painel do Administrador).
+app.get('/api/rh/dashboard', verificarToken, async (req, res) => {
+  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  try {
+    const [tickets, asos, folgas, mips, desabafos] = await Promise.all([
+      pool.query(`SELECT COUNT(*) FILTER (WHERE status='Atendendo')::int AS atendendo,
+                         COUNT(*) FILTER (WHERE status='Pendente')::int AS pendentes,
+                         COUNT(*) FILTER (WHERE status='Concluído')::int AS concluidos FROM tickets`),
+      pool.query(`SELECT COUNT(*) FILTER (WHERE faixa='Vermelho')::int AS vencidos,
+                         COUNT(*) FILTER (WHERE faixa='Laranja')::int AS a_vencer FROM asos`),
+      pool.query(`SELECT COUNT(*) FILTER (WHERE status='pendente')::int AS pendentes FROM solicitacoes_folga`),
+      pool.query(`SELECT COUNT(*) FILTER (WHERE status='Publicado')::int AS publicadas FROM mips`),
+      pool.query(`SELECT COUNT(*) FILTER (WHERE lido_em IS NULL)::int AS nao_lidos FROM desabafos`),
+    ]);
+    res.json({
+      ticketsAtendendo: tickets.rows[0].atendendo,
+      ticketsPendentes: tickets.rows[0].pendentes,
+      ticketsConcluidos: tickets.rows[0].concluidos,
+      asosVencidos: asos.rows[0].vencidos,
+      asosAVencer: asos.rows[0].a_vencer,
+      folgasPendentes: folgas.rows[0].pendentes,
+      mipsPublicadas: mips.rows[0].publicadas,
+      desabafosNaoLidos: desabafos.rows[0].nao_lidos,
+    });
+  } catch (e) { res.status(500).json({ error: 'Erro ao carregar indicadores' }); }
 });
 
 // ============ BANCO DE HORAS (23/09/2026) ============
@@ -2725,7 +2849,7 @@ const bhIndividual = multer({
 });
 
 app.post('/api/banco-horas/lotes', verificarToken, async (req, res) => {
-  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  if (!perfilGestorRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
   const competencia = String(req.body?.competencia || '').trim();
   if (!COMP_RE.test(competencia)) return res.status(400).json({ error: 'Competência inválida (use AAAA-MM)' });
   const r = await pool.query('INSERT INTO banco_horas_lotes (competencia) VALUES ($1) RETURNING *', [competencia]);
@@ -2734,7 +2858,7 @@ app.post('/api/banco-horas/lotes', verificarToken, async (req, res) => {
 });
 
 app.get('/api/banco-horas/lotes', verificarToken, async (req, res) => {
-  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  if (!perfilGestorRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
   const r = await pool.query(
     `SELECT l.*, u.nome AS publicado_por_nome FROM banco_horas_lotes l LEFT JOIN usuarios u ON u.id=l.publicado_por ORDER BY l.criado_em DESC LIMIT 60`
   );
@@ -2742,7 +2866,7 @@ app.get('/api/banco-horas/lotes', verificarToken, async (req, res) => {
 });
 
 app.delete('/api/banco-horas/lotes/:id', verificarToken, async (req, res) => {
-  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  if (!perfilGestorRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
   const l = await pool.query('SELECT status FROM banco_horas_lotes WHERE id=$1', [req.params.id]);
   if (!l.rows.length) return res.status(404).json({ error: 'Lote não encontrado' });
   if (l.rows[0].status !== 'rascunho') return res.status(400).json({ error: 'Só é possível excluir rascunho' });
@@ -2759,7 +2883,7 @@ app.delete('/api/banco-horas/lotes/:id', verificarToken, async (req, res) => {
 app.post('/api/banco-horas/lotes/:id/arquivos', verificarToken, bhUpload.fields([
   { name: 'pdfs', maxCount: 50 }, { name: 'mapeamento', maxCount: 1 }, { name: 'pacote', maxCount: 1 },
 ]), async (req, res) => {
-  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  if (!perfilGestorRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
   const lote = await pool.query('SELECT * FROM banco_horas_lotes WHERE id=$1', [req.params.id]);
   if (!lote.rows.length) return res.status(404).json({ error: 'Lote não encontrado' });
   if (lote.rows[0].status !== 'rascunho') return res.status(400).json({ error: 'Lote já publicado' });
@@ -2844,13 +2968,13 @@ app.post('/api/banco-horas/lotes/:id/arquivos', verificarToken, bhUpload.fields(
 });
 
 app.get('/api/banco-horas/lotes/:id/revisao', verificarToken, async (req, res) => {
-  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  if (!perfilGestorRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
   const r = await pool.query('SELECT * FROM banco_horas WHERE lote_id=$1 ORDER BY status, nome_funcionario', [req.params.id]);
   res.json(r.rows);
 });
 
 app.post('/api/banco-horas/lotes/:id/publicar', verificarToken, async (req, res) => {
-  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  if (!perfilGestorRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
   const lote = await pool.query('SELECT * FROM banco_horas_lotes WHERE id=$1', [req.params.id]);
   if (!lote.rows.length) return res.status(404).json({ error: 'Lote não encontrado' });
   if (lote.rows[0].status !== 'rascunho') return res.status(400).json({ error: 'Lote já publicado' });
@@ -2873,7 +2997,7 @@ app.post('/api/banco-horas/lotes/:id/publicar', verificarToken, async (req, res)
 
 // Upload individual: publica direto + notifica.
 app.post('/api/banco-horas/individual', verificarToken, bhIndividual.single('pdf'), async (req, res) => {
-  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  if (!perfilGestorRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
   const competencia = String(req.body?.competencia || '').trim();
   if (!COMP_RE.test(competencia)) return res.status(400).json({ error: 'Competência inválida (use AAAA-MM)' });
   if (!req.file) return res.status(400).json({ error: 'Envie o PDF' });
@@ -2906,7 +3030,7 @@ app.get('/api/banco-horas/meus', verificarToken, async (req, res) => {
 });
 
 app.delete('/api/banco-horas/:id', verificarToken, async (req, res) => {
-  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  if (!perfilGestorRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
   const r = await pool.query('SELECT pdf_url FROM banco_horas WHERE id=$1', [req.params.id]);
   if (!r.rows.length) return res.status(404).json({ error: 'Registro não encontrado' });
   try { const f = path.join(uploadDir, path.basename(r.rows[0].pdf_url)); if (r.rows[0].pdf_url && fs.existsSync(f)) fs.unlinkSync(f); } catch { /* ignora */ }

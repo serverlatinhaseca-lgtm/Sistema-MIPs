@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { numeroTicket, prazoSLA, SLA_HORAS, CATEGORIAS_TICKET, STATUS_TICKET } = require('./tickets');
+const { numeroTicket, prazoSLA, SLA_HORAS, CATEGORIAS_TICKET, STATUS_TICKET, statusAposMensagem, ticketEncerrado } = require('./tickets');
 
 test('numera tickets no formato TK-AAAA-NNNN', () => {
   assert.equal(numeroTicket(1, 2026), 'TK-2026-0001');
@@ -18,5 +18,20 @@ test('SLA por prioridade (Urgente 4h … Baixa 120h)', () => {
 
 test('categorias e status do prompt', () => {
   assert.deepEqual(CATEGORIAS_TICKET, ['ASO', 'Folga', 'Dúvida', 'Documento', 'Banco de Horas', 'Outro']);
-  assert.deepEqual(STATUS_TICKET, ['Aberto', 'Em andamento', 'Aguardando funcionário', 'Resolvido', 'Fechado']);
+  assert.deepEqual(STATUS_TICKET, ['Atendendo', 'Pendente', 'Concluído']);
+});
+
+test('status depois da mensagem: RH deixa Pendente, funcionário devolve Atendendo', () => {
+  assert.equal(statusAposMensagem('Atendendo', true), 'Pendente');
+  assert.equal(statusAposMensagem('Pendente', true), 'Pendente');
+  assert.equal(statusAposMensagem('Atendendo', false), 'Atendendo');
+  assert.equal(statusAposMensagem('Pendente', false), 'Atendendo');
+  assert.equal(statusAposMensagem('Concluído', false), 'Atendendo');
+});
+
+test('ticket concluído reabre quando o RH responde', () => {
+  assert.equal(statusAposMensagem('Concluído', true), 'Atendendo');
+  assert.equal(ticketEncerrado('Concluído'), true);
+  assert.equal(ticketEncerrado('Atendendo'), false);
+  assert.equal(ticketEncerrado('Pendente'), false);
 });

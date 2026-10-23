@@ -2,7 +2,7 @@
 
 > Portal interno para padronização operacional, gestão de receitas, avaliações de desempenho, reclamações e ferramentas de produção.
 
-![Versão](https://img.shields.io/badge/versão-2.12.0-ff8d2f)
+![Versão](https://img.shields.io/badge/versão-2.13.0-ff8d2f)
 ![React](https://img.shields.io/badge/React-18-61dafb)
 ![Node.js](https://img.shields.io/badge/Node.js-22-339933)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-4169e1)
@@ -11,6 +11,15 @@
 ## Sobre o sistema
 
 O Sistema Central reúne em um único portal os processos internos da Nova Esperança. A aplicação funciona em computadores e celulares, possui modo claro e escuro e separa os acessos conforme a função de cada usuário.
+
+### Novidades da versão 2.13.0
+
+- **Painel do RH igual ao do Administrador**: cabeçalho, faixa do sistema, quatro cartões de indicadores (tickets, ASO, folgas, desabafos) e pizza de reclamações por tipo.
+- **Barra lateral sem a pasta RH**: Atendimento, Banco de Horas, Folgas, Comunicados e ASO ficam direto no menu; o item Atendimento ganhou **balão com a quantidade de tickets esperando resposta**.
+- **Tickets com três status**: `Atendendo` (fila do RH), `Pendente` (aguardando o funcionário) e `Concluído` (arquivado no **Histórico**, com filtros de status, categoria, período e busca). Botões **Concluir** e **Reabrir**; resposta do RH reabre ticket concluído.
+- **Anexo na abertura do ticket**: o arquivo entra como primeira mensagem da conversa.
+- **ASO, Comunicados e Banco de Horas como funcionário para o perfil RH**: a gestão desses módulos fica com Administrador e Gerente; o RH vê o próprio registro como qualquer funcionário.
+- **Desabafo anônimo**: botão na tela de login que abre uma página pública (sem login) para enviar uma mensagem ao RH e ao Administrador, sem registro de quem enviou. Os desabafos aparecem em **Desabafos** na barra lateral (RH/Administrador) e no sino de notificações, com marcação de lido.
 
 ### Novidades da versão 2.12.0
 

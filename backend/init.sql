@@ -190,7 +190,7 @@ CREATE TABLE IF NOT EXISTS tickets (
   categoria VARCHAR(20) NOT NULL DEFAULT 'Outro',
   titulo VARCHAR(220) NOT NULL,
   descricao TEXT NOT NULL DEFAULT '',
-  status VARCHAR(25) NOT NULL DEFAULT 'Aberto',
+  status VARCHAR(25) NOT NULL DEFAULT 'Atendendo',
   prioridade VARCHAR(10) NOT NULL DEFAULT 'Média',
   prazo_sla TIMESTAMP,
   fechado_em TIMESTAMP,
@@ -211,6 +211,15 @@ CREATE TABLE IF NOT EXISTS ticket_mensagens (
   criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS ticket_mensagens_ticket_idx ON ticket_mensagens (ticket_id, criado_em);
+
+-- Desabafo anônimo (23/10/2026): preenchido antes do login, sem vínculo com usuário.
+CREATE TABLE IF NOT EXISTS desabafos (
+  id SERIAL PRIMARY KEY,
+  mensagem TEXT NOT NULL,
+  setor VARCHAR(60) NOT NULL DEFAULT '',
+  lido_em TIMESTAMP,
+  criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
 -- Banco de Horas (23/09/2026): matrícula/CPF no usuário + lotes e lançamentos.
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS matricula VARCHAR(30) NOT NULL DEFAULT '';

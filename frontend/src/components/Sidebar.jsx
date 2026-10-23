@@ -1,8 +1,10 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { AlertTriangle, LayoutDashboard, BookOpen, Calculator, Users, ClipboardCheck, Sun, Moon, LogOut, KeyRound, Settings, Tag, Folder, ChevronDown, ChevronRight, Pin, PinOff, HeartPulse, MessageCircle, Megaphone, Building2, FileText, CalendarDays } from 'lucide-react';
+import { AlertTriangle, LayoutDashboard, BookOpen, Calculator, Users, ClipboardCheck, Sun, Moon, LogOut, KeyRound, Settings, Tag, Folder, ChevronDown, ChevronRight, Pin, PinOff, HeartPulse, MessageCircle, Megaphone, Building2, FileText, CalendarDays, Ghost } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import axios from 'axios';
 import useBranding from '../useBranding';
 import NotificationBell from './NotificationBell';
+import API from '../api';
 
 const nomePerfil = (perfil) => ({ leitor: 'Funcionário', editor: 'Líder', gerente: 'Gerente', rh: 'RH', administrador: 'Administrador' }[String(perfil || '').toLowerCase()] || perfil);
 
@@ -11,7 +13,8 @@ export default function Sidebar({ emDrawer = false, aoNavegar = () => {} }) {
   const location = useLocation();
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const [dark, setDark] = useState(document.documentElement.classList.contains('dark'));
-  const [pastas, setPastas] = useState({ferramentas:location.pathname.startsWith('/ferramentas'),configuracao:['/usuarios','/configuracoes'].includes(location.pathname),rh:['/aso','/banco-horas','/folgas','/atendimento','/comunicados'].includes(location.pathname)});
+  const [pastas, setPastas] = useState({ferramentas:location.pathname.startsWith('/ferramentas'),configuracao:['/usuarios','/configuracoes'].includes(location.pathname)});
+  const [ticketsAtendendo, setTicketsAtendendo] = useState(0);
   const [modo, setModo] = useState(() => localStorage.getItem('sidebar-modo') || 'fixa');
   const [visivel, setVisivel] = useState(false);
   const [desktop, setDesktop] = useState(() => window.matchMedia('(min-width: 768px)').matches);
@@ -19,11 +22,31 @@ export default function Sidebar({ emDrawer = false, aoNavegar = () => {} }) {
   const alternarModo = () => { const v = modo === 'fixa' ? 'flutuante' : 'fixa'; setModo(v); localStorage.setItem('sidebar-modo', v); setVisivel(false); };
   const branding = useBranding();
 
-  // Pasta RH (ASO, Banco de Horas, Folgas, Atendimento, Comunicados) — reativada
-  // no menu em 22/10/2026 a pedido do mantenedor para revisão das telas.
-  // O perfil RH (criado em 22/10/2026) vê SOMENTE: Início, Manuais, Reclamações,
-  // pasta RH e Notificações — sem Receitas, Avaliações nem Meu desempenho.
+  // Pasta RH removida em 23/10/2026: Atendimento, Banco de Horas, Folgas,
+  // Comunicados e ASO agora aparecem direto na barra lateral.
+  // O perfil RH vê SOMENTE: Início, Manuais, Reclamações, Desabafos, esses
+  // itens do RH e Notificações — sem Receitas, Avaliações nem Meu desempenho.
   const ehPerfilRH = String(user.perfil || '').toLowerCase() === 'rh';
+  const ehRH = ['administrador', 'gerente', 'rh'].includes(String(user.perfil || '').toLowerCase());
+  const podeVerDesabafos = ['rh', 'administrador'].includes(String(user.perfil || '').toLowerCase());
+
+  // Badge do Atendimento: tickets na fila do RH (status Atendendo).
+  useEffect(() => {
+    if (!ehRH) return;
+    let ativo = true;
+    const buscar = () => axios.get(`${API}/api/tickets/resumo`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
+      .then((r) => { if (ativo) setTicketsAtendendo(Number(r.data?.atendendo) || 0); })
+      .catch(() => {});
+    buscar();
+    const t = setInterval(buscar, 60000);
+    return () => { ativo = false; clearInterval(t); };
+  }, [ehRH]);
+
+  const badgeTickets = ticketsAtendendo > 0 ? (
+    <span className="ml-auto min-w-[20px] h-5 px-1.5 rounded-full bg-red-600 text-white text-[10px] font-bold grid place-items-center">
+      {ticketsAtendendo > 99 ? '99+' : ticketsAtendendo}
+    </span>
+  ) : null;
 
   const toggleTheme = () => {
     const isDark = document.documentElement.classList.toggle('dark');
@@ -58,7 +81,13 @@ export default function Sidebar({ emDrawer = false, aoNavegar = () => {} }) {
     <IconBtn titulo={user.perfil?.toLowerCase() === 'leitor' ? 'Meu desempenho' : 'Avaliações'} ativo={isActive('/avaliacoes')} abrir={() => ir('/avaliacoes')}><ClipboardCheck size={20} /></IconBtn>
     </>}
     <IconBtn titulo="Reclamações" ativo={isActive('/reclamacoes')} abrir={() => ir('/reclamacoes')}><AlertTriangle size={20} /></IconBtn>
-    <IconBtn titulo="Atendimento" ativo={isActive('/atendimento')} abrir={() => ir('/atendimento')}><MessageCircle size={20} /></IconBtn>
+    {podeVerDesabafos && <IconBtn titulo="Desabafos" ativo={isActive('/desabafos')} abrir={() => ir('/desabafos')}><Ghost size={20} /></IconBtn>}
+    <IconBtn titulo="Atendimento" ativo={isActive('/atendimento')} abrir={() => ir('/atendimento')}>
+      <span className="relative">
+        <MessageCircle size={20} />
+        {ticketsAtendendo > 0 && <span className="absolute -top-2 -right-2 min-w-[16px] h-4 px-1 rounded-full bg-red-600 text-white text-[9px] font-bold grid place-items-center">{ticketsAtendendo > 99 ? '99+' : ticketsAtendendo}</span>}
+      </span>
+    </IconBtn>
     <IconBtn titulo="Banco de Horas" ativo={isActive('/banco-horas')} abrir={() => ir('/banco-horas')}><FileText size={20} /></IconBtn>
     <IconBtn titulo="Folgas" ativo={isActive('/folgas')} abrir={() => ir('/folgas')}><CalendarDays size={20} /></IconBtn>
     <IconBtn titulo="Comunicados" ativo={isActive('/comunicados')} abrir={() => ir('/comunicados')}><Megaphone size={20} /></IconBtn>
@@ -106,13 +135,24 @@ export default function Sidebar({ emDrawer = false, aoNavegar = () => {} }) {
           </div>
           </>}
           <div onClick={() => ir('/reclamacoes')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/reclamacoes') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}><AlertTriangle size={20} className="mr-3" /> Reclamações</div>
-          <Pasta titulo="RH" aberta={pastas.rh} alternar={()=>setPastas(v=>({...v,rh:!v.rh}))}>
-            <Item icon={<MessageCircle size={18}/>} titulo="Atendimento" ativo={isActive('/atendimento')} abrir={()=>navigate('/atendimento')}/>
-            <Item icon={<FileText size={18}/>} titulo={user.perfil?.toLowerCase() === 'leitor' ? 'Meu Banco de Horas' : 'Banco de Horas'} ativo={isActive('/banco-horas')} abrir={()=>navigate('/banco-horas')}/>
-            <Item icon={<CalendarDays size={18}/>} titulo={user.perfil?.toLowerCase() === 'leitor' ? 'Minhas Folgas' : 'Folgas'} ativo={isActive('/folgas')} abrir={()=>navigate('/folgas')}/>
-            <Item icon={<Megaphone size={18}/>} titulo="Comunicados" ativo={isActive('/comunicados')} abrir={()=>navigate('/comunicados')}/>
-            <Item icon={<HeartPulse size={18}/>} titulo={user.perfil?.toLowerCase() === 'leitor' ? 'Meu ASO' : 'ASO'} ativo={isActive('/aso')} abrir={()=>navigate('/aso')}/>
-          </Pasta>
+          {podeVerDesabafos && (
+            <div onClick={() => ir('/desabafos')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/desabafos') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}><Ghost size={20} className="mr-3" /> Desabafos</div>
+          )}
+          <div onClick={() => ir('/atendimento')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/atendimento') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}>
+            <MessageCircle size={20} className="mr-3" /> Atendimento {badgeTickets}
+          </div>
+          <div onClick={() => ir('/banco-horas')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/banco-horas') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}>
+            <FileText size={20} className="mr-3" /> {user.perfil?.toLowerCase() === 'leitor' ? 'Meu Banco de Horas' : 'Banco de Horas'}
+          </div>
+          <div onClick={() => ir('/folgas')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/folgas') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}>
+            <CalendarDays size={20} className="mr-3" /> {user.perfil?.toLowerCase() === 'leitor' ? 'Minhas Folgas' : 'Folgas'}
+          </div>
+          <div onClick={() => ir('/comunicados')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/comunicados') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}>
+            <Megaphone size={20} className="mr-3" /> Comunicados
+          </div>
+          <div onClick={() => ir('/aso')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/aso') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}>
+            <HeartPulse size={20} className="mr-3" /> {user.perfil?.toLowerCase() === 'leitor' ? 'Meu ASO' : 'ASO'}
+          </div>
           {['editor','gerente'].includes(user.perfil?.toLowerCase()) && <div onClick={() => ir('/meu-desempenho')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/meu-desempenho') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}><ClipboardCheck size={20} className="mr-3" /> Meu desempenho</div>}
           {user.perfil?.toLowerCase() === 'administrador' && <>
             <Pasta titulo="Ferramentas" aberta={pastas.ferramentas} alternar={()=>setPastas(v=>({...v,ferramentas:!v.ferramentas}))}>

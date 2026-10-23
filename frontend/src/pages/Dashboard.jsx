@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { BookOpen, Users, PlusCircle, Calculator, ClipboardCheck, AlertTriangle, Megaphone, Bell, MessageCircle, HeartPulse, FileText, CalendarDays } from 'lucide-react';
+import { BookOpen, Users, PlusCircle, Calculator, ClipboardCheck, AlertTriangle, Megaphone, Bell, MessageCircle, HeartPulse, CalendarDays, Ghost } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import LeitorTopbar from '../components/LeitorTopbar';
 import useBranding from '../useBranding';
@@ -17,20 +17,12 @@ const ATALHOS_FUNCIONARIO = [
   { rota: '/notificacoes', titulo: 'Notificações', descricao: 'Revise seus avisos e preferências.', Icone: Bell, fundo: 'bg-violet-100 dark:bg-violet-950/40', cor: 'text-violet-600' },
 ];
 
-// Atalhos do perfil RH: só os módulos de RH (+ MIPs e Reclamações em leitura).
-const ATALHOS_RH = [
-  { rota: '/aso', titulo: 'ASO', descricao: 'Exames ocupacionais, vencimentos e PDFs.', Icone: HeartPulse, fundo: 'bg-rose-100 dark:bg-rose-950/40', cor: 'text-rose-600' },
-  { rota: '/banco-horas', titulo: 'Banco de Horas', descricao: 'Publique demonstrativos por competência.', Icone: FileText, fundo: 'bg-sky-100 dark:bg-sky-950/40', cor: 'text-sky-700' },
-  { rota: '/folgas', titulo: 'Folgas', descricao: 'Grade da equipe e solicitações.', Icone: CalendarDays, fundo: 'bg-emerald-100 dark:bg-emerald-950/40', cor: 'text-emerald-700' },
-  { rota: '/atendimento', titulo: 'Atendimento', descricao: 'Todos os tickets abertos pelos funcionários.', Icone: MessageCircle, fundo: 'bg-teal-100 dark:bg-teal-950/40', cor: 'text-teal-700' },
-  { rota: '/comunicados', titulo: 'Comunicados', descricao: 'Crie e acompanhe as leituras.', Icone: Megaphone, fundo: 'bg-blue-100 dark:bg-blue-950/40', cor: 'text-blue-600' },
-  { rota: '/reclamacoes', titulo: 'Reclamações', descricao: 'Consulta das ocorrências de atendimento.', Icone: AlertTriangle, fundo: 'bg-red-100 dark:bg-red-950/40', cor: 'text-red-600' },
-  { rota: '/mips', titulo: 'Manuais (MIPs)', descricao: 'Leia os procedimentos publicados.', Icone: BookOpen, fundo: 'bg-amber-100 dark:bg-amber-950/40', cor: 'text-amber-600' },
-  { rota: '/notificacoes', titulo: 'Notificações', descricao: 'Revise seus avisos e preferências.', Icone: Bell, fundo: 'bg-violet-100 dark:bg-violet-950/40', cor: 'text-violet-600' },
-];
+// Painel do RH usa o mesmo desenho do painel do Administrador (cartões + pizza).
+
 
 export default function Dashboard() {
   const [stats, setStats] = useState({ totalMips: 0, totalUsuarios: 0, totalReceitas: 0, avaliacoesPendentes: 0 });
+  const [rhStats, setRhStats] = useState({ ticketsAtendendo: 0, asosVencidos: 0, folgasPendentes: 0, desabafosNaoLidos: 0, mipsPublicadas: 0 });
   const [tiposRec, setTiposRec] = useState([]);
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -39,19 +31,29 @@ export default function Dashboard() {
   const isRH = String(user.perfil || '').toLowerCase() === 'rh';
 
   useEffect(() => {
-    if (isLeitor || isRH) return;
+    if (isLeitor) return;
+    const headers = { Authorization: `Bearer ${localStorage.getItem('token')}` };
+
+    if (isRH) {
+      const fetchRH = async () => {
+        try {
+          const [dash, met] = await Promise.all([
+            axios.get(`${API}/api/rh/dashboard`, { headers }).catch(() => ({ data: {} })),
+            axios.get(`${API}/api/reclamacoes/metricas`, { headers }).catch(() => ({ data: {} })),
+          ]);
+          setRhStats((v) => ({ ...v, ...(dash.data || {}) }));
+          setTiposRec(met.data.por_tipo || []);
+        } catch (err) { console.error(err); }
+      };
+      fetchRH();
+      return;
+    }
 
     const fetchStats = async () => {
       try {
-        const res = await axios.get(`${API}/api/dashboard`, {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-        });
-        const resRec = await axios.get(`${API}/api/receitas`, {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-        });
-        const resMet = await axios.get(`${API}/api/reclamacoes/metricas`, {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-        }).catch(() => ({ data: {} }));
+        const res = await axios.get(`${API}/api/dashboard`, { headers });
+        const resRec = await axios.get(`${API}/api/receitas`, { headers });
+        const resMet = await axios.get(`${API}/api/reclamacoes/metricas`, { headers }).catch(() => ({ data: {} }));
         setStats({ ...res.data, totalReceitas: resRec.data.length });
         setTiposRec(resMet.data.por_tipo || []);
       } catch (err) { console.error(err); }
@@ -63,30 +65,77 @@ export default function Dashboard() {
     return (
       <div className="min-h-screen bg-[var(--bg-main)] flex">
         <Sidebar />
-        <main className="flex-1 min-w-0 p-4 sm:p-10 max-w-6xl">
-          <header className="mb-5 sm:mb-7">
-            <p className="section-label">Recursos Humanos</p>
-            <h1 className="text-2xl sm:text-3xl font-bold">Olá, {(user.nome || '').split(' ')[0] || 'RH'}!</h1>
-            <p className="text-[var(--text-muted)] text-sm mt-1">Painel do RH — ASO, banco de horas, folgas, atendimento e comunicados.</p>
+
+        <main className="flex-1 min-w-0 p-4 sm:p-10">
+          <header className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-8">
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-[var(--text-main)]">Olá, {user.nome}!</h1>
+              <p className="text-[var(--text-muted)] text-sm">Bem-vindo ao painel do RH do {branding.nome_site}.</p>
+            </div>
+            <button onClick={() => navigate('/atendimento')} className="flex items-center justify-center bg-amber-600 text-white px-5 py-2.5 rounded-xl hover:bg-amber-700 font-medium transition-colors shadow-md">
+              <MessageCircle size={20} className="mr-2" /> Abrir Atendimento
+            </button>
           </header>
 
-          <FaixaPainel branding={branding} className="mb-6 rounded-2xl" />
+          <FaixaPainel branding={branding} className="-mx-4 sm:-mx-10 mb-8" />
 
-          <h2 className="text-lg font-bold mb-3">Atalhos</h2>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-            {ATALHOS_RH.map(({ rota, titulo, descricao, Icone, fundo, cor }) => (
-              <button
-                key={rota}
-                onClick={() => navigate(rota)}
-                className="group flex flex-col items-start gap-3 rounded-2xl border border-[var(--border-color)] bg-[var(--bg-card)] p-4 sm:p-5 text-left shadow-sm hover:border-[var(--primary)] hover:shadow-md active:scale-[0.99] transition-all"
-              >
-                <span className={`w-11 h-11 rounded-xl grid place-items-center ${fundo} ${cor}`}>
-                  <Icone size={22} />
-                </span>
-                <span className="font-bold text-sm sm:text-base leading-tight">{titulo}</span>
-                <span className="text-xs text-[var(--text-muted)] leading-snug">{descricao}</span>
-              </button>
-            ))}
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6 mb-10">
+            <div onClick={() => navigate('/atendimento')} className="bg-[var(--bg-card)] border border-[var(--border-color)] p-6 rounded-2xl shadow-sm cursor-pointer hover:border-amber-600 transition-all">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-12 bg-teal-100 dark:bg-teal-950/40 rounded-xl flex items-center justify-center text-teal-700">
+                  <MessageCircle size={24} />
+                </div>
+                <span className="text-3xl font-extrabold text-[var(--text-main)]">{rhStats.ticketsAtendendo || 0}</span>
+              </div>
+              <h3 className="text-lg font-bold text-[var(--text-main)]">Tickets a responder</h3>
+              <p className="text-[var(--text-muted)] text-sm">Atendimentos aguardando o RH</p>
+            </div>
+
+            <div onClick={() => navigate('/aso')} className="bg-[var(--bg-card)] border border-[var(--border-color)] p-6 rounded-2xl shadow-sm cursor-pointer hover:border-amber-600 transition-all">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-12 bg-rose-100 dark:bg-rose-950/40 rounded-xl flex items-center justify-center text-rose-600">
+                  <HeartPulse size={24} />
+                </div>
+                <span className="text-3xl font-extrabold text-[var(--text-main)]">{rhStats.asosVencidos || 0}</span>
+              </div>
+              <h3 className="text-lg font-bold text-[var(--text-main)]">ASO vencidos</h3>
+              <p className="text-[var(--text-muted)] text-sm">{rhStats.asosAVencer || 0} a vencer</p>
+            </div>
+
+            <div onClick={() => navigate('/folgas')} className="bg-[var(--bg-card)] border border-[var(--border-color)] p-6 rounded-2xl shadow-sm cursor-pointer hover:border-amber-600 transition-all">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-950/40 rounded-xl flex items-center justify-center text-emerald-700">
+                  <CalendarDays size={24} />
+                </div>
+                <span className="text-3xl font-extrabold text-[var(--text-main)]">{rhStats.folgasPendentes || 0}</span>
+              </div>
+              <h3 className="text-lg font-bold text-[var(--text-main)]">Folgas pendentes</h3>
+              <p className="text-[var(--text-muted)] text-sm">Solicitações aguardando decisão</p>
+            </div>
+
+            <div onClick={() => navigate('/desabafos')} className="bg-[var(--bg-card)] border border-[var(--border-color)] p-6 rounded-2xl shadow-sm cursor-pointer hover:border-amber-600 transition-all">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-12 bg-violet-100 dark:bg-violet-950/40 rounded-xl flex items-center justify-center text-violet-600">
+                  <Ghost size={24} />
+                </div>
+                <span className="text-3xl font-extrabold text-[var(--text-main)]">{rhStats.desabafosNaoLidos || 0}</span>
+              </div>
+              <h3 className="text-lg font-bold text-[var(--text-main)]">Desabafos novos</h3>
+              <p className="text-[var(--text-muted)] text-sm">Mensagens anônimas recebidas</p>
+            </div>
+          </div>
+
+          <div onClick={() => navigate('/reclamacoes')} className="bg-[var(--bg-card)] border border-[var(--border-color)] p-6 rounded-2xl shadow-sm cursor-pointer hover:border-amber-600 transition-all">
+            <div className="flex items-center gap-3 mb-1">
+              <div className="w-12 h-12 bg-red-100 dark:bg-red-950/40 rounded-xl flex items-center justify-center text-red-600">
+                <AlertTriangle size={24} />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-[var(--text-main)]">Principais reclamações</h3>
+                <p className="text-[var(--text-muted)] text-sm">Por tipo — base completa. Clique para abrir.</p>
+              </div>
+            </div>
+            <Pizza dados={tiposRec} />
           </div>
         </main>
       </div>

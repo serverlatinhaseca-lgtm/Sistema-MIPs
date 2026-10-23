@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
 import axios from 'axios';
-import { Lock, User, LogIn, BookOpen, ChefHat, ClipboardCheck, MessageCircle } from 'lucide-react';
+import { Lock, User, LogIn, BookOpen, ChefHat, ClipboardCheck, MessageCircle, Ghost } from 'lucide-react';
 import useBranding from '../useBranding';
 import API from '../api';
 
@@ -94,6 +94,17 @@ export default function Login() {
               <LogIn size={20} className="mr-2" /> Entrar no Sistema
             </button>
           </form>
+
+          {/* Fica antes do login: o envio é anônimo e não vincula o usuário. */}
+          <div className="mt-8 pt-6 border-t border-[var(--border-color)]">
+            <button type="button" onClick={() => navigate('/desabafo')}
+              className="w-full flex items-center justify-center gap-2 border border-violet-300 dark:border-violet-800 text-violet-700 dark:text-violet-300 py-3 rounded-xl font-medium hover:bg-violet-50 dark:hover:bg-violet-950/30 transition-colors">
+              <Ghost size={20} /> Desabafo anônimo
+            </button>
+            <p className="text-[11px] text-[var(--text-muted)] text-center mt-2 leading-snug">
+              Não precisa entrar. A mensagem chega ao RH e ao Administrador sem identificar você.
+            </p>
+          </div>
         </div>
       </div>
 

@@ -11,7 +11,8 @@ const ROTULOS = {
   mip_correcao: 'MIP correção', avaliacao_nova: '⭐ Avaliação', aso_agendado: '🩺 ASO agendado',
   aso_faixa: '⚠️ ASO a vencer', aso_vencido: '🔴 ASO vencido', aso_confirmado: 'ASO confirmado',
   chat_novo: '💬 Novo ticket', chat_msg: '💬 Mensagem', chat_update: '💬 Ticket atualizado',
-  chat_fechado: '💬 Ticket fechado', comunicado_oficial: '📢 Comunicado',
+  chat_fechado: '💬 Ticket concluído', comunicado_oficial: '📢 Comunicado',
+  desabafo: '🤫 Desabafo anônimo',
 };
 
 export default function Notificacoes() {
