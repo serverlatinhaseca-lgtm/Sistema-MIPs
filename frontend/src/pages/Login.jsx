@@ -98,11 +98,11 @@ export default function Login() {
           {/* Fica antes do login: o envio é anônimo e não vincula o usuário. */}
           <div className="mt-8 pt-6 border-t border-[var(--border-color)]">
             <button type="button" onClick={() => navigate('/desabafo')}
-              className="w-full flex items-center justify-center gap-2 border border-violet-300 dark:border-violet-800 text-violet-700 dark:text-violet-300 py-3 rounded-xl font-medium hover:bg-violet-50 dark:hover:bg-violet-950/30 transition-colors">
+              className="w-full flex items-center justify-center gap-2 bg-amber-600 text-white py-3 rounded-xl font-medium shadow-md hover:bg-amber-700 transition-colors">
               <Ghost size={20} /> Desabafo anônimo
             </button>
             <p className="text-[11px] text-[var(--text-muted)] text-center mt-2 leading-snug">
-              Não precisa entrar. A mensagem chega ao RH e ao Administrador sem identificar você.
+              Não precisa logar. Sua mensagem será completamente anônima.
             </p>
           </div>
         </div>

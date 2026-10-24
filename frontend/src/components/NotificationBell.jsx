@@ -165,7 +165,7 @@ export default function NotificationBell({ modo = 'sidebar' }) {
         <Bell size={modo === 'topo' ? 18 : 20} className={modo === 'topo' || modo === 'fixo' || modo === 'icone' ? '' : 'mr-3'} />
         {naoLidas > 0 && <span className="absolute -top-2 -right-2 min-w-5 h-5 px-1 rounded-full bg-red-600 text-white text-[11px] font-bold grid place-items-center">{naoLidas > 9 ? '9+' : naoLidas}</span>}
       </span>
-      {modo === 'topo' ? <span>Notificações</span> : modo === 'fixo' || modo === 'icone' ? null : <span className="flex-1 text-left">Notificações{naoLidas > 0 ? ` (${naoLidas})` : ''}</span>}
+      {modo === 'topo' ? <span>Notificações</span> : modo === 'fixo' || modo === 'icone' ? null : <span className="flex-1 text-left">Notificações</span>}
     </button>
     {aberto && createPortal(<>
       <div className="fixed inset-0 z-[80]" onClick={() => setAberto(false)} />

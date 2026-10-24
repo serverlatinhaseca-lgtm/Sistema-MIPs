@@ -1884,10 +1884,9 @@ async function registrarLog(usuarioId, acao, entidade, entidadeId, detalhes) {
 // Quem é RH gerencia ASO, Banco de Horas, Folgas, Atendimento e Comunicados.
 const PERFIS_RH = ['administrador', 'gerente', 'rh'];
 const ehRH = (perfil) => PERFIS_RH.includes(String(perfil || '').toLowerCase());
-// Gestão dos módulos ASO, Comunicados e Banco de Horas: só Administrador e
-// Gerente. O perfil RH usa essas telas como funcionário (vê apenas o próprio
-// registro), conforme pedido do mantenedor em 23/10/2026.
-const perfilGestorRH = (perfil) => ['administrador', 'gerente'].includes(normalizarPerfil(perfil));
+// Gestão dos módulos ASO, Comunicados, Banco de Horas e Folgas: Administrador,
+// Gerente e RH. O perfil RH passa a ter gestão completa desses módulos.
+const perfilGestorRH = (perfil) => ['administrador', 'gerente', 'rh'].includes(normalizarPerfil(perfil));
 // Quem recebe as notificações operacionais do RH (ticket novo/mensagem, folga
 // solicitada, ASO vencido/confirmado): SOMENTE o perfil RH (22/10/2026).
 // Gerente e Administrador saíram da lista a pedido do mantenedor.
@@ -2686,7 +2685,6 @@ app.patch('/api/tickets/:id', verificarToken, async (req, res) => {
 // ---- Desabafo anônimo (23/10/2026) ----
 // Preenchido na tela pública, antes do login: não guarda usuário, IP nem horário
 // de identificação. Chega para o RH e para o Administrador.
-const SETORES_DESABAFO = ['Produção', 'Confeitaria', 'Padaria', 'Atendimento', 'Logística', 'Limpeza', 'Administrativo', 'Outro'];
 const enviosDesabafo = new Map();
 function podeEnviarDesabafo(ip) {
   const agora = Date.now(), janela = 10 * 60 * 1000, max = 5;
@@ -2697,22 +2695,76 @@ function podeEnviarDesabafo(ip) {
   return true;
 }
 
-app.post('/api/desabafos', async (req, res) => {
+// Nome original pode chegar em latin1 (busboy); converte quando fizer sentido.
+function nomeArquivoLegivel(nome) {
+  const original = String(nome || '');
+  try {
+    const convertido = Buffer.from(original, 'latin1').toString('utf8');
+    return convertido.includes('\uFFFD') ? original : convertido;
+  } catch { return original; }
+}
+
+// Upload de anexo no desabafo (PDF, imagem, vídeo, áudio até 20MB).
+const desabafoUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, uploadDir),
+    filename: (req, file, cb) => {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      const safeName = String(file.originalname || 'anexo').replace(/[^a-zA-Z0-9.-]/g, '_');
+      cb(null, 'desabafo-' + uniqueSuffix + '-' + safeName);
+    }
+  }),
+  limits: { fileSize: 20 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const tipo = String(file.mimetype || '').toLowerCase();
+    const nome = String(file.originalname || '');
+    const extensaoOk = /\.(pdf|docx?|xlsx?|jpe?g|png|gif|webp|mp4|webm|mov|mp3|m4a|ogg|wav|txt|csv)$/i.test(nome);
+    const tipoOk = /^(application\/pdf|application\/msword|application\/vnd\.(openxmlformats|ms-excel)|image\/|video\/|audio\/|text\/)/.test(tipo);
+    (extensaoOk || tipoOk) ? cb(null, true) : cb(new Error('Tipo de arquivo não permitido.'));
+  }
+});
+
+// Responde em JSON quando o multer recusa o arquivo (antes vinha erro 500 em HTML).
+const receberAnexoDesabafo = (req, res, next) => desabafoUpload.single('anexo')(req, res, (err) => {
+  if (!err) return next();
+  const mensagem = err.code === 'LIMIT_FILE_SIZE'
+    ? 'O anexo pode ter no máximo 20MB.'
+    : (err.message || 'Não foi possível enviar o anexo.');
+  return res.status(400).json({ error: mensagem });
+});
+
+app.post('/api/desabafos', receberAnexoDesabafo, async (req, res) => {
+  const descartarAnexo = () => {
+    if (!req.file?.path) return;
+    fs.unlink(req.file.path, () => {});
+  };
   try {
     if (!podeEnviarDesabafo(req.ip || 'desconhecido')) {
+      descartarAnexo();
       return res.status(429).json({ error: 'Muitos envios seguidos. Aguarde alguns minutos.' });
     }
     const mensagem = String(req.body?.mensagem || '').trim();
-    if (mensagem.length < 10) return res.status(400).json({ error: 'Escreva pelo menos 10 caracteres.' });
-    if (mensagem.length > 4000) return res.status(400).json({ error: 'Mensagem muito longa (máximo 4000 caracteres).' });
-    const setor = SETORES_DESABAFO.includes(String(req.body?.setor)) ? String(req.body.setor) : '';
-    const r = await pool.query('INSERT INTO desabafos (mensagem,setor) VALUES ($1,$2) RETURNING id', [mensagem, setor]);
+    if (mensagem.length < 10) {
+      descartarAnexo();
+      return res.status(400).json({ error: 'Escreva pelo menos 10 caracteres.' });
+    }
+    if (mensagem.length > 4000) {
+      descartarAnexo();
+      return res.status(400).json({ error: 'Mensagem muito longa (máximo 4000 caracteres).' });
+    }
+    const anexoUrl = req.file ? `/uploads/${req.file.filename}` : '';
+    const anexoNome = req.file ? nomeArquivoLegivel(req.file.originalname) : '';
+    const anexoTipo = req.file ? req.file.mimetype : '';
+    const r = await pool.query('INSERT INTO desabafos (mensagem,anexo_url,anexo_nome,anexo_tipo) VALUES ($1,$2,$3,$4) RETURNING id', [mensagem, anexoUrl, anexoNome, anexoTipo]);
     const dest = await pool.query(`SELECT id FROM usuarios WHERE LOWER(perfil) IN ('rh','administrador')`);
     for (const u of dest.rows) {
-      await criarNotificacao(u.id, 'desabafo', '🤫 Novo desabafo anônimo', setor ? `Setor: ${setor}` : 'Sem setor informado', '/desabafos', `desabafo:${r.rows[0].id}`);
+      await criarNotificacao(u.id, 'desabafo', '🤫 Novo desabafo anônimo', anexoNome ? `Com anexo: ${anexoNome}` : 'Sem anexo', '/desabafos', `desabafo:${r.rows[0].id}`);
     }
     res.status(201).json({ ok: true });
-  } catch (e) { res.status(500).json({ error: 'Não foi possível enviar agora. Tente novamente.' }); }
+  } catch (e) {
+    descartarAnexo();
+    res.status(500).json({ error: 'Não foi possível enviar agora. Tente novamente.' });
+  }
 });
 
 const podeVerDesabafos = (perfil) => ['rh', 'administrador'].includes(normalizarPerfil(perfil));

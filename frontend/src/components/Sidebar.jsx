@@ -13,7 +13,7 @@ export default function Sidebar({ emDrawer = false, aoNavegar = () => {} }) {
   const location = useLocation();
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const [dark, setDark] = useState(document.documentElement.classList.contains('dark'));
-  const [pastas, setPastas] = useState({ferramentas:location.pathname.startsWith('/ferramentas'),configuracao:['/usuarios','/configuracoes'].includes(location.pathname)});
+  const [pastas, setPastas] = useState({ferramentas:location.pathname.startsWith('/ferramentas'),configuracao:['/usuarios','/configuracoes'].includes(location.pathname),rh:['/aso','/banco-horas','/folgas','/atendimento','/comunicados','/desabafos'].includes(location.pathname)});
   const [ticketsAtendendo, setTicketsAtendendo] = useState(0);
   const [modo, setModo] = useState(() => localStorage.getItem('sidebar-modo') || 'fixa');
   const [visivel, setVisivel] = useState(false);
@@ -22,10 +22,11 @@ export default function Sidebar({ emDrawer = false, aoNavegar = () => {} }) {
   const alternarModo = () => { const v = modo === 'fixa' ? 'flutuante' : 'fixa'; setModo(v); localStorage.setItem('sidebar-modo', v); setVisivel(false); };
   const branding = useBranding();
 
-  // Pasta RH removida em 23/10/2026: Atendimento, Banco de Horas, Folgas,
-  // Comunicados e ASO agora aparecem direto na barra lateral.
-  // O perfil RH vê SOMENTE: Início, Manuais, Reclamações, Desabafos, esses
-  // itens do RH e Notificações — sem Receitas, Avaliações nem Meu desempenho.
+  // 24/10/2026: o perfil RH vê Atendimento, Banco de Horas, Folgas, Comunicados,
+  // ASO e Desabafos direto na barra. Administrador e Gerente veem esses mesmos
+  // itens dentro da pasta "RH", para não misturar com as ferramentas do sistema.
+  // O perfil RH vê SOMENTE: Início, Manuais, Reclamações e os itens de RH —
+  // sem Receitas, Avaliações nem Meu desempenho.
   const ehPerfilRH = String(user.perfil || '').toLowerCase() === 'rh';
   const ehRH = ['administrador', 'gerente', 'rh'].includes(String(user.perfil || '').toLowerCase());
   const podeVerDesabafos = ['rh', 'administrador'].includes(String(user.perfil || '').toLowerCase());
@@ -43,10 +44,18 @@ export default function Sidebar({ emDrawer = false, aoNavegar = () => {} }) {
   }, [ehRH]);
 
   const badgeTickets = ticketsAtendendo > 0 ? (
-    <span className="ml-auto min-w-[20px] h-5 px-1.5 rounded-full bg-red-600 text-white text-[10px] font-bold grid place-items-center">
+    <span className="absolute -top-2 -right-2 min-w-[16px] h-4 px-1 rounded-full bg-red-600 text-white text-[9px] font-bold grid place-items-center">
       {ticketsAtendendo > 99 ? '99+' : ticketsAtendendo}
     </span>
   ) : null;
+
+  // Balão preso ao ícone (não ao texto/aba), igual no menu aberto e no trilho.
+  const IconeAtendimento = ({ tamanho = 20 }) => (
+    <span className="relative inline-flex">
+      <MessageCircle size={tamanho} />
+      {badgeTickets}
+    </span>
+  );
 
   const toggleTheme = () => {
     const isDark = document.documentElement.classList.toggle('dark');
@@ -83,10 +92,7 @@ export default function Sidebar({ emDrawer = false, aoNavegar = () => {} }) {
     <IconBtn titulo="Reclamações" ativo={isActive('/reclamacoes')} abrir={() => ir('/reclamacoes')}><AlertTriangle size={20} /></IconBtn>
     {podeVerDesabafos && <IconBtn titulo="Desabafos" ativo={isActive('/desabafos')} abrir={() => ir('/desabafos')}><Ghost size={20} /></IconBtn>}
     <IconBtn titulo="Atendimento" ativo={isActive('/atendimento')} abrir={() => ir('/atendimento')}>
-      <span className="relative">
-        <MessageCircle size={20} />
-        {ticketsAtendendo > 0 && <span className="absolute -top-2 -right-2 min-w-[16px] h-4 px-1 rounded-full bg-red-600 text-white text-[9px] font-bold grid place-items-center">{ticketsAtendendo > 99 ? '99+' : ticketsAtendendo}</span>}
-      </span>
+      <IconeAtendimento tamanho={20} />
     </IconBtn>
     <IconBtn titulo="Banco de Horas" ativo={isActive('/banco-horas')} abrir={() => ir('/banco-horas')}><FileText size={20} /></IconBtn>
     <IconBtn titulo="Folgas" ativo={isActive('/folgas')} abrir={() => ir('/folgas')}><CalendarDays size={20} /></IconBtn>
@@ -135,24 +141,58 @@ export default function Sidebar({ emDrawer = false, aoNavegar = () => {} }) {
           </div>
           </>}
           <div onClick={() => ir('/reclamacoes')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/reclamacoes') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}><AlertTriangle size={20} className="mr-3" /> Reclamações</div>
-          {podeVerDesabafos && (
-            <div onClick={() => ir('/desabafos')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/desabafos') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}><Ghost size={20} className="mr-3" /> Desabafos</div>
+          {ehPerfilRH ? (
+            // Perfil RH: itens diretos (sem pasta)
+            <>
+              <div onClick={() => ir('/atendimento')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/atendimento') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}>
+                <span className="mr-3 inline-flex"><IconeAtendimento tamanho={20} /></span> Atendimento
+              </div>
+              <div onClick={() => ir('/banco-horas')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/banco-horas') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}>
+                <FileText size={20} className="mr-3" /> Banco de Horas
+              </div>
+              <div onClick={() => ir('/folgas')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/folgas') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}>
+                <CalendarDays size={20} className="mr-3" /> Folgas
+              </div>
+              <div onClick={() => ir('/comunicados')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/comunicados') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}>
+                <Megaphone size={20} className="mr-3" /> Comunicados
+              </div>
+              <div onClick={() => ir('/aso')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/aso') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}>
+                <HeartPulse size={20} className="mr-3" /> ASO
+              </div>
+              <div onClick={() => ir('/desabafos')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/desabafos') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}>
+                <Ghost size={20} className="mr-3" /> Desabafos
+              </div>
+            </>
+          ) : ehRH ? (
+            // Administrador e Gerente: itens de pessoas dentro da pasta RH
+            <Pasta titulo="RH" aberta={pastas.rh} alternar={()=>setPastas(v=>({...v,rh:!v.rh}))}>
+              <Item icon={<IconeAtendimento tamanho={18}/>} titulo="Atendimento" ativo={isActive('/atendimento')} abrir={()=>ir('/atendimento')}/>
+              <Item icon={<FileText size={18}/>} titulo="Banco de Horas" ativo={isActive('/banco-horas')} abrir={()=>ir('/banco-horas')}/>
+              <Item icon={<CalendarDays size={18}/>} titulo="Folgas" ativo={isActive('/folgas')} abrir={()=>ir('/folgas')}/>
+              <Item icon={<Megaphone size={18}/>} titulo="Comunicados" ativo={isActive('/comunicados')} abrir={()=>ir('/comunicados')}/>
+              <Item icon={<HeartPulse size={18}/>} titulo="ASO" ativo={isActive('/aso')} abrir={()=>ir('/aso')}/>
+              {podeVerDesabafos && <Item icon={<Ghost size={18}/>} titulo="Desabafos" ativo={isActive('/desabafos')} abrir={()=>ir('/desabafos')}/>}
+            </Pasta>
+          ) : (
+            // Funcionário e Líder: usam os módulos de RH como colaborador
+            <>
+              <div onClick={() => ir('/atendimento')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/atendimento') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}>
+                <span className="mr-3 inline-flex"><IconeAtendimento tamanho={20} /></span> Atendimento
+              </div>
+              <div onClick={() => ir('/banco-horas')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/banco-horas') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}>
+                <FileText size={20} className="mr-3" /> {user.perfil?.toLowerCase() === 'leitor' ? 'Meu Banco de Horas' : 'Banco de Horas'}
+              </div>
+              <div onClick={() => ir('/folgas')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/folgas') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}>
+                <CalendarDays size={20} className="mr-3" /> {user.perfil?.toLowerCase() === 'leitor' ? 'Minhas Folgas' : 'Folgas'}
+              </div>
+              <div onClick={() => ir('/comunicados')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/comunicados') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}>
+                <Megaphone size={20} className="mr-3" /> Comunicados
+              </div>
+              <div onClick={() => ir('/aso')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/aso') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}>
+                <HeartPulse size={20} className="mr-3" /> {user.perfil?.toLowerCase() === 'leitor' ? 'Meu ASO' : 'ASO'}
+              </div>
+            </>
           )}
-          <div onClick={() => ir('/atendimento')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/atendimento') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}>
-            <MessageCircle size={20} className="mr-3" /> Atendimento {badgeTickets}
-          </div>
-          <div onClick={() => ir('/banco-horas')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/banco-horas') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}>
-            <FileText size={20} className="mr-3" /> {user.perfil?.toLowerCase() === 'leitor' ? 'Meu Banco de Horas' : 'Banco de Horas'}
-          </div>
-          <div onClick={() => ir('/folgas')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/folgas') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}>
-            <CalendarDays size={20} className="mr-3" /> {user.perfil?.toLowerCase() === 'leitor' ? 'Minhas Folgas' : 'Folgas'}
-          </div>
-          <div onClick={() => ir('/comunicados')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/comunicados') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}>
-            <Megaphone size={20} className="mr-3" /> Comunicados
-          </div>
-          <div onClick={() => ir('/aso')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/aso') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}>
-            <HeartPulse size={20} className="mr-3" /> {user.perfil?.toLowerCase() === 'leitor' ? 'Meu ASO' : 'ASO'}
-          </div>
           {['editor','gerente'].includes(user.perfil?.toLowerCase()) && <div onClick={() => ir('/meu-desempenho')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/meu-desempenho') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}><ClipboardCheck size={20} className="mr-3" /> Meu desempenho</div>}
           {user.perfil?.toLowerCase() === 'administrador' && <>
             <Pasta titulo="Ferramentas" aberta={pastas.ferramentas} alternar={()=>setPastas(v=>({...v,ferramentas:!v.ferramentas}))}>

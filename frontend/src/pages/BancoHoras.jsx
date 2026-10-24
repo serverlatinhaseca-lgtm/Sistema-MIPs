@@ -12,7 +12,7 @@ export default function BancoHoras() {
   const api = `${API}/api`;
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const perfil = String(user.perfil || '').toLowerCase();
-  const ehRH = ['administrador', 'gerente'].includes(perfil);
+  const ehRH = ['administrador', 'gerente', 'rh'].includes(perfil);
   const headers = { Authorization: `Bearer ${localStorage.getItem('token')}` };
 
   const [lotes, setLotes] = useState([]);

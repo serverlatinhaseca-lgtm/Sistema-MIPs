@@ -213,13 +213,20 @@ CREATE TABLE IF NOT EXISTS ticket_mensagens (
 CREATE INDEX IF NOT EXISTS ticket_mensagens_ticket_idx ON ticket_mensagens (ticket_id, criado_em);
 
 -- Desabafo anônimo (23/10/2026): preenchido antes do login, sem vínculo com usuário.
+-- Anexos (24/10/2026): anexo_url, anexo_nome, anexo_tipo.
 CREATE TABLE IF NOT EXISTS desabafos (
   id SERIAL PRIMARY KEY,
   mensagem TEXT NOT NULL,
-  setor VARCHAR(60) NOT NULL DEFAULT '',
+  anexo_url VARCHAR(255) NOT NULL DEFAULT '',
+  anexo_nome VARCHAR(220) NOT NULL DEFAULT '',
+  anexo_tipo VARCHAR(100) NOT NULL DEFAULT '',
   lido_em TIMESTAMP,
   criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+ALTER TABLE desabafos ADD COLUMN IF NOT EXISTS anexo_url VARCHAR(255) NOT NULL DEFAULT '';
+ALTER TABLE desabafos ADD COLUMN IF NOT EXISTS anexo_nome VARCHAR(220) NOT NULL DEFAULT '';
+ALTER TABLE desabafos ADD COLUMN IF NOT EXISTS anexo_tipo VARCHAR(100) NOT NULL DEFAULT '';
+ALTER TABLE desabafos DROP COLUMN IF EXISTS setor;
 
 -- Banco de Horas (23/09/2026): matrícula/CPF no usuário + lotes e lançamentos.
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS matricula VARCHAR(30) NOT NULL DEFAULT '';
