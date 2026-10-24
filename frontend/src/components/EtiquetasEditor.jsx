@@ -35,6 +35,8 @@ const PRESETS = {
 
 const STORAGE_PRESETS = 'etiquetas-presets-v2';
 const STORAGE_ORDERS = 'etiquetas-orders-v2';
+const OLD_PRODUCTS_KEY = 'etiquetas-paes-products';
+const OLD_ORDERS_KEY = 'etiquetas-paes-orders';
 
 export default function EtiquetasEditor() {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -44,10 +46,50 @@ export default function EtiquetasEditor() {
   const [date, setDate] = useState(() => new Date().toISOString().slice(0,10));
   const [tab, setTab] = useState('config');
   const [presets, setPresets] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(STORAGE_PRESETS) || '{}'); } catch { return {}; }
+    try {
+      const saved = JSON.parse(localStorage.getItem(STORAGE_PRESETS) || '{}');
+      if (Object.keys(saved).length) return saved;
+      // migrar dados antigos
+      const oldProducts = JSON.parse(localStorage.getItem(OLD_PRODUCTS_KEY) || 'null');
+      if (oldProducts && Array.isArray(oldProducts)) {
+        const mapped = oldProducts.map(p => ({
+          id: p.id,
+          name: p.name || p.shortName || 'Produto',
+          shortName: p.shortName || p.name || 'Produto',
+          packageSize: p.packageSize || 50,
+          unitSingular: p.unitSingular || p.unit || getUnitForProduct(p.name || '').singular,
+          unitPlural: p.unitPlural || (p.unitSingular ? p.unitSingular + 's' : getUnitForProduct(p.name || '').plural),
+          color: p.color || getColorFromName(p.name || p.shortName || 'Produto')
+        }));
+        return { igarata: mapped };
+      }
+      return {};
+    } catch { return {}; }
   });
   const [orders, setOrders] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(STORAGE_ORDERS) || '{}'); } catch { return {}; }
+    try {
+      const saved = JSON.parse(localStorage.getItem(STORAGE_ORDERS) || '{}');
+      if (Object.keys(saved).length) return saved;
+      // migrar pedidos antigos
+      const oldOrders = JSON.parse(localStorage.getItem(OLD_ORDERS_KEY) || 'null');
+      if (oldOrders && Array.isArray(oldOrders)) {
+        const map = {};
+        oldOrders.forEach(o => {
+          const key = `${o.delivery || 'igarata'}::${o.date || '2026-01-01'}`;
+          if (!map[key]) map[key] = [];
+          map[key].push({
+            id: o.id || Date.now() + Math.random(),
+            productId: o.productId,
+            destination: o.destination,
+            total: o.total,
+            shift: o.shift,
+            afternoon: o.afternoon
+          });
+        });
+        return map;
+      }
+      return {};
+    } catch { return {}; }
   });
 
   const products = useMemo(() => {
@@ -62,9 +104,14 @@ export default function EtiquetasEditor() {
   const [shift, setShift] = useState('manha');
   const [afternoon, setAfternoon] = useState(false);
   const [error, setError] = useState('');
+  const [showNewProd, setShowNewProd] = useState(false);
+  const [newProd, setNewProd] = useState({ name:'', shortName:'', packageSize:50, unitSingular:'unidade', unitPlural:'unidades', color:'#d95d20' });
 
   useEffect(() => {
     localStorage.setItem(STORAGE_PRESETS, JSON.stringify(presets));
+    // limpa chaves antigas após migrar
+    localStorage.removeItem(OLD_PRODUCTS_KEY);
+    localStorage.removeItem(OLD_ORDERS_KEY);
   }, [presets]);
 
   useEffect(() => {
@@ -91,23 +138,21 @@ export default function EtiquetasEditor() {
     saveProducts(products.map(p => p.id === id ? { ...p, ...patch } : p));
   };
 
-  const addProduct = () => {
-    const name = prompt('Nome do produto');
-    if (!name) return;
-    const shortName = prompt('Nome curto para etiqueta', name);
-    const packageSize = parseInt(prompt('Quantidade por pacote', '50'),10) || 50;
-    const unitSingular = prompt('Unidade singular', 'unidade') || 'unidade';
-    const unitPlural = prompt('Unidade plural', unitSingular + 's') || unitSingular + 's';
-    const color = getColorFromName(name);
+  const handleAddProduct = () => {
+    if (!newProd.name.trim()) { setError('Informe o nome do produto'); return; }
+    const color = newProd.color || getColorFromName(newProd.name);
     saveProducts([...products, {
       id: `custom-${uuidv4()}`,
-      name: name.toUpperCase(),
-      shortName,
-      packageSize,
-      unitSingular,
-      unitPlural,
+      name: newProd.name.toUpperCase(),
+      shortName: newProd.shortName || newProd.name,
+      packageSize: parseInt(newProd.packageSize)||50,
+      unitSingular: newProd.unitSingular,
+      unitPlural: newProd.unitPlural,
       color
     }]);
+    setShowNewProd(false);
+    setNewProd({ name:'', shortName:'', packageSize:50, unitSingular:'unidade', unitPlural:'unidades', color:'#d95d20' });
+    setError('');
   };
 
   const removeProduct = (id) => {
@@ -270,8 +315,22 @@ export default function EtiquetasEditor() {
           <div className="rounded-xl border border-[var(--border-color)] bg-[var(--bg-card)] p-4">
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-semibold">Produtos para {delivery}</h3>
-              <button onClick={addProduct} className="text-sm px-3 py-1 rounded bg-orange-600 text-white">+ Novo produto</button>
+              <button onClick={()=>setShowNewProd(true)} className="text-sm px-3 py-1 rounded bg-orange-600 text-white">+ Novo produto</button>
             </div>
+            {showNewProd && (
+              <div className="mb-4 border rounded p-3 bg-[var(--bg-main)] grid md:grid-cols-3 gap-2">
+                <input placeholder="Nome completo" value={newProd.name} onChange={e=>setNewProd({...newProd, name:e.target.value})} className="rounded border px-2 py-1 bg-[var(--bg-card)]"/>
+                <input placeholder="Nome curto" value={newProd.shortName} onChange={e=>setNewProd({...newProd, shortName:e.target.value})} className="rounded border px-2 py-1 bg-[var(--bg-card)]"/>
+                <input type="number" placeholder="Qtd por pacote" value={newProd.packageSize} onChange={e=>setNewProd({...newProd, packageSize:e.target.value})} className="rounded border px-2 py-1 bg-[var(--bg-card)]"/>
+                <input placeholder="Unidade singular" value={newProd.unitSingular} onChange={e=>setNewProd({...newProd, unitSingular:e.target.value})} className="rounded border px-2 py-1 bg-[var(--bg-card)]"/>
+                <input placeholder="Unidade plural" value={newProd.unitPlural} onChange={e=>setNewProd({...newProd, unitPlural:e.target.value})} className="rounded border px-2 py-1 bg-[var(--bg-card)]"/>
+                <div className="flex items-center gap-2">
+                  <input type="color" value={newProd.color} onChange={e=>setNewProd({...newProd, color:e.target.value})} className="w-10 h-8 p-0 border-0 rounded"/>
+                  <button onClick={handleAddProduct} className="px-3 py-1 bg-green-600 text-white rounded text-sm">Salvar</button>
+                  <button onClick={()=>setShowNewProd(false)} className="px-3 py-1 bg-gray-300 rounded text-sm">Cancelar</button>
+                </div>
+              </div>
+            )}
             <div className="grid md:grid-cols-2 gap-3">
               {products.map(p => (
                 <div key={p.id} className="border rounded-lg p-3 bg-[var(--bg-main)]">
