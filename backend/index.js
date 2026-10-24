@@ -1881,12 +1881,17 @@ async function registrarLog(usuarioId, acao, entidade, entidadeId, detalhes) {
 }
 
 // RH = Gerente, Administrador e o perfil RH (criado em 22/10/2026).
-// Quem é RH gerencia ASO, Banco de Horas, Folgas, Atendimento e Comunicados.
+// 24/10/2026: o Gerente ficou só com Folgas, Comunicados e Banco de Horas.
+// ASO, Atendimento (fila do RH) e Desabafos são exclusivos de Administrador e RH.
 const PERFIS_RH = ['administrador', 'gerente', 'rh'];
 const ehRH = (perfil) => PERFIS_RH.includes(String(perfil || '').toLowerCase());
-// Gestão dos módulos ASO, Comunicados, Banco de Horas e Folgas: Administrador,
-// Gerente e RH. O perfil RH passa a ter gestão completa desses módulos.
+// Gestão de Folgas, Comunicados e Banco de Horas: Administrador, Gerente e RH.
 const perfilGestorRH = (perfil) => ['administrador', 'gerente', 'rh'].includes(normalizarPerfil(perfil));
+// Gestão de ASO (ASOs, agendamentos e locais de exame): Administrador e RH.
+const perfilGestorASO = (perfil) => ['administrador', 'rh'].includes(normalizarPerfil(perfil));
+// Fila de atendimento (tickets): Administrador e RH. O Gerente continua podendo
+// abrir e responder os próprios tickets, como qualquer funcionário.
+const ehGestorAtendimento = (perfil) => ['administrador', 'rh'].includes(normalizarPerfil(perfil));
 // Quem recebe as notificações operacionais do RH (ticket novo/mensagem, folga
 // solicitada, ASO vencido/confirmado): SOMENTE o perfil RH (22/10/2026).
 // Gerente e Administrador saíram da lista a pedido do mantenedor.
@@ -1963,7 +1968,7 @@ app.get('/api/locais-exame', verificarToken, async (req, res) => {
 });
 
 app.post('/api/locais-exame', verificarToken, async (req, res) => {
-  if (!perfilGestorRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  if (!perfilGestorASO(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
   const b = req.body || {};
   const nome = String(b.nome || '').trim();
   if (nome.length < 2) return res.status(400).json({ error: 'Informe o nome do local' });
@@ -1981,7 +1986,7 @@ app.post('/api/locais-exame', verificarToken, async (req, res) => {
 });
 
 app.put('/api/locais-exame/:id', verificarToken, async (req, res) => {
-  if (!perfilGestorRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  if (!perfilGestorASO(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
   const b = req.body || {};
   const nome = String(b.nome || '').trim();
   if (nome.length < 2) return res.status(400).json({ error: 'Informe o nome do local' });
@@ -1998,7 +2003,7 @@ app.put('/api/locais-exame/:id', verificarToken, async (req, res) => {
 });
 
 app.delete('/api/locais-exame/:id', verificarToken, async (req, res) => {
-  if (!perfilGestorRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  if (!perfilGestorASO(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
   const fut = await pool.query(
     `SELECT COUNT(*)::int AS total FROM agendamentos_aso WHERE local_id=$1 AND realizado=FALSE AND data_hora >= NOW()`,
     [req.params.id]
@@ -2017,7 +2022,7 @@ app.get('/api/asos', verificarToken, async (req, res) => {
   try {
     const { faixa, busca } = req.query;
     const conds = [], params = [];
-    if (!perfilGestorRH(req.usuarioPerfil)) { params.push(req.usuarioId); conds.push('(a.usuario_id=$' + params.length + ')'); }
+    if (!perfilGestorASO(req.usuarioPerfil)) { params.push(req.usuarioId); conds.push('(a.usuario_id=$' + params.length + ')'); }
     if (faixa && FAIXAS_VALIDAS.includes(String(faixa))) { params.push(String(faixa)); conds.push(`faixa=$${params.length}`); }
     if (busca) { params.push(`%${String(busca).trim()}%`); conds.push(`(nome_funcionario ILIKE $${params.length} OR matricula ILIKE $${params.length})`); }
     const r = await pool.query(
@@ -2031,7 +2036,7 @@ app.get('/api/asos', verificarToken, async (req, res) => {
 
 app.get('/api/asos/resumo', verificarToken, async (req, res) => {
   try {
-    if (!perfilGestorRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+    if (!perfilGestorASO(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
     const r = await pool.query(`SELECT faixa,COUNT(*)::int AS total FROM asos GROUP BY faixa`);
     const contadores = { Vermelho: 0, Laranja: 0, Amarelo: 0, Verde: 0, Pendente: 0 };
     for (const x of r.rows) if (contadores[x.faixa] !== undefined) contadores[x.faixa] = x.total;
@@ -2056,7 +2061,7 @@ app.get('/api/asos/meu', verificarToken, async (req, res) => {
 });
 
 app.post('/api/asos', verificarToken, async (req, res) => {
-  if (!perfilGestorRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  if (!perfilGestorASO(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
   const b = req.body || {};
   const nome = String(b.nome_funcionario || '').trim();
   if (nome.length < 2) return res.status(400).json({ error: 'Informe o nome do funcionário' });
@@ -2081,7 +2086,7 @@ app.post('/api/asos', verificarToken, async (req, res) => {
 });
 
 app.put('/api/asos/:id', verificarToken, async (req, res) => {
-  if (!perfilGestorRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  if (!perfilGestorASO(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
   const atual = await pool.query('SELECT * FROM asos WHERE id=$1', [req.params.id]);
   if (!atual.rows.length) return res.status(404).json({ error: 'ASO não encontrado' });
   const b = req.body || {};
@@ -2123,7 +2128,7 @@ app.put('/api/asos/:id', verificarToken, async (req, res) => {
 // Preserva faixa_importada da planilha; faixa calculada segue a regra do prompt.
 const importarXLSX = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 app.post('/api/asos/importar', verificarToken, importarXLSX.single('arquivo'), async (req, res) => {
-  if (!perfilGestorRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  if (!perfilGestorASO(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
   let linhas = Array.isArray(req.body?.linhas) ? req.body.linhas : [];
   if (req.file) {
     if (!XLSX) return res.status(500).json({ error: 'Leitor de planilha indisponível no servidor' });
@@ -2188,14 +2193,14 @@ app.post('/api/asos/importar', verificarToken, importarXLSX.single('arquivo'), a
 });
 
 app.post('/api/asos/recalcular', verificarToken, async (req, res) => {
-  if (!perfilGestorRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  if (!perfilGestorASO(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
   const r = await recalcularASOs();
   await registrarLog(req.usuarioId, 'recalcular', 'aso', null, `${r.atualizados} recalculados`);
   res.json(r);
 });
 
 app.post('/api/asos/:id/pdf', verificarToken, pdfASO.single('pdf'), async (req, res) => {
-  if (!perfilGestorRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  if (!perfilGestorASO(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
   if (!req.file) return res.status(400).json({ error: 'Envie o PDF do exame' });
   const url = `/uploads/${req.file.filename}`;
   const r = await pool.query('UPDATE asos SET pdf_url=$1,atualizado_em=NOW() WHERE id=$2 RETURNING *', [url, req.params.id]);
@@ -2212,7 +2217,7 @@ app.post('/api/asos/:id/confirmar-presenca', verificarToken, async (req, res) =>
   const r = await pool.query('SELECT * FROM asos WHERE id=$1', [req.params.id]);
   if (!r.rows.length) return res.status(404).json({ error: 'ASO não encontrado' });
   const a = r.rows[0];
-  if (!perfilGestorRH(req.usuarioPerfil) && Number(a.usuario_id) !== Number(req.usuarioId)) {
+  if (!perfilGestorASO(req.usuarioPerfil) && Number(a.usuario_id) !== Number(req.usuarioId)) {
     return res.status(403).json({ error: 'Você só pode confirmar o próprio ASO' });
   }
   const upd = await pool.query(
@@ -2231,7 +2236,7 @@ app.get('/api/agendamentos-aso', verificarToken, async (req, res) => {
   try {
     let q = `SELECT ag.*, l.nome AS local_nome FROM agendamentos_aso ag LEFT JOIN locais_exame l ON l.id=ag.local_id`;
     const params = [];
-    if (!perfilGestorRH(req.usuarioPerfil)) { params.push(req.usuarioId); q += ` WHERE ag.usuario_id=$${params.length}`; }
+    if (!perfilGestorASO(req.usuarioPerfil)) { params.push(req.usuarioId); q += ` WHERE ag.usuario_id=$${params.length}`; }
     q += ' ORDER BY ag.data_hora';
     const r = await pool.query(q, params);
     res.json(r.rows);
@@ -2239,7 +2244,7 @@ app.get('/api/agendamentos-aso', verificarToken, async (req, res) => {
 });
 
 app.post('/api/agendamentos-aso', verificarToken, async (req, res) => {
-  if (!perfilGestorRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  if (!perfilGestorASO(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
   const b = req.body || {};
   const nome = String(b.nome_funcionario || '').trim();
   if (!b.aso_id || !b.data_hora || !nome) return res.status(400).json({ error: 'Informe funcionário, ASO e data/hora' });
@@ -2264,7 +2269,7 @@ app.post('/api/agendamentos-aso', verificarToken, async (req, res) => {
 });
 
 app.put('/api/agendamentos-aso/:id', verificarToken, async (req, res) => {
-  if (!perfilGestorRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  if (!perfilGestorASO(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
   const b = req.body || {};
   const sets = [], vals = [];
   if (b.data_hora) { vals.push(b.data_hora); sets.push(`data_hora=$${vals.length}`); }
@@ -2285,7 +2290,7 @@ app.put('/api/agendamentos-aso/:id', verificarToken, async (req, res) => {
 });
 
 app.delete('/api/agendamentos-aso/:id', verificarToken, async (req, res) => {
-  if (!perfilGestorRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  if (!perfilGestorASO(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
   const r = await pool.query('DELETE FROM agendamentos_aso WHERE id=$1 RETURNING id', [req.params.id]);
   if (!r.rows.length) return res.status(404).json({ error: 'Agendamento não encontrado' });
   await registrarLog(req.usuarioId, 'excluir', 'agendamento_aso', req.params.id, '');
@@ -2296,7 +2301,7 @@ app.post('/api/agendamentos-aso/:id/confirmar', verificarToken, async (req, res)
   const r = await pool.query('SELECT * FROM agendamentos_aso WHERE id=$1', [req.params.id]);
   if (!r.rows.length) return res.status(404).json({ error: 'Agendamento não encontrado' });
   const ag = r.rows[0];
-  if (!perfilGestorRH(req.usuarioPerfil) && Number(ag.usuario_id) !== Number(req.usuarioId)) {
+  if (!perfilGestorASO(req.usuarioPerfil) && Number(ag.usuario_id) !== Number(req.usuarioId)) {
     return res.status(403).json({ error: 'Você só pode confirmar o próprio agendamento' });
   }
   const upd = await pool.query('UPDATE agendamentos_aso SET presenca_confirmada=TRUE WHERE id=$1 RETURNING *', [req.params.id]);
@@ -2531,7 +2536,7 @@ app.get('/api/tickets', verificarToken, async (req, res) => {
   try {
     const { status, categoria, busca, situacao, de, ate } = req.query;
     const conds = [], params = [];
-    if (!ehRH(req.usuarioPerfil)) { params.push(req.usuarioId); conds.push(`t.usuario_id=$${params.length}`); }
+    if (!ehGestorAtendimento(req.usuarioPerfil)) { params.push(req.usuarioId); conds.push(`t.usuario_id=$${params.length}`); }
     if (status && STATUS_TICKET.includes(String(status))) { params.push(String(status)); conds.push(`t.status=$${params.length}`); }
     else if (String(situacao || '') === 'historico') conds.push(`t.status='Concluído'`);
     else if (String(situacao || '') === 'ativos') conds.push(`t.status<>'Concluído'`);
@@ -2555,7 +2560,7 @@ app.get('/api/tickets', verificarToken, async (req, res) => {
 // Contadores do sino/badge: Atendendo = na fila do RH.
 app.get('/api/tickets/resumo', verificarToken, async (req, res) => {
   try {
-    if (!ehRH(req.usuarioPerfil)) return res.json({ atendendo: 0, pendentes: 0, concluidos: 0 });
+    if (!ehGestorAtendimento(req.usuarioPerfil)) return res.json({ atendendo: 0, pendentes: 0, concluidos: 0 });
     const r = await pool.query(
       `SELECT COUNT(*) FILTER (WHERE status='Atendendo')::int AS atendendo,
               COUNT(*) FILTER (WHERE status='Pendente')::int AS pendentes,
@@ -2604,7 +2609,7 @@ app.get('/api/tickets/:id', verificarToken, async (req, res) => {
   const t = await pool.query('SELECT * FROM tickets WHERE id=$1', [req.params.id]);
   if (!t.rows.length) return res.status(404).json({ error: 'Ticket não encontrado' });
   const tick = t.rows[0];
-  if (!ehRH(req.usuarioPerfil) && Number(tick.usuario_id) !== Number(req.usuarioId)) {
+  if (!ehGestorAtendimento(req.usuarioPerfil) && Number(tick.usuario_id) !== Number(req.usuarioId)) {
     return res.status(403).json({ error: 'Você só vê os próprios tickets' });
   }
   const m = await pool.query(
@@ -2618,10 +2623,10 @@ app.post('/api/tickets/:id/mensagens', verificarToken, chatUpload.single('anexo'
   const t = await pool.query('SELECT * FROM tickets WHERE id=$1', [req.params.id]);
   if (!t.rows.length) return res.status(404).json({ error: 'Ticket não encontrado' });
   const tick = t.rows[0];
-  if (!ehRH(req.usuarioPerfil) && Number(tick.usuario_id) !== Number(req.usuarioId)) {
+  if (!ehGestorAtendimento(req.usuarioPerfil) && Number(tick.usuario_id) !== Number(req.usuarioId)) {
     return res.status(403).json({ error: 'Você só participa dos próprios tickets' });
   }
-  if (ticketEncerrado(tick.status) && !ehRH(req.usuarioPerfil)) {
+  if (ticketEncerrado(tick.status) && !ehGestorAtendimento(req.usuarioPerfil)) {
     return res.status(400).json({ error: 'Ticket concluído. Abra um novo se precisar.' });
   }
   const texto = String(req.body?.texto || '').trim();
@@ -2636,7 +2641,7 @@ app.post('/api/tickets/:id/mensagens', verificarToken, chatUpload.single('anexo'
   );
   // Resposta do RH deixa aguardando o funcionário; mensagem do funcionário volta
   // para a fila do RH (Atendendo). Ticket concluído reabre quando o RH responde.
-  const autorEhRH = ehRH(req.usuarioPerfil);
+  const autorEhRH = ehGestorAtendimento(req.usuarioPerfil);
   const novoStatus = statusAposMensagem(tick.status, autorEhRH);
   await pool.query('UPDATE tickets SET atualizado_em=NOW(), status=$2 WHERE id=$1', [req.params.id, novoStatus]);
   await registrarLog(req.usuarioId, 'mensagem', 'ticket', req.params.id, texto.slice(0, 120) || '[anexo]');
@@ -2652,7 +2657,7 @@ app.post('/api/tickets/:id/mensagens', verificarToken, chatUpload.single('anexo'
 });
 
 app.patch('/api/tickets/:id', verificarToken, async (req, res) => {
-  if (!ehRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  if (!ehGestorAtendimento(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
   const b = req.body || {};
   const sets = [], vals = [];
   if (b.status && STATUS_TICKET.includes(String(b.status))) { vals.push(String(b.status)); sets.push(`status=$${vals.length}`); }

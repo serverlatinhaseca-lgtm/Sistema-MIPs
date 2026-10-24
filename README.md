@@ -2,7 +2,7 @@
 
 > Portal interno para padronização operacional, gestão de receitas, avaliações de desempenho, reclamações e ferramentas de produção.
 
-![Versão](https://img.shields.io/badge/versão-2.14.0-ff8d2f)
+![Versão](https://img.shields.io/badge/versão-2.14.1-ff8d2f)
 ![React](https://img.shields.io/badge/React-18-61dafb)
 ![Node.js](https://img.shields.io/badge/Node.js-22-339933)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-4169e1)
@@ -12,10 +12,15 @@
 
 O Sistema Central reúne em um único portal os processos internos da Nova Esperança. A aplicação funciona em computadores e celulares, possui modo claro e escuro e separa os acessos conforme a função de cada usuário.
 
+### Novidades da versão 2.14.1
+
+- **Gerente com menos itens de RH**: na pasta RH ele vê somente **Folgas, Comunicados e Banco de Horas**. ASO e a fila de Atendimento agora são exclusivos de **RH e Administrador** (bloqueado também na API).
+- **Gerente continua abrindo os próprios tickets** (visão "meus tickets") e mantém Receitas, Avaliações, Reclamações e Meu desempenho.
+
 ### Novidades da versão 2.14.0
 
 - **RH passa a gerenciar ASO, Comunicados e Banco de Horas** (era só leitura; agora tem permissão total como Administrador e Gerente).
-- **Barra lateral com "Pasta RH" para Administrador**: itens de RH ficam dentro de uma pasta recolhível; para RH e Gerente continuam direto no menu.
+- **Barra lateral com "Pasta RH" para Administrador**: itens de RH ficam dentro de uma pasta recolhível; para o RH continuam direto no menu.
 - **Desabafo anônimo com anexo**: upload de arquivo (PDF, imagem, vídeo, áudio, texto até 20MB) na página pública antes do login.
 - **Textos do desabafo ajustados**: "Não precisa logar. Sua mensagem será completamente anônima." — sem menção a RH/Administrador. Campo "Setor" removido.
 - **Lista de desabafos (RH/ADM)**: cores melhoradas, modal de visualização com preview do anexo (imagem, vídeo, áudio, PDF), botão "Marcar como lido" direto no card.

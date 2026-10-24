@@ -23,17 +23,22 @@ export default function Sidebar({ emDrawer = false, aoNavegar = () => {} }) {
   const branding = useBranding();
 
   // 24/10/2026: o perfil RH vê Atendimento, Banco de Horas, Folgas, Comunicados,
-  // ASO e Desabafos direto na barra. Administrador e Gerente veem esses mesmos
-  // itens dentro da pasta "RH", para não misturar com as ferramentas do sistema.
+  // ASO e Desabafos direto na barra. O Administrador vê tudo isso na pasta "RH".
+  // O Gerente tem na pasta "RH" somente Folgas, Comunicados e Banco de Horas.
   // O perfil RH vê SOMENTE: Início, Manuais, Reclamações e os itens de RH —
   // sem Receitas, Avaliações nem Meu desempenho.
-  const ehPerfilRH = String(user.perfil || '').toLowerCase() === 'rh';
-  const ehRH = ['administrador', 'gerente', 'rh'].includes(String(user.perfil || '').toLowerCase());
-  const podeVerDesabafos = ['rh', 'administrador'].includes(String(user.perfil || '').toLowerCase());
+  const perfil = String(user.perfil || '').toLowerCase();
+  const ehPerfilRH = perfil === 'rh';
+  const ehAdministrador = perfil === 'administrador';
+  const ehGerente = perfil === 'gerente';
+  // Fila de atendimento (tickets) e ASO: Administrador e RH. O Gerente não vê.
+  const podeVerFilaAtendimento = ['administrador', 'rh'].includes(perfil);
+  const podeVerASO = perfil !== 'gerente';
+  const podeVerDesabafos = ['rh', 'administrador'].includes(perfil);
 
   // Badge do Atendimento: tickets na fila do RH (status Atendendo).
   useEffect(() => {
-    if (!ehRH) return;
+    if (!podeVerFilaAtendimento) return;
     let ativo = true;
     const buscar = () => axios.get(`${API}/api/tickets/resumo`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
       .then((r) => { if (ativo) setTicketsAtendendo(Number(r.data?.atendendo) || 0); })
@@ -41,7 +46,7 @@ export default function Sidebar({ emDrawer = false, aoNavegar = () => {} }) {
     buscar();
     const t = setInterval(buscar, 60000);
     return () => { ativo = false; clearInterval(t); };
-  }, [ehRH]);
+  }, [podeVerFilaAtendimento]);
 
   const badgeTickets = ticketsAtendendo > 0 ? (
     <span className="absolute -top-2 -right-2 min-w-[16px] h-4 px-1 rounded-full bg-red-600 text-white text-[9px] font-bold grid place-items-center">
@@ -91,13 +96,15 @@ export default function Sidebar({ emDrawer = false, aoNavegar = () => {} }) {
     </>}
     <IconBtn titulo="Reclamações" ativo={isActive('/reclamacoes')} abrir={() => ir('/reclamacoes')}><AlertTriangle size={20} /></IconBtn>
     {podeVerDesabafos && <IconBtn titulo="Desabafos" ativo={isActive('/desabafos')} abrir={() => ir('/desabafos')}><Ghost size={20} /></IconBtn>}
-    <IconBtn titulo="Atendimento" ativo={isActive('/atendimento')} abrir={() => ir('/atendimento')}>
-      <IconeAtendimento tamanho={20} />
-    </IconBtn>
+    {podeVerFilaAtendimento && (
+      <IconBtn titulo="Atendimento" ativo={isActive('/atendimento')} abrir={() => ir('/atendimento')}>
+        <IconeAtendimento tamanho={20} />
+      </IconBtn>
+    )}
     <IconBtn titulo="Banco de Horas" ativo={isActive('/banco-horas')} abrir={() => ir('/banco-horas')}><FileText size={20} /></IconBtn>
     <IconBtn titulo="Folgas" ativo={isActive('/folgas')} abrir={() => ir('/folgas')}><CalendarDays size={20} /></IconBtn>
     <IconBtn titulo="Comunicados" ativo={isActive('/comunicados')} abrir={() => ir('/comunicados')}><Megaphone size={20} /></IconBtn>
-    <IconBtn titulo={user.perfil?.toLowerCase() === 'leitor' ? 'Meu ASO' : 'ASO'} ativo={isActive('/aso')} abrir={() => ir('/aso')}><HeartPulse size={20} /></IconBtn>
+    {podeVerASO && <IconBtn titulo={perfil === 'leitor' ? 'Meu ASO' : 'ASO'} ativo={isActive('/aso')} abrir={() => ir('/aso')}><HeartPulse size={20} /></IconBtn>}
     {['editor','gerente'].includes(user.perfil?.toLowerCase()) && <IconBtn titulo="Meu desempenho" ativo={isActive('/meu-desempenho')} abrir={() => ir('/meu-desempenho')}><ClipboardCheck size={20} /></IconBtn>}
     {user.perfil?.toLowerCase() === 'administrador' && <>
       <IconBtn titulo="Usuários" ativo={isActive('/usuarios')} abrir={() => ir('/usuarios')}><Users size={20} /></IconBtn>
@@ -163,8 +170,8 @@ export default function Sidebar({ emDrawer = false, aoNavegar = () => {} }) {
                 <Ghost size={20} className="mr-3" /> Desabafos
               </div>
             </>
-          ) : ehRH ? (
-            // Administrador e Gerente: itens de pessoas dentro da pasta RH
+          ) : ehAdministrador ? (
+            // Administrador: todos os itens de pessoas na pasta RH
             <Pasta titulo="RH" aberta={pastas.rh} alternar={()=>setPastas(v=>({...v,rh:!v.rh}))}>
               <Item icon={<IconeAtendimento tamanho={18}/>} titulo="Atendimento" ativo={isActive('/atendimento')} abrir={()=>ir('/atendimento')}/>
               <Item icon={<FileText size={18}/>} titulo="Banco de Horas" ativo={isActive('/banco-horas')} abrir={()=>ir('/banco-horas')}/>
@@ -172,6 +179,13 @@ export default function Sidebar({ emDrawer = false, aoNavegar = () => {} }) {
               <Item icon={<Megaphone size={18}/>} titulo="Comunicados" ativo={isActive('/comunicados')} abrir={()=>ir('/comunicados')}/>
               <Item icon={<HeartPulse size={18}/>} titulo="ASO" ativo={isActive('/aso')} abrir={()=>ir('/aso')}/>
               {podeVerDesabafos && <Item icon={<Ghost size={18}/>} titulo="Desabafos" ativo={isActive('/desabafos')} abrir={()=>ir('/desabafos')}/>}
+            </Pasta>
+          ) : ehGerente ? (
+            // Gerente: só Folgas, Comunicados e Banco de Horas (ASO e Atendimento são do RH)
+            <Pasta titulo="RH" aberta={pastas.rh} alternar={()=>setPastas(v=>({...v,rh:!v.rh}))}>
+              <Item icon={<FileText size={18}/>} titulo="Banco de Horas" ativo={isActive('/banco-horas')} abrir={()=>ir('/banco-horas')}/>
+              <Item icon={<CalendarDays size={18}/>} titulo="Folgas" ativo={isActive('/folgas')} abrir={()=>ir('/folgas')}/>
+              <Item icon={<Megaphone size={18}/>} titulo="Comunicados" ativo={isActive('/comunicados')} abrir={()=>ir('/comunicados')}/>
             </Pasta>
           ) : (
             // Funcionário e Líder: usam os módulos de RH como colaborador

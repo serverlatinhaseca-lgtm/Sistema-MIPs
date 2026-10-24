@@ -31,7 +31,7 @@ export default function ASO() {
   const api = `${API}/api`;
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const perfil = String(user.perfil || '').toLowerCase();
-  const ehRH = ['administrador', 'gerente', 'rh'].includes(perfil);
+  const ehRH = ['administrador', 'rh'].includes(perfil);
   const headers = { Authorization: `Bearer ${localStorage.getItem('token')}` };
 
   const [aba, setAba] = useState('funcionarios');

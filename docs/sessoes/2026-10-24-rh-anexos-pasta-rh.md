@@ -1,6 +1,6 @@
-# 24/10/2026 — RH 2.14.0: anexos no desabafo, pasta RH e gestão do RH
+# 24/10/2026 — RH 2.14.x: anexos no desabafo, pasta RH e gestão do RH
 
-Complemento da sessão de 23/10 (`2026-10-23-rh-tickets-desabafo.md`). Versão **2.14.0**.
+Complemento da sessão de 23/10 (`2026-10-23-rh-tickets-desabafo.md`). Versões **2.14.0** e **2.14.1**.
 
 ## O que mudou
 
@@ -37,9 +37,20 @@ Complemento da sessão de 23/10 (`2026-10-23-rh-tickets-desabafo.md`). Versão *
 - `init.sql`: `desabafos` nasce com `anexo_url/anexo_nome/anexo_tipo`, recebe `ALTER ... ADD COLUMN IF NOT EXISTS` e `ALTER TABLE desabafos DROP COLUMN IF EXISTS setor`.
 - Migração aplicada manualmente no banco de produção (`portal_mips_db`): colunas criadas e `setor` removida.
 
+## 2.14.1 — Gerente com só 3 itens de RH (mesmo dia, a pedido do mantenedor)
+
+- **Menu**: na pasta **RH**, o Gerente vê apenas **Folgas, Comunicados e Banco de Horas**. ASO, Atendimento e Desabafos saem do menu dele (Administrador mantém os 6).
+- **API** (novos helpers em `backend/index.js`):
+  - `perfilGestorASO` = `administrador` + `rh` → usada em ASO, agendamentos e locais de exame. Gerente recebe **403** em `/api/asos/resumo`, POST/PUT/DELETE e agendamentos; `GET /api/asos` e `/api/asos/meu` continuam mostrando só o registro dele.
+  - `ehGestorAtendimento` = `administrador` + `rh` → usada nas rotas de tickets. Gerente perde a fila (`PATCH /api/tickets/:id` → 403, resumo retorna zeros) mas segue abrindo e respondendo os **próprios** tickets.
+  - `perfilGestorRH` continua com `gerente` (Folgas, Comunicados, Banco de Horas) e `ehRH` segue valendo para reclamações/folgas/escalas.
+- **Frontend**: `ASO.jsx` e `Atendimento.jsx` passam a tratar `ehRH` como `administrador`/`rh` (Gerente cai na visão de funcionário); `Sidebar.jsx` esconde Atendimento/ASO do Gerente no trilho e na pasta, e o polling do badge só roda para Administrador/RH.
+- **Validado com token de Gerente**: Folgas/Comunicados/Banco de Horas 200/201; ASO resumo/criar 403; agendamento 403; `PATCH /tickets/:id` 403; `tickets/resumo` zeros; desabafos 403; Receitas/Reclamações 200. Admin e RH seguem com ASO e tickets 200.
+- Versão **2.14.1** em `backend/package.json`, `frontend/package.json` e badge do README.
+
 ## Validação (24/10)
 - `npm test`: **26/26**.
-- Build Vite OK; `docker compose up -d --build` aplicado; `/api/health` → `{"ok":true}`; backend em **2.14.0**.
+- Build Vite OK; `docker compose up -d --build` aplicado; `/api/health` → `{"ok":true}`.
 - Com token de RH: desabafo público 201 (com TXT) e 400 para `.exe`/`.rar`; `/api/desabafos` 200 para RH/Administrador e **403 para Leitor**; ASO 201, Comunicado 201, lote de Banco de Horas 201, Folgas/Tickets 200; `/api/receitas` e `/api/avaliacoes` **403**.
 - Dados de teste (desabafos, notificações `desabafo:%`, ASO, comunicado, lote e arquivos em `uploads/`) removidos.
 
