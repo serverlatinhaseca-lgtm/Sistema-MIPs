@@ -1478,30 +1478,60 @@
             name: "PÃO FRANCÊS",
             shortName: "Pão francês",
             packageSize: 50,
+            unit: "pão",
+            unitSingular: "pão",
+            unitPlural: "pães",
+            color: "#d95d20",
           },
           {
             id: "leite",
             name: "PÃO DE LEITE",
             shortName: "Pão de leite",
             packageSize: 30,
+            unit: "pão",
+            unitSingular: "pão",
+            unitPlural: "pães",
+            color: "#2f6b4f",
           },
           {
             id: "integral",
             name: "PÃO FRANCÊS INTEGRAL",
             shortName: "Francês integral",
             packageSize: 50,
+            unit: "pão",
+            unitSingular: "pão",
+            unitPlural: "pães",
+            color: "#6c757d",
           },
           {
             id: "mini-leite",
             name: "MINI PÃO DE LEITE",
             shortName: "Mini de leite",
             packageSize: 30,
+            unit: "pão",
+            unitSingular: "pão",
+            unitPlural: "pães",
+            color: "#dc3545",
           },
           {
             id: "mini-frances",
             name: "MINI PÃO FRANCÊS",
             shortName: "Mini francês",
             packageSize: 50,
+            unit: "pão",
+            unitSingular: "pão",
+            unitPlural: "pães",
+            color: "#fd7e14",
+          },
+          {
+            id: "bolo",
+            name: "BOLOS",
+            shortName: "Bolo",
+            packageSize: 1,
+            unit: "unidade",
+            unitSingular: "unidade",
+            unitPlural: "unidades",
+            color: "#6f42c1",
           },
         ],
         paraibuna: [
@@ -1510,12 +1540,30 @@
             name: "PÃO FRANCÊS",
             shortName: "Pão francês",
             packageSize: 50,
+            unit: "pão",
+            unitSingular: "pão",
+            unitPlural: "pães",
+            color: "#d95d20",
           },
           {
             id: "leite",
             name: "PÃO DE LEITE",
             shortName: "Pão de leite",
             packageSize: 30,
+            unit: "pão",
+            unitSingular: "pão",
+            unitPlural: "pães",
+            color: "#2f6b4f",
+          },
+          {
+            id: "bolo",
+            name: "BOLOS",
+            shortName: "Bolo",
+            packageSize: 1,
+            unit: "unidade",
+            unitSingular: "unidade",
+            unitPlural: "unidades",
+            color: "#6f42c1",
           },
         ],
         johnson: [
@@ -1524,6 +1572,10 @@
             name: "LANCHE COM FRIOS",
             shortName: "Lanche com frios",
             packageSize: 50,
+            unit: "pão",
+            unitSingular: "pão",
+            unitPlural: "pães",
+            color: "#d95d20",
           },
         ],
         margarina: [
@@ -1532,24 +1584,40 @@
             name: "PÃO DE LEITE C/ MARGARINA",
             shortName: "Pão de leite com margarina",
             packageSize: 50,
+            unit: "pão",
+            unitSingular: "pão",
+            unitPlural: "pães",
+            color: "#2f6b4f",
           },
           {
             id: "frances-margarina",
             name: "PÃO FRANCÊS C/ MARGARINA",
             shortName: "Pão francês com margarina",
             packageSize: 50,
+            unit: "pão",
+            unitSingular: "pão",
+            unitPlural: "pães",
+            color: "#d95d20",
           },
           {
             id: "leite-sem-margarina",
             name: "PÃO DE LEITE S/ MARGARINA",
             shortName: "Pão de leite sem margarina",
             packageSize: 50,
+            unit: "pão",
+            unitSingular: "pão",
+            unitPlural: "pães",
+            color: "#2f6b4f",
           },
           {
             id: "frances-sem-margarina",
             name: "PÃO FRANCÊS S/ MARGARINA",
             shortName: "Pão francês sem margarina",
             packageSize: 50,
+            unit: "pão",
+            unitSingular: "pão",
+            unitPlural: "pães",
+            color: "#d95d20",
           },
         ],
       };
@@ -1560,6 +1628,10 @@
           name: "PÃO FRANCÊS",
           shortName: "Pão francês",
           packageSize: 50,
+          unit: "pão",
+          unitSingular: "pão",
+          unitPlural: "pães",
+          color: "#d95d20",
           standard: true,
         },
         {
@@ -1567,6 +1639,10 @@
           name: "PÃO DE LEITE",
           shortName: "Pão de leite",
           packageSize: 30,
+          unit: "pão",
+          unitSingular: "pão",
+          unitPlural: "pães",
+          color: "#2f6b4f",
           standard: true,
         },
         {
@@ -1574,6 +1650,21 @@
           name: "PÃO FRANCÊS INTEGRAL",
           shortName: "Pão francês integral",
           packageSize: 50,
+          unit: "pão",
+          unitSingular: "pão",
+          unitPlural: "pães",
+          color: "#6c757d",
+          standard: true,
+        },
+        {
+          id: "generic-bolo",
+          name: "BOLOS",
+          shortName: "Bolo",
+          packageSize: 1,
+          unit: "unidade",
+          unitSingular: "unidade",
+          unitPlural: "unidades",
+          color: "#6f42c1",
           standard: true,
         },
       ];
@@ -1886,12 +1977,26 @@
               new Date(`${date}T12:00:00`)
             )
           : "";
-      const colorFor = (id) =>
-        String(id).includes("leite")
-          ? "leite"
-          : String(id).includes("integral")
-          ? "integral"
-          : "frances";
+      const colorFor = (id) => {
+        const product = productById(state.delivery, id);
+        if (product && product.color) return product.color;
+        // Fallback para produtos antigos
+        if (String(id).includes("leite")) return "#2f6b4f";
+        if (String(id).includes("integral")) return "#6c757d";
+        return "#d95d20";
+      };
+      // Determina a unidade de medida com base no produto
+      const unitForLabel = (productId, delivery) => {
+        const product = productById(delivery, productId);
+        if (product && product.unitPlural) return product.unitPlural;
+        // Fallback para produtos antigos
+        const id = String(productId || "");
+        if (id.includes("bolo")) return "bolos";
+        if (id.includes("leite")) return "pães";
+        if (id.includes("integral")) return "pães";
+        if (id.includes("frios")) return "lanches";
+        return "pães";
+      };
       const productsFor = (delivery) => state.products[delivery] || [];
       // Alias de migração: "sem recheio" era o sem margarina.
       const PRODUCT_ALIASES = { "leite-sem-recheio": "frances-sem-margarina" };
@@ -3146,13 +3251,13 @@
         }${
           firstPackage
             ? `<div class="sample-label color-${colorFor(
-                firstPackage.productId
+                firstPackage.pid
               )} ${firstPackage.afternoon ? "afternoon-label" : ""}"><strong>${
                 firstPackage.destination
               }${firstPackage.shift ? ` • ${firstPackage.shift}` : ""}${
                 firstPackage.afternoon ? " • TARDE" : ""
               }</strong><span>${firstPackage.quantity} ${
-                state.delivery === "johnson" ? "LANCHES" : "PÃES"
+                unitForLabel(firstPackage.pid, state.delivery)
               }</span><small>${firstPackage.product}</small></div>`
             : ""
         }${
@@ -3191,7 +3296,7 @@
                       }${l.afternoon ? " • TARDE" : ""}</strong><span>${
                         l.quantity
                       } ${
-                        state.delivery === "johnson" ? "LANCHES" : "PÃES"
+                        unitForLabel(l.pid, state.delivery)
                       }</span><small>${l.product}</small></div>`
                 )
                 .join("")}</div>`
@@ -3275,9 +3380,7 @@
           );
           doc.setFontSize(7.8);
           doc.text(
-            `${label.quantity} ${
-              state.delivery === "johnson" ? "LANCHES" : "PÃES"
-            }`,
+            `${label.quantity} ${unitForLabel(label.pid, state.delivery)}`,
             cx,
             y + 8,
             { align: "center" }
@@ -3289,7 +3392,8 @@
           else doc.setTextColor(0, 0, 0);
           doc.text(label.product, cx, y + 10.8, { align: "center" });
         });
-        doc.save(pdfName());
+        // Garantir consistência no PDF - unidade já definida acima
+doc.save(pdfName());
       }
 
       function destinationListFor(order) {

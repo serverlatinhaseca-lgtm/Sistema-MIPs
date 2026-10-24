@@ -1881,12 +1881,15 @@ async function registrarLog(usuarioId, acao, entidade, entidadeId, detalhes) {
 }
 
 // RH = Gerente, Administrador e o perfil RH (criado em 22/10/2026).
-// 24/10/2026: o Gerente ficou só com Folgas, Comunicados e Banco de Horas.
-// ASO, Atendimento (fila do RH) e Desabafos são exclusivos de Administrador e RH.
+// 24/10/2026: o Gerente ficou só com Folgas e Banco de Horas.
+// ASO, Atendimento (fila do RH), Comunicados e Desabafos são de Administrador e RH.
 const PERFIS_RH = ['administrador', 'gerente', 'rh'];
 const ehRH = (perfil) => PERFIS_RH.includes(String(perfil || '').toLowerCase());
-// Gestão de Folgas, Comunicados e Banco de Horas: Administrador, Gerente e RH.
+// Gestão de Folgas e Banco de Horas: Administrador, Gerente e RH.
+// (O Gerente ficou só com esses dois módulos em 24/10/2026.)
 const perfilGestorRH = (perfil) => ['administrador', 'gerente', 'rh'].includes(normalizarPerfil(perfil));
+// Gestão de Comunicados: Administrador e RH (Gerente lê como funcionário).
+const perfilGestorComunicados = (perfil) => ['administrador', 'rh'].includes(normalizarPerfil(perfil));
 // Gestão de ASO (ASOs, agendamentos e locais de exame): Administrador e RH.
 const perfilGestorASO = (perfil) => ['administrador', 'rh'].includes(normalizarPerfil(perfil));
 // Fila de atendimento (tickets): Administrador e RH. O Gerente continua podendo
@@ -2465,7 +2468,7 @@ const SEGMENTOS_COMUNICADO = ['todos', 'leitor', 'editor', 'gerente', 'administr
 const PRIORIDADES_COMUNICADO = ['Normal', 'Alta', 'Urgente'];
 
 app.get('/api/comunicados', verificarToken, async (req, res) => {
-  if (perfilGestorRH(req.usuarioPerfil)) {
+  if (perfilGestorComunicados(req.usuarioPerfil)) {
     const r = await pool.query(
       `SELECT c.*, u.nome AS criado_por_nome,
        (SELECT COUNT(*)::int FROM comunicado_leituras l WHERE l.comunicado_id=c.id) AS leituras,
@@ -2485,7 +2488,7 @@ app.get('/api/comunicados', verificarToken, async (req, res) => {
 });
 
 app.post('/api/comunicados', verificarToken, async (req, res) => {
-  if (!perfilGestorRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  if (!perfilGestorComunicados(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
   const b = req.body || {};
   const titulo = String(b.titulo || '').trim();
   if (titulo.length < 3) return res.status(400).json({ error: 'Informe o título do comunicado' });
@@ -2502,14 +2505,14 @@ app.post('/api/comunicados', verificarToken, async (req, res) => {
 });
 
 app.post('/api/comunicados/:id/enviar', verificarToken, async (req, res) => {
-  if (!perfilGestorRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  if (!perfilGestorComunicados(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
   const total = await enviarComunicado(req.params.id);
   if (total === null) return res.status(404).json({ error: 'Comunicado não encontrado ou já enviado' });
   res.json({ destinatarios: total });
 });
 
 app.post('/api/comunicados/:id/reenviar', verificarToken, async (req, res) => {
-  if (!perfilGestorRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  if (!perfilGestorComunicados(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
   const c = await pool.query('SELECT * FROM comunicados WHERE id=$1', [req.params.id]);
   if (!c.rows.length) return res.status(404).json({ error: 'Comunicado não encontrado' });
   await pool.query('UPDATE comunicados SET enviado_em=NULL WHERE id=$1', [req.params.id]);
@@ -2518,7 +2521,7 @@ app.post('/api/comunicados/:id/reenviar', verificarToken, async (req, res) => {
 });
 
 app.get('/api/comunicados/:id/leituras', verificarToken, async (req, res) => {
-  if (!perfilGestorRH(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
+  if (!perfilGestorComunicados(req.usuarioPerfil)) return res.status(403).json({ error: 'Acesso restrito ao RH' });
   const r = await pool.query(
     `SELECT u.nome, l.lido_em FROM comunicado_leituras l JOIN usuarios u ON u.id=l.usuario_id WHERE l.comunicado_id=$1 ORDER BY l.lido_em DESC`,
     [req.params.id]

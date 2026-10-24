@@ -181,11 +181,10 @@ export default function Sidebar({ emDrawer = false, aoNavegar = () => {} }) {
               {podeVerDesabafos && <Item icon={<Ghost size={18}/>} titulo="Desabafos" ativo={isActive('/desabafos')} abrir={()=>ir('/desabafos')}/>}
             </Pasta>
           ) : ehGerente ? (
-            // Gerente: só Folgas, Comunicados e Banco de Horas (ASO e Atendimento são do RH)
+            // Gerente: só Folgas e Banco de Horas no módulo RH
             <Pasta titulo="RH" aberta={pastas.rh} alternar={()=>setPastas(v=>({...v,rh:!v.rh}))}>
               <Item icon={<FileText size={18}/>} titulo="Banco de Horas" ativo={isActive('/banco-horas')} abrir={()=>ir('/banco-horas')}/>
               <Item icon={<CalendarDays size={18}/>} titulo="Folgas" ativo={isActive('/folgas')} abrir={()=>ir('/folgas')}/>
-              <Item icon={<Megaphone size={18}/>} titulo="Comunicados" ativo={isActive('/comunicados')} abrir={()=>ir('/comunicados')}/>
             </Pasta>
           ) : (
             // Funcionário e Líder: usam os módulos de RH como colaborador
@@ -206,6 +205,12 @@ export default function Sidebar({ emDrawer = false, aoNavegar = () => {} }) {
                 <HeartPulse size={20} className="mr-3" /> {user.perfil?.toLowerCase() === 'leitor' ? 'Meu ASO' : 'ASO'}
               </div>
             </>
+          )}
+          {ehGerente && (
+            // Comunicados: o Gerente só lê (não publica); fica fora da pasta RH.
+            <div onClick={() => ir('/comunicados')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/comunicados') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}>
+              <Megaphone size={20} className="mr-3" /> Comunicados
+            </div>
           )}
           {['editor','gerente'].includes(user.perfil?.toLowerCase()) && <div onClick={() => ir('/meu-desempenho')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/meu-desempenho') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}><ClipboardCheck size={20} className="mr-3" /> Meu desempenho</div>}
           {user.perfil?.toLowerCase() === 'administrador' && <>

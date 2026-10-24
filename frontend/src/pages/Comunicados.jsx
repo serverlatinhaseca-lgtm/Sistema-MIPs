@@ -11,7 +11,7 @@ export default function Comunicados() {
   const api = `${API}/api`;
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const perfil = String(user.perfil || '').toLowerCase();
-  const ehRH = ['administrador', 'gerente', 'rh'].includes(perfil);
+  const ehRH = ['administrador', 'rh'].includes(perfil);
   const headers = { Authorization: `Bearer ${localStorage.getItem('token')}` };
   const [itens, setItens] = useState([]);
   const [aberto, setAberto] = useState(false);

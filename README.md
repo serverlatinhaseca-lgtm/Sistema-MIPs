@@ -2,7 +2,7 @@
 
 > Portal interno para padronização operacional, gestão de receitas, avaliações de desempenho, reclamações e ferramentas de produção.
 
-![Versão](https://img.shields.io/badge/versão-2.14.1-ff8d2f)
+![Versão](https://img.shields.io/badge/versão-2.14.2-ff8d2f)
 ![React](https://img.shields.io/badge/React-18-61dafb)
 ![Node.js](https://img.shields.io/badge/Node.js-22-339933)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-4169e1)
@@ -12,9 +12,13 @@
 
 O Sistema Central reúne em um único portal os processos internos da Nova Esperança. A aplicação funciona em computadores e celulares, possui modo claro e escuro e separa os acessos conforme a função de cada usuário.
 
+### Novidades da versão 2.14.2
+
+- **Gerente sem Comunicados no módulo RH**: a pasta RH do Gerente agora tem só **Banco de Horas** e **Folgas**. Comunicados continua no menu dele apenas para **leitura** (como qualquer funcionário); publicar, agendar, reenviar e ver relatório de leituras é exclusivo de **RH e Administrador** (403 na API).
+
 ### Novidades da versão 2.14.1
 
-- **Gerente com menos itens de RH**: na pasta RH ele vê somente **Folgas, Comunicados e Banco de Horas**. ASO e a fila de Atendimento agora são exclusivos de **RH e Administrador** (bloqueado também na API).
+- **Gerente com menos itens de RH**: na pasta RH ele vê somente Folgas, Comunicados e Banco de Horas. ASO e a fila de Atendimento agora são exclusivos de **RH e Administrador** (bloqueado também na API).
 - **Gerente continua abrindo os próprios tickets** (visão "meus tickets") e mantém Receitas, Avaliações, Reclamações e Meu desempenho.
 
 ### Novidades da versão 2.14.0
