@@ -19,6 +19,7 @@ export default function Usuarios() {
   const [matricula, setMatricula] = useState("");
   const [cpf, setCpf] = useState("");
   const [perfil, setPerfil] = useState("Leitor");
+  const [status, setStatus] = useState("ativo");
   const [liderId, setLiderId] = useState("");
   const [modeloId, setModeloId] = useState("");
   const [categoriaId, setCategoriaId] = useState("");
@@ -80,6 +81,7 @@ export default function Usuarios() {
           modelo_avaliacao_id: modeloId ? Number(modeloId) : null,
           categoria_acesso_id: categoriaId ? Number(categoriaId) : null,
           setor_ids: setorIds.map(Number),
+          status,
         },
         {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
@@ -92,6 +94,7 @@ export default function Usuarios() {
       setMatricula("");
       setCpf("");
       setPerfil("Leitor");
+      setStatus("ativo");
       setLiderId("");
       setModeloId("");
       setCategoriaId("");
@@ -103,8 +106,8 @@ export default function Usuarios() {
     }
   };
 
-  const abrirNovo = () => { setEditandoUsuarioId(null);setNome("");setEmail("");setSenha("");setMatricula("");setCpf("");setPerfil("Leitor");setLiderId("");setModeloId("");setCategoriaId("");setSetorIds([]);setMostrarModal(true); };
-  const abrirEdicao = (u) => { setEditandoUsuarioId(u.id);setNome(u.nome||"");setEmail(u.email||"");setSenha("");setMatricula(u.matricula||"");setCpf(u.cpf||"");setPerfil(u.perfil||"Leitor");setLiderId(String(u.lider_id||""));setModeloId(String(u.modelo_avaliacao_id||""));setCategoriaId(String(u.categoria_acesso_id||""));setSetorIds(Array.isArray(u.setor_ids)?u.setor_ids.map(String):(Array.isArray(u.setores)?u.setores.map(s=>String(s.id)):[]));setMostrarModal(true); };
+  const abrirNovo = () => { setEditandoUsuarioId(null);setNome("");setEmail("");setSenha("");setMatricula("");setCpf("");setPerfil("Leitor");setStatus("ativo");setLiderId("");setModeloId("");setCategoriaId("");setSetorIds([]);setMostrarModal(true); };
+  const abrirEdicao = (u) => { setEditandoUsuarioId(u.id);setNome(u.nome||"");setEmail(u.email||"");setSenha("");setMatricula(u.matricula||"");setCpf(u.cpf||"");setPerfil(u.perfil||"Leitor");setStatus(u.status||"ativo");setLiderId(String(u.lider_id||""));setModeloId(String(u.modelo_avaliacao_id||""));setCategoriaId(String(u.categoria_acesso_id||""));setSetorIds(Array.isArray(u.setor_ids)?u.setor_ids.map(String):(Array.isArray(u.setores)?u.setores.map(s=>String(s.id)):[]));setMostrarModal(true); };
 
   const handleExcluir = async (id) => {
     if (!confirm("Deseja realmente excluir este usuário?")) return;
@@ -327,6 +330,21 @@ export default function Usuarios() {
                     </option>
                   </select>
                 </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1 text-[var(--text-muted)]">
+                    Situação
+                  </label>
+                  <select
+                    className="w-full p-3 rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)] text-[var(--text-main)] outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                    value={status}
+                    onChange={(e) => setStatus(e.target.value)}
+                  >
+                    <option value="ativo">Ativo</option>
+                    <option value="afastado">Afastado</option>
+                    <option value="inativo">Inativo</option>
+                  </select>
+                  <p className="text-xs text-[var(--text-muted)] mt-1">Usuários inativos/afastados ficam bloqueados no login e não conseguem acessar o sistema.</p>
+                </div>
                 {["Leitor", "Editor", "Gerente"].includes(perfil) && (
                   <div>
                     <label className="block text-sm font-medium mb-1 text-[var(--text-muted)]">
@@ -418,6 +436,9 @@ export default function Usuarios() {
                   Perfil
                 </th>
                 <th className="p-4 font-bold text-[var(--text-muted)] text-sm">
+                  Situação
+                </th>
+                <th className="p-4 font-bold text-[var(--text-muted)] text-sm">
                   Função / modelo
                 </th>
                 <th className="p-4 font-bold text-[var(--text-muted)] text-sm">Setores</th>
@@ -441,6 +462,11 @@ export default function Usuarios() {
                   <td className="p-4">
                     <span className="px-2.5 py-1 bg-[var(--primary)]/10 text-[var(--primary)] rounded-lg text-xs font-semibold">
                       {nomePerfil(u.perfil)}
+                    </span>
+                  </td>
+                  <td className="p-4">
+                    <span className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${ (u.status||'ativo')==='ativo' ? 'bg-emerald-100 text-emerald-700' : (u.status||'ativo')==='afastado' ? 'bg-amber-100 text-amber-700' : 'bg-zinc-200 text-zinc-700' }`}>
+                      { (u.status||'ativo')==='ativo' ? 'Ativo' : (u.status||'ativo')==='afastado' ? 'Afastado' : 'Inativo' }
                     </span>
                   </td>
                   <td className="p-4 text-[var(--text-muted)]">

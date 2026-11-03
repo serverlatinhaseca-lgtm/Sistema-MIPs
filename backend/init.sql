@@ -231,6 +231,7 @@ ALTER TABLE desabafos DROP COLUMN IF EXISTS setor;
 -- Banco de Horas (23/09/2026): matrícula/CPF no usuário + lotes e lançamentos.
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS matricula VARCHAR(30) NOT NULL DEFAULT '';
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS cpf VARCHAR(14) NOT NULL DEFAULT '';
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'ativo';
 CREATE TABLE IF NOT EXISTS banco_horas_lotes (
   id SERIAL PRIMARY KEY,
   competencia CHAR(7) NOT NULL,

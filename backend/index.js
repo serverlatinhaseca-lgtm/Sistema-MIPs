@@ -402,7 +402,7 @@ async function inicializarModelosAvaliacao() {
 
 conectarComRetentativa();
 
-const verificarToken = (req, res, next) => {
+const verificarToken = async (req, res, next) => {
   const authHeader = req.headers['authorization'];
   if (!authHeader) return res.status(403).json({ error: 'Token ausente' });
   try {
@@ -415,6 +415,10 @@ const verificarToken = (req, res, next) => {
     if (String(req.usuarioPerfil || '').toLowerCase() === 'rh' && /^\/api\/(receitas|avaliacoes)\b/i.test(req.path)) {
       return res.status(403).json({ error: 'Acesso não disponível para o perfil RH' });
     }
+    // Situação: só o usuário ativo mantém acesso. Inativo/afastado perdem na hora (sessão aberta junto).
+    const situacao = await pool.query('SELECT status FROM usuarios WHERE id=$1', [req.usuarioId]);
+    req.usuarioStatus = situacao.rows.length ? (situacao.rows[0].status || 'ativo') : null;
+    if (req.usuarioStatus !== 'ativo') return res.status(401).json({ error: BLOQUEIO_MUDAR_SITUACAO });
     next();
   } catch (err) { return res.status(401).json({ error: 'Token inválido' }); }
 };
@@ -427,6 +431,8 @@ const somenteAdministrador = (req, res, next) => {
 };
 
 const normalizarPerfil = (perfil) => String(perfil || '').toLowerCase();
+const normalizarStatusUsuario = (status) => String(status || '').trim().toLowerCase();
+const BLOQUEIO_MUDAR_SITUACAO = 'Acesso bloqueado para usuários com a situação alterada.';
 const restringirAoProprioTime = (perfil) => normalizarPerfil(perfil) === 'editor';
 
 const CHAVES_FERRAMENTAS_ADMIN = new Set(['etiquetas', 'caixas']);
@@ -515,9 +521,11 @@ app.post('/api/auth/login', async (req, res) => {
     const user = result.rows[0];
     const isValid = await bcrypt.compare(senha, user.senha);
     if (!isValid) return res.status(401).json({ error: 'Senha inválida' });
+    // Só o usuário ativo entra no sistema; inativo/afastado ficam bloqueados (o admin pode reativar).
+    if (normalizarStatusUsuario(user.status) !== 'ativo') return res.status(401).json({ error: BLOQUEIO_MUDAR_SITUACAO });
     const token = jwt.sign({ id: user.id, perfil: user.perfil }, JWT_SECRET, { expiresIn: '8h' });
     const categoria = user.categoria_acesso_id ? await pool.query('SELECT nome,permissoes FROM categorias_acesso WHERE id=$1 AND ativo=TRUE',[user.categoria_acesso_id]) : {rows:[]};
-    res.json({ token, deve_alterar_senha: Boolean(user.deve_alterar_senha), user: { id: user.id, nome: user.nome, perfil: user.perfil, email: user.email, deve_alterar_senha: Boolean(user.deve_alterar_senha), categoria_acesso_id:user.categoria_acesso_id, categoria_acesso_nome:categoria.rows[0]?.nome||'', permissoes:categoria.rows[0]?.permissoes||[] } });
+    res.json({ token, deve_alterar_senha: Boolean(user.deve_alterar_senha), user: { id: user.id, nome: user.nome, perfil: user.perfil, email: user.email, deve_alterar_senha: Boolean(user.deve_alterar_senha), status: user.status || 'ativo', categoria_acesso_id:user.categoria_acesso_id, categoria_acesso_nome:categoria.rows[0]?.nome||'', permissoes:categoria.rows[0]?.permissoes||[] } });
   } catch (error) { res.status(500).json({ error: 'Erro interno' }); }
 });
 
@@ -888,7 +896,7 @@ async function salvarSetoresUsuario(usuarioId, setorIds) {
 app.get('/api/usuarios', verificarToken, async (req, res) => {
   if (String(req.usuarioPerfil || '').toLowerCase() !== 'administrador') return res.status(403).json({ error: 'Acesso negado' });
   try {
-    const result = await pool.query(`SELECT u.id,u.nome,u.email,u.perfil,u.setor,u.cargo,u.matricula,u.cpf,u.lider_id,l.nome AS lider_nome,u.modelo_avaliacao_id,m.nome AS modelo_avaliacao_nome,u.categoria_acesso_id,ca.nome AS categoria_acesso_nome,u.deve_alterar_senha,u.criado_em,COALESCE((SELECT JSON_AGG(JSON_BUILD_OBJECT('id',s.id,'nome',s.nome) ORDER BY s.nome) FROM usuario_setores us JOIN setores_reclamacao s ON s.id=us.setor_id WHERE us.usuario_id=u.id),'[]'::json) AS setores FROM usuarios u LEFT JOIN usuarios l ON l.id=u.lider_id LEFT JOIN modelos_avaliacao m ON m.id=u.modelo_avaliacao_id LEFT JOIN categorias_acesso ca ON ca.id=u.categoria_acesso_id ORDER BY u.nome`);
+    const result = await pool.query(`SELECT u.id,u.nome,u.email,u.perfil,u.setor,u.cargo,u.matricula,u.cpf,u.lider_id,l.nome AS lider_nome,u.modelo_avaliacao_id,m.nome AS modelo_avaliacao_nome,u.categoria_acesso_id,ca.nome AS categoria_acesso_nome,u.deve_alterar_senha,COALESCE(u.status,'ativo') AS status,u.criado_em,COALESCE((SELECT JSON_AGG(JSON_BUILD_OBJECT('id',s.id,'nome',s.nome) ORDER BY s.nome) FROM usuario_setores us JOIN setores_reclamacao s ON s.id=us.setor_id WHERE us.usuario_id=u.id),'[]'::json) AS setores FROM usuarios u LEFT JOIN usuarios l ON l.id=u.lider_id LEFT JOIN modelos_avaliacao m ON m.id=u.modelo_avaliacao_id LEFT JOIN categorias_acesso ca ON ca.id=u.categoria_acesso_id ORDER BY u.nome`);
     const linhas = result.rows.map(r => ({ ...r, setor_ids: Array.isArray(r.setores) ? r.setores.map(s => s.id) : [] }));
     res.json(linhas);
   } catch (error) { res.status(500).json({ error: 'Erro' }); }
@@ -896,8 +904,9 @@ app.get('/api/usuarios', verificarToken, async (req, res) => {
 
 app.post('/api/usuarios', verificarToken, async (req, res) => {
   if (String(req.usuarioPerfil || '').toLowerCase() !== 'administrador') return res.status(403).json({ error: 'Acesso negado' });
-  const { nome, email, senha, perfil, lider_id = null, modelo_avaliacao_id = null, categoria_acesso_id = null, setor_ids = [], matricula = '', cpf = '' } = req.body;
+  const { nome, email, senha, perfil, lider_id = null, modelo_avaliacao_id = null, categoria_acesso_id = null, setor_ids = [], matricula = '', cpf = '', status = 'ativo' } = req.body;
   if (!['leitor','editor','gerente','rh','administrador'].includes(normalizarPerfil(perfil))) return res.status(400).json({ error: 'Perfil inválido' });
+  if (!['ativo','inativo','afastado'].includes(normalizarStatusUsuario(status))) return res.status(400).json({ error: 'Situação inválida' });
   if (['leitor','editor','gerente'].includes(normalizarPerfil(perfil)) && !lider_id) return res.status(400).json({ error: 'Selecione o responsável pela avaliação deste usuário' });
   try {
     const hash = await bcrypt.hash(senha, 10);
@@ -911,7 +920,7 @@ app.post('/api/usuarios', verificarToken, async (req, res) => {
     if(modelo_avaliacao_id){const modelo=await pool.query('SELECT id,nome FROM modelos_avaliacao WHERE id=$1 AND ativo=TRUE',[Number(modelo_avaliacao_id)]);if(!modelo.rows.length)return res.status(400).json({error:'Modelo de avaliação inválido'});nomeModelo=modelo.rows[0].nome;}
     if(['leitor','editor','gerente'].includes(normalizarPerfil(perfil)) && !modelo_avaliacao_id) return res.status(400).json({error:'Selecione a função/modelo de avaliação'});
     const recebeAvaliacao = ['leitor','editor','gerente'].includes(normalizarPerfil(perfil));
-    const result = await pool.query('INSERT INTO usuarios (nome,email,senha,perfil,setor,cargo,matricula,cpf,lider_id,modelo_avaliacao_id,categoria_acesso_id,deve_alterar_senha) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,TRUE) RETURNING id', [nome,email,hash,perfil,nomeModelo,nomeModelo,String(matricula||'').trim(),String(cpf||'').trim(),recebeAvaliacao?Number(lider_id):null,recebeAvaliacao&&modelo_avaliacao_id?Number(modelo_avaliacao_id):null,categoria_acesso_id?Number(categoria_acesso_id):null]);
+    const result = await pool.query('INSERT INTO usuarios (nome,email,senha,perfil,setor,cargo,matricula,cpf,lider_id,modelo_avaliacao_id,categoria_acesso_id,status,deve_alterar_senha) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,TRUE) RETURNING id', [nome,email,hash,perfil,nomeModelo,nomeModelo,String(matricula||'').trim(),String(cpf||'').trim(),recebeAvaliacao?Number(lider_id):null,recebeAvaliacao&&modelo_avaliacao_id?Number(modelo_avaliacao_id):null,categoria_acesso_id?Number(categoria_acesso_id):null,normalizarStatusUsuario(status)]);
     try { await salvarSetoresUsuario(result.rows[0].id, setor_ids); }
     catch (e) { return res.status(e.status || 500).json({ error: e.message }); }
     res.status(201).json({ id: result.rows[0].id, mensagem: 'Criado!' });
@@ -923,9 +932,14 @@ app.post('/api/usuarios', verificarToken, async (req, res) => {
 
 app.put('/api/usuarios/:id', verificarToken, async (req, res) => {
   if (String(req.usuarioPerfil).toLowerCase() !== 'administrador') return res.status(403).json({ error: 'Acesso negado' });
-  const { nome, email, perfil, lider_id = null, modelo_avaliacao_id = null, categoria_acesso_id = null, setor_ids = null, matricula, cpf } = req.body;
+  const { nome, email, perfil, lider_id = null, modelo_avaliacao_id = null, categoria_acesso_id = null, setor_ids = null, matricula, cpf, status = 'ativo' } = req.body;
   const perfilNormalizado = String(perfil || '').toLowerCase();
-  if (String(req.params.id) === String(req.usuarioId) && perfilNormalizado !== 'administrador') return res.status(400).json({ error: 'O Administrador não pode remover o próprio acesso administrativo' });
+  const statusNormalizado = normalizarStatusUsuario(status);
+  if (!['ativo','inativo','afastado'].includes(statusNormalizado)) return res.status(400).json({ error: 'Situação inválida' });
+  if (String(req.params.id) === String(req.usuarioId)) {
+    if (perfilNormalizado !== 'administrador') return res.status(400).json({ error: 'O Administrador não pode remover o próprio acesso administrativo' });
+    if (statusNormalizado !== 'ativo') return res.status(400).json({ error: 'O Administrador não pode alterar a própria situação' });
+  }
   if (!String(nome || '').trim() || !String(email || '').trim() || !['leitor','editor','gerente','rh','administrador'].includes(perfilNormalizado)) return res.status(400).json({ error: 'Preencha nome, login e perfil corretamente' });
   if (['leitor','editor','gerente'].includes(perfilNormalizado) && !lider_id) return res.status(400).json({ error: 'Selecione o responsável pela avaliação deste usuário' });
   try {
@@ -938,7 +952,7 @@ app.put('/api/usuarios/:id', verificarToken, async (req, res) => {
       if(!r.rows.length)return res.status(400).json({error:'O responsável selecionado não possui o perfil adequado'});
     }
     const recebeAvaliacao=['leitor','editor','gerente'].includes(perfilNormalizado);
-    const result=await pool.query('UPDATE usuarios SET nome=$1,email=$2,perfil=$3,setor=$4,cargo=$4,matricula=COALESCE($9,matricula),cpf=COALESCE($10,cpf),lider_id=$5,modelo_avaliacao_id=$6,categoria_acesso_id=$7 WHERE id=$8 RETURNING id',[nome.trim(),email.trim(),perfil,nomeModelo,recebeAvaliacao?Number(lider_id):null,recebeAvaliacao&&modelo_avaliacao_id?Number(modelo_avaliacao_id):null,categoria_acesso_id?Number(categoria_acesso_id):null,req.params.id,matricula!==undefined?String(matricula).trim():null,cpf!==undefined?String(cpf).trim():null]);
+    const result=await pool.query('UPDATE usuarios SET nome=$1,email=$2,perfil=$3,setor=$4,cargo=$4,matricula=COALESCE($9,matricula),cpf=COALESCE($10,cpf),lider_id=$5,modelo_avaliacao_id=$6,categoria_acesso_id=$7,status=$11 WHERE id=$8 RETURNING id',[nome.trim(),email.trim(),perfil,nomeModelo,recebeAvaliacao?Number(lider_id):null,recebeAvaliacao&&modelo_avaliacao_id?Number(modelo_avaliacao_id):null,categoria_acesso_id?Number(categoria_acesso_id):null,req.params.id,matricula!==undefined?String(matricula).trim():null,cpf!==undefined?String(cpf).trim():null,statusNormalizado]);
     if(!result.rows.length)return res.status(404).json({error:'Usuário não encontrado'});
     if (setor_ids !== null && setor_ids !== undefined) {
       try { await salvarSetoresUsuario(Number(req.params.id), setor_ids); }
@@ -959,10 +973,10 @@ app.delete('/api/usuarios/:id', verificarToken, async (req, res) => {
 
 // IMPORTAÇÃO DE USUÁRIOS POR PLANILHA (cadastro em massa, senha padrão "1234").
 // Colunas do modelo (aba "Usuarios"): nome | login | perfil | matricula | cpf |
-// responsavel_login | funcao_modelo | categoria_acesso | setores.
-// - perfil aceito: Funcionario (ou Leitor), Lider (ou Editor), Gerente, Administrador.
+// responsavel_login | funcao_modelo | categoria_acesso | setores | status.
+// - perfil aceito: Funcionario (ou Leitor), Lider (ou Editor), Gerente, RH, Administrador.
 // - Funcionario/Lider/Gerente exigem responsavel_login + funcao_modelo.
-// - categoria_acesso e setores são opcionais (setores separados por ";" ou ",").
+// - categoria_acesso, setores e status são opcionais (setores separados por ";" ou ","); status aceita ativo, inativo ou afastado (padrão ativo).
 // - Todos os criados recebem senha padrão "1234" (hash bcrypt) + deve_alterar_senha=TRUE.
 const SENHA_PADRAO_IMPORTACAO_USUARIOS = '1234';
 const importarUsuariosXLSX = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -975,7 +989,7 @@ const normalizarPerfilImportacao = (valor) => {
   if (['administrador', 'administradores', 'admin', 'adm'].includes(v)) return 'Administrador';
   return null;
 };
-const CABECALHO_USUARIOS = ['nome', 'login', 'perfil', 'matricula', 'cpf', 'responsavel_login', 'funcao_modelo', 'categoria_acesso', 'setores'];
+const CABECALHO_USUARIOS = ['nome', 'login', 'perfil', 'matricula', 'cpf', 'responsavel_login', 'funcao_modelo', 'categoria_acesso', 'setores', 'status'];
 
 // Modelo da planilha para download (abas "Usuarios" + "Listas" oculta + "Instruções").
 // As listas suspensas são geradas na hora com os dados atuais do banco: todo
@@ -993,15 +1007,15 @@ app.get('/api/usuarios/modelo-planilha', verificarToken, somenteAdministrador, a
       pool.query('SELECT nome FROM setores_reclamacao WHERE ativo=TRUE ORDER BY nome'),
     ]);
     const unicos = (lista) => [...new Set(lista.map((v) => String(v || '').trim()).filter(Boolean))].slice(0, 200);
-    const responsaveis = unicos(usuariosDb.rows.map((u) => u.email));
+    const responsaveis = unicos(usuariosDb.rows.filter(u => normalizarStatusUsuario(u.status) === 'ativo').map((u) => u.email));
     const funcoes = unicos(modelosDb.rows.map((m) => m.nome));
     const categorias = unicos(categoriasDb.rows.map((c) => c.nome));
     const setores = unicos(setoresDb.rows.map((s) => s.nome));
-    // Aba "Usuarios": só o cabeçalho — colunas C, F, G, H e I têm lista suspensa.
+    // Aba "Usuarios": só o cabeçalho — colunas C, F, G, H e I têm lista suspensa; coluna J (status) opcional.
     const ws = XLSX.utils.aoa_to_sheet([CABECALHO_USUARIOS]);
     ws['!cols'] = [
       { wch: 26 }, { wch: 18 }, { wch: 15 }, { wch: 12 }, { wch: 18 },
-      { wch: 20 }, { wch: 24 }, { wch: 20 }, { wch: 28 },
+      { wch: 20 }, { wch: 24 }, { wch: 20 }, { wch: 28 }, { wch: 12 },
     ];
     // Aba "Listas" (oculta): opções vivas do banco que alimentam as suspensas.
     const listasAoa = [['responsavel_login (quem pode avaliar)', 'funcao_modelo (nome exato)', 'categoria_acesso (nome exato)', 'setores (combine com " ; ")']];
@@ -1013,7 +1027,7 @@ app.get('/api/usuarios/modelo-planilha', verificarToken, somenteAdministrador, a
       ['IMPORTAÇÃO DE USUÁRIOS — COMO PREENCHER'],
       [''],
       ['1. Preencha uma linha por usuário na aba "Usuarios". Não altere o nome das colunas.'],
-      ['2. As colunas perfil, responsavel_login, funcao_modelo, categoria_acesso e setores já vêm com LISTA SUSPENSA (setinha na célula) preenchida com os dados atuais do sistema — é só escolher. Também dá para digitar.'],
+      ['2. As colunas perfil, responsavel_login, funcao_modelo, categoria_acesso e setores já vêm com LISTA SUSPENSA (setinha na célula) preenchida com os dados atuais do sistema — é só escolher. Também dá para digitar. A coluna status não tem lista suspensa, aceite: ativo, inativo ou afastado.'],
       [`3. Cadastrou um Líder, função, categoria ou setor novo? Baixe o modelo de novo: as listas são geradas na hora (${responsaveis.length} responsável(is), ${funcoes.length} função(ões), ${categorias.length} categoria(s), ${setores.length} setor(es) neste arquivo).`],
       ['4. Colunas obrigatórias: nome | login | perfil.'],
       ['5. Perfil aceito (pode usar qualquer um destes nomes):'],
@@ -1023,8 +1037,8 @@ app.get('/api/usuarios/modelo-planilha', verificarToken, somenteAdministrador, a
       ['   - RH: acesso aos módulos de RH (ASO, Banco de Horas, Folgas, Atendimento e Comunicados) — sem responsável e sem função.'],
       ['   - Administrador: acesso total, sem responsável e sem função.'],
       ['6. Para Funcionario, Lider e Gerente, escolha também: responsavel_login (quem avalia) + funcao_modelo (nome exato da função).'],
-      ['7. Opcionais: matricula | cpf | categoria_acesso | setores (para mais de um setor, combine com " ; " — ex.: Produção; Embalagem).'],
-      ['8. Exemplo de linha: Maria Silva | maria.silva | Funcionario | 1001 | 123.456.789-00 | aline | Embalagem | (vazio) | Embalagem; Logística'],
+      ['7. Opcionais: matricula | cpf | categoria_acesso | setores | status. Status aceita: ativo, inativo ou afastado (padrão ativo).'],
+      ['8. Exemplo de linha: Maria Silva | maria.silva | Funcionario | 1001 | 123.456.789-00 | aline | Embalagem | (vazio) | Embalagem; Logística | ativo'],
       ['9. SENHA PADRÃO: todos os usuários importados recebem a senha "1234".'],
       ['   Cada pessoa deve trocar a senha no primeiro acesso (o sistema exige a troca).'],
       ['10. Se o login já existir no sistema, aquela linha é ignorada (relatório mostra o motivo).'],
@@ -1093,7 +1107,7 @@ app.post('/api/usuarios/importar', verificarToken, somenteAdministrador, importa
   if (registros.length > 500) return res.status(400).json({ error: 'Máximo de 500 linhas por importação' });
   try {
     const [usuariosDb, modelosDb, categoriasDb, setoresDb] = await Promise.all([
-      pool.query('SELECT id, email, perfil FROM usuarios'),
+      pool.query('SELECT id, email, perfil, COALESCE(status,\'ativo\') AS status FROM usuarios'),
       pool.query('SELECT id, nome FROM modelos_avaliacao WHERE ativo=TRUE'),
       pool.query('SELECT id, nome FROM categorias_acesso'),
       pool.query('SELECT id, nome FROM setores_reclamacao WHERE ativo=TRUE'),
@@ -1113,6 +1127,8 @@ app.post('/api/usuarios/importar', verificarToken, somenteAdministrador, importa
       const perfil = normalizarPerfilImportacao(r.perfil);
       const matricula = String(r.matricula ?? '').trim();
       const cpf = String(r.cpf ?? '').trim();
+      const statusRaw = r.status ?? r.situacao ?? r.situacao_usuario ?? 'ativo';
+      const status = (normalizarStatusUsuario(statusRaw) || 'ativo');
       const responsavelLogin = String(r.responsavel_login ?? r.responsavel ?? '').trim().toLowerCase();
       const funcaoModeloNome = String(r.funcao_modelo ?? r.funcao ?? r.modelo ?? '').trim();
       const categoriaNome = String(r.categoria_acesso ?? r.categoria ?? '').trim();
@@ -1121,6 +1137,7 @@ app.post('/api/usuarios/importar', verificarToken, somenteAdministrador, importa
       if (nome.length < 2) { falhar('Informe o nome (mínimo 2 letras)'); continue; }
       if (!login) { falhar('Informe o login'); continue; }
       if (!perfil) { falhar('Perfil inválido — use: Funcionario, Lider, Gerente, RH ou Administrador'); continue; }
+      if (!['ativo','inativo','afastado'].includes(status)) { falhar('Situação inválida — use: ativo, inativo ou afastado'); continue; }
       if (porLogin.has(login.toLowerCase())) { falhar('Login já cadastrado — linha ignorada'); continue; }
       const ehAvaliado = ['Leitor', 'Editor', 'Gerente'].includes(perfil);
       let liderId = null, modeloId = null, modeloNome = '';
@@ -1128,6 +1145,7 @@ app.post('/api/usuarios/importar', verificarToken, somenteAdministrador, importa
         if (!responsavelLogin) { falhar('Informe o responsavel_login (quem avalia este usuário)'); continue; }
         const responsavel = porLogin.get(responsavelLogin);
         if (!responsavel) { falhar(`Responsável "${responsavelLogin}" não encontrado (use um login já cadastrado)`); continue; }
+        if (normalizarStatusUsuario(responsavel.status || '') !== 'ativo') { falhar(`Responsável "${responsavelLogin}" não está ativo`); continue; }
         const esperados = perfil === 'Leitor' ? ['editor'] : perfil === 'Editor' ? ['gerente', 'administrador'] : ['administrador'];
         if (!esperados.includes(String(responsavel.perfil || '').toLowerCase())) {
           falhar(`Responsável "${responsavelLogin}" não tem o perfil adequado (${perfil === 'Leitor' ? 'precisa ser Líder' : perfil === 'Editor' ? 'precisa ser Gerente ou Administrador' : 'precisa ser Administrador'})`);
@@ -1159,12 +1177,12 @@ app.post('/api/usuarios/importar', verificarToken, somenteAdministrador, importa
       }
       try {
         const ins = await pool.query(
-          'INSERT INTO usuarios (nome,email,senha,perfil,setor,cargo,matricula,cpf,lider_id,modelo_avaliacao_id,categoria_acesso_id,deve_alterar_senha) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,TRUE) RETURNING id',
-          [nome, login, hashPadrao, perfil, modeloNome, modeloNome, matricula, cpf, liderId, modeloId, categoriaId]
+          'INSERT INTO usuarios (nome,email,senha,perfil,setor,cargo,matricula,cpf,lider_id,modelo_avaliacao_id,categoria_acesso_id,status,deve_alterar_senha) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,TRUE) RETURNING id',
+          [nome, login, hashPadrao, perfil, modeloNome, modeloNome, matricula, cpf, liderId, modeloId, categoriaId, status]
         );
         try { await salvarSetoresUsuario(Number(ins.rows[0].id), setorIds); }
         catch (e) { await pool.query('DELETE FROM usuarios WHERE id=$1', [ins.rows[0].id]); falhar(e.message || 'Setores inválidos'); continue; }
-        porLogin.set(login.toLowerCase(), { id: ins.rows[0].id, email: login, perfil });
+        porLogin.set(login.toLowerCase(), { id: ins.rows[0].id, email: login, perfil, status });
         criados++;
       } catch (e) {
         if (e.code === '23505') falhar('Login já cadastrado — linha ignorada');
