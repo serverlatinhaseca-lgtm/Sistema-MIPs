@@ -2,7 +2,7 @@
 
 > Portal interno para padronização operacional, gestão de receitas, avaliações de desempenho, reclamações e ferramentas de produção.
 
-![Versão](https://img.shields.io/badge/versão-2.14.2-ff8d2f)
+![Versão](https://img.shields.io/badge/versão-2.14.3-ff8d2f)
 ![React](https://img.shields.io/badge/React-18-61dafb)
 ![Node.js](https://img.shields.io/badge/Node.js-22-339933)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-4169e1)
@@ -12,9 +12,14 @@
 
 O Sistema Central reúne em um único portal os processos internos da Nova Esperança. A aplicação funciona em computadores e celulares, possui modo claro e escuro e separa os acessos conforme a função de cada usuário.
 
-### Novidades da versão 2.14.2
+### Novidades da versão 2.14.3
 
-- **Gerente sem Comunicados no módulo RH**: a pasta RH do Gerente agora tem só **Banco de Horas** e **Folgas**. Comunicados continua no menu dele apenas para **leitura** (como qualquer funcionário); publicar, agendar, reenviar e ver relatório de leituras é exclusivo de **RH e Administrador** (403 na API).
+- **Situação do usuário (Ativo / Afastado / Inativo)**: novo campo no cadastro de usuários; usuários inativos/afastados ficam bloqueados no login e nas requisições autenticadas; badge colorida na listagem.
+- **Cadastro em massa da planilha de funcionários**: 35 usuários importados da planilha oficial com login `primeiro.último`, senha padrão `1234`, líderes atribuídos por turno/área (Beatriz/Aline/Guilherme/Michele), status `afastado` para turnos AFAS.
+- **José Rogério (Gerente Produção 1º turno)**: cadastrado como exceção para ser responsável de produção 1º turno e motoristas.
+- **Regra de líder flexibilizada**: Gerente agora também pode ser responsável de Funcionário (além de Líder), permitindo José Rogério avaliar produção 1º turno.
+
+### Novidades da versão 2.14.2
 
 ### Novidades da versão 2.14.1
 
