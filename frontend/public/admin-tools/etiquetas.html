@@ -2057,14 +2057,15 @@
               new Date(`${date}T12:00:00`)
             )
           : "";
-      const colorFor = (id) => {
-        const product = productById(state.delivery, id);
-        if (product && product.color) return product.color;
-        // Fallback para produtos antigos
-        if (String(id).includes("leite")) return "#2f6b4f";
-        if (String(id).includes("integral")) return "#6c757d";
-        return "#d95d20";
-      };
+      // Chave de cor da etiqueta: vira a classe color-leite / color-integral / color-frances
+      // (CSS de tela e impressão) e define a cor do nome do pão no PDF.
+      // Não devolver hex aqui: "color-#2f6b4f" não casa com nenhuma regra e a cor some.
+      const colorFor = (id) =>
+        String(id).includes("leite")
+          ? "leite"
+          : String(id).includes("integral")
+          ? "integral"
+          : "frances";
       // Determina a unidade de medida com base no produto
       const unitForLabel = (productId, delivery) => {
         const product = productById(delivery, productId);
@@ -3366,7 +3367,7 @@
         }${
           firstPackage
             ? `<div class="sample-label color-${colorFor(
-                firstPackage.pid
+                firstPackage.productId
               )} ${firstPackage.afternoon ? "afternoon-label" : ""}"><strong>${
                 firstPackage.destination
               }${firstPackage.shift ? ` • ${firstPackage.shift}` : ""}${
