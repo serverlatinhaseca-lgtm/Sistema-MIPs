@@ -143,6 +143,7 @@
         .romaneio { table-layout: fixed; }
         .romaneio td, .romaneio th { line-height: 1.08; padding: 0.5mm 1mm; }
         .romaneio td.time, .romaneio td.num { white-space: nowrap; }
+        .romaneio th { font-size: 7.4pt; white-space: nowrap; overflow: hidden; }
         .romaneio td.time { font-size: 7pt; }
         .romaneio td.name { font-size: 7.6pt; font-weight: 700; }
         .romaneio td.addr { font-size: 6.3pt; }
@@ -481,7 +482,7 @@
         // Linhas encolhem quando há muitas entregas, para a frente caber sempre em 1 folha.
         const bodyRows = rows.length + [1, 2, 3].filter((b) => rows.some((r) => r.block === b)).length + 1;
         const rowHeight = Math.max(4.2, Math.min(7.4, 222 / bodyRows)).toFixed(2);
-        const front = `<div class="doc-page"><h1>${esc(title)}</h1><table class="doc-table romaneio" style="--row-h:${rowHeight}mm"><colgroup><col style="width:15mm"><col style="width:58mm"><col style="width:48mm"><col style="width:12mm"><col style="width:12mm"><col style="width:12mm"><col></colgroup><thead><tr><th>Horário</th><th>Setor</th><th>Endereço</th><th class="t-frances">Francês</th><th class="t-leite">Leite</th><th class="t-integral">Integral</th><th>ASSINATURA</th></tr></thead><tbody>${body}<tr class="total grand"><td colspan="3" class="left">TOTAL GERAL</td>${TYPES.map((_, i) => `<td>${fmt(tot(rows, i))}</td>`).join("")}<td></td></tr></tbody></table><div class="sign-lines"><div>Entregador</div><div>Conferido por</div></div></div>`;
+        const front = `<div class="doc-page"><h1>${esc(title)}</h1><table class="doc-table romaneio" style="--row-h:${rowHeight}mm"><colgroup><col style="width:15mm"><col style="width:55mm"><col style="width:44mm"><col style="width:16mm"><col style="width:16mm"><col style="width:16mm"><col></colgroup><thead><tr><th>Horário</th><th>Setor</th><th>Endereço</th><th class="t-frances">Francês</th><th class="t-leite">Leite</th><th class="t-integral">Integral</th><th>ASSINATURA</th></tr></thead><tbody>${body}<tr class="total grand"><td colspan="3" class="left">TOTAL GERAL</td>${TYPES.map((_, i) => `<td>${fmt(tot(rows, i))}</td>`).join("")}<td></td></tr></tbody></table><div class="sign-lines"><div>Entregador</div><div>Conferido por</div></div></div>`;
         const packTable = ([t, label], i) => {
           const counts = new Map();
           rows.forEach((r) => r.parts[i].forEach((p) => counts.set(p, (counts.get(p) || 0) + 1)));
