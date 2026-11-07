@@ -828,6 +828,11 @@
         color: #7a431f;
         font-weight: 800;
       }
+      /* Turnos da Johnson: cor na 1ª linha (setor • turno) da etiqueta */
+      .legend-turno-1, .turno-1 > strong { color: #1d4ed8; }
+      .legend-turno-2, .turno-2 > strong { color: #c2185b; }
+      .legend-turno-3, .turno-3 > strong { color: #6a1b9a; }
+      .legend-turno-1, .legend-turno-2, .legend-turno-3 { font-weight: 800; }
 
       .sample-labels {
         display: flex;
@@ -1006,6 +1011,9 @@
         .color-integral small {
           color: #7a431f !important;
         }
+        .turno-1 > strong { color: #1d4ed8 !important; }
+        .turno-2 > strong { color: #c2185b !important; }
+        .turno-3 > strong { color: #6a1b9a !important; }
       }
     </style>
     <style>
@@ -1118,6 +1126,12 @@
       html[data-theme="dark"] .sample-label small { color: #231d18 !important; }
       html[data-theme="dark"] .sample-label.color-leite small { color: #16803c !important; }
       html[data-theme="dark"] .sample-label.color-integral small { color: #7a431f !important; }
+      html[data-theme="dark"] .sample-label.turno-1 > strong { color: #1d4ed8 !important; }
+      html[data-theme="dark"] .sample-label.turno-2 > strong { color: #c2185b !important; }
+      html[data-theme="dark"] .sample-label.turno-3 > strong { color: #6a1b9a !important; }
+      html[data-theme="dark"] .legend-turno-1 { color: #7aa2ff !important; }
+      html[data-theme="dark"] .legend-turno-2 { color: #ff7fb0 !important; }
+      html[data-theme="dark"] .legend-turno-3 { color: #c79bf0 !important; }
       html[data-theme="dark"] .sample-label.afternoon-label,
       html[data-theme="dark"] .sample-label.afternoon-label * { color: #17100d !important; }
       @media (max-width: 760px) { .app-shell { padding-inline: 0; } }
@@ -1259,6 +1273,12 @@
               ><span class="legend-frances">Pão francês</span
               ><span class="legend-leite">Pão de leite</span
               ><span class="legend-integral">Pão francês integral</span>
+            </div>
+            <div class="color-legend" id="shiftLegend" hidden>
+              <strong>Turnos:</strong
+              ><span class="legend-turno-1">1º turno</span
+              ><span class="legend-turno-2">2º turno</span
+              ><span class="legend-turno-3">3º turno</span>
             </div>
           </section>
         </div>
@@ -2066,6 +2086,13 @@
           : String(id).includes("integral")
           ? "integral"
           : "frances";
+      // Turno da Johnson → classe turno-1/2/3 (cor da 1ª linha da etiqueta).
+      const SHIFT_COLORS = {
+        "1º TURNO": { cls: "turno-1", rgb: [29, 78, 216] },
+        "2º TURNO": { cls: "turno-2", rgb: [194, 24, 91] },
+        "3º TURNO": { cls: "turno-3", rgb: [106, 27, 154] },
+      };
+      const shiftClass = (shift) => SHIFT_COLORS[shift]?.cls || "";
       // Determina a unidade de medida com base no produto
       // Etiqueta impressa em maiúsculas, como antes da 2.14.2 ("50 PÃES" / "50 LANCHES").
       const unitForLabel = (productId, delivery) => {
@@ -3368,7 +3395,7 @@
           firstPackage
             ? `<div class="sample-label color-${colorFor(
                 firstPackage.productId
-              )} ${firstPackage.afternoon ? "afternoon-label" : ""}"><strong>${
+              )} ${shiftClass(firstPackage.shift)} ${firstPackage.afternoon ? "afternoon-label" : ""}"><strong>${
                 firstPackage.destination
               }${firstPackage.shift ? ` • ${firstPackage.shift}` : ""}${
                 firstPackage.afternoon ? " • TARDE" : ""
@@ -3447,7 +3474,7 @@
                       )}</strong><strong>VAL.: ${formatDate(
                         l.expiry
                       )}</strong></div>`
-                    : `<div class="label color-${colorFor(l.productId)} ${
+                    : `<div class="label color-${colorFor(l.productId)} ${shiftClass(l.shift)} ${
                         l.afternoon ? "afternoon-label" : ""
                       }"><strong>${l.destination}${
                         l.shift ? ` • ${l.shift}` : ""
@@ -3547,12 +3574,15 @@
             label.shift ? ` • ${label.shift}` : ""
           }${label.afternoon ? " • TARDE" : ""}`;
           doc.setFontSize(6.2);
+          const shiftRgb = SHIFT_COLORS[label.shift]?.rgb;
+          if (shiftRgb) doc.setTextColor(...shiftRgb);
           doc.text(
             doc.splitTextToSize(head, labelW - 3).slice(0, 2),
             cx,
             y + 3,
             { align: "center", lineHeightFactor: 1.05 }
           );
+          doc.setTextColor(0, 0, 0);
           doc.setFontSize(7.8);
           doc.text(
             `${label.quantity} ${unitForLabel(label.productId, state.delivery)}`,
@@ -4017,6 +4047,7 @@ doc.save(pdfName());
         renderPreviewAndPrint();
         updateSplit();
         el("deliveryTitle").textContent = DELIVERY_META[state.delivery].title;
+        el("shiftLegend").hidden = !["johnson", "margarina"].includes(state.delivery);
         el("deliverySubtitle").textContent =
           DELIVERY_META[state.delivery].subtitle;
         el("pendingBadge").textContent =
