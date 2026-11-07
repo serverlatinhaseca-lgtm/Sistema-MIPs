@@ -17,7 +17,10 @@ Substitui as planilhas `Santa Branca - <dia>.xlsx` e `Santa Branca - Total Pães
 - **Impressão** (Carta, 2 folhas por dia): frente = "SANTA BRANCA - SEGUNDA-FEIRA 19/10/2026" com
   Horário, Setor, Endereço, Francês, Leite, Integral, ASSINATURA, totais por bloco e geral;
   verso = pacotes por tamanho (Pacote / Qtd Pct / Total Pães) + separação por cliente.
-  "Imprimir a semana" sai seg–sex em sequência. A altura das linhas se ajusta; aviso acima de 36 linhas.
+  "Imprimir a semana" sai seg–sex em sequência. A altura das linhas se ajusta (≈7 mm num dia normal);
+  colunas de largura fixa; cabe até 28 clientes + 10 avulsas; aviso acima de 38 linhas.
+- **Cores** (tela e impressão, tons claros): francês laranja, leite verde, integral marrom (iguais às
+  Etiquetas); blocos Escolas azul, Educação roxo, Demais secretarias terracota (faixa à esquerda e total).
 - **Pacotes**: máx. 20 (francês/integral) e 30 (leite), menor nº de pacotes. Conferido com 19/10:
   francês 124 em 11 pct, leite 2.423 em 92 pct (72×30, 26, 6×20…), integral 2 em 1 pct.
 - **Contagem do mês**: grade dia × AF × F/L/I, total und e kg (0,05 kg/pão, editável), faturamento

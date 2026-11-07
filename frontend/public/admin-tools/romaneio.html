@@ -63,6 +63,33 @@
       .msg { min-height: 18px; color: var(--green); font-size: 13px; font-weight: 700; }
       .print-area { display: none; }
 
+      /* ---------- Cores (tela e impressão) ----------
+         Pão: francês laranja, leite verde, integral marrom (iguais às Etiquetas).
+         Blocos: Escolas azul, Educação roxo, Demais secretarias terracota. */
+      .t-frances { --c: #c2410c; --t: #fdebdd; }
+      .t-leite { --c: #15803d; --t: #e3f4e8; }
+      .t-integral { --c: #7a431f; --t: #f1e6dc; }
+      .b-1 { --c: #1d4ed8; --t: #e4ecfd; }
+      .b-2 { --c: #7e22ce; --t: #f1e6fa; }
+      .b-3 { --c: #a65526; --t: #fbeee4; }
+      th.t-frances, th.t-leite, th.t-integral { background: var(--c) !important; color: #fff !important; }
+      td.t-frances, td.t-leite, td.t-integral { background: var(--t); color: var(--c); font-weight: 800; }
+      tr.block.b-1 td, tr.block.b-2 td, tr.block.b-3 td { background: var(--c) !important; color: #fff !important; }
+      tr.total.b-1 td, tr.total.b-2 td, tr.total.b-3 td { background: var(--t) !important; color: var(--c); }
+      tr.total.b-1 td.t-frances, tr.total.b-1 td.t-leite, tr.total.b-1 td.t-integral,
+      tr.total.b-2 td.t-frances, tr.total.b-2 td.t-leite, tr.total.b-2 td.t-integral,
+      tr.total.b-3 td.t-frances, tr.total.b-3 td.t-leite, tr.total.b-3 td.t-integral { color: var(--c); }
+      td.bar.b-1, td.bar.b-2, td.bar.b-3 { border-left: 4px solid var(--c) !important; }
+      tr.grand td { background: #3b2a20 !important; color: #fff !important; font-weight: 800; }
+      .card.t-frances, .card.t-leite, .card.t-integral { border-left: 5px solid var(--c); background: var(--t); }
+      .card.t-frances strong, .card.t-leite strong, .card.t-integral strong { color: var(--c); }
+      html[data-theme="dark"] td.t-frances, html[data-theme="dark"] td.t-leite, html[data-theme="dark"] td.t-integral,
+      html[data-theme="dark"] .card.t-frances, html[data-theme="dark"] .card.t-leite, html[data-theme="dark"] .card.t-integral { background: #2a1f1a; }
+      html[data-theme="dark"] .t-frances { --c: #fb923c; }
+      html[data-theme="dark"] .t-leite { --c: #4ade80; }
+      html[data-theme="dark"] .t-integral { --c: #d6a77a; }
+      html[data-theme="dark"] tr.total.b-1 td, html[data-theme="dark"] tr.total.b-2 td, html[data-theme="dark"] tr.total.b-3 td { background: #3a2619 !important; color: #f7efe9; }
+
       html[data-theme="dark"] body { color: #f7efe9; }
       html[data-theme="dark"] .panel { background: #201713; border-color: #4a342a; }
       html[data-theme="dark"] .tab, html[data-theme="dark"] .btn, html[data-theme="dark"] .seg { background: #2a1f1a; border-color: #62483b; color: #f7efe9; }
@@ -101,15 +128,35 @@
         .doc-table td.left { text-align: left; }
         .doc-table tr.total td { font-weight: 800; background: #eeeeee; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         .romaneio td { height: var(--row-h, 6.6mm); }
-        .romaneio td.sign { width: 42mm; }
-        .romaneio td.time { width: 17mm; }
-        .romaneio td.num { width: 14mm; font-weight: 700; }
+        .romaneio td.num { font-weight: 700; }
         .pack-columns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5mm; }
         .doc-table.compact { font-size: 6.6pt; }
         .doc-table.compact th, .doc-table.compact td { padding: 0.5mm 0.6mm; }
         .doc-foot { margin-top: 3mm; font-size: 8pt; }
         .sign-lines { display: grid; grid-template-columns: 1fr 1fr; gap: 12mm; margin-top: 10mm; font-size: 8.5pt; }
         .sign-lines div { padding-top: 1.5mm; border-top: 0.3mm solid #000; text-align: center; }
+        /* Cores saem na impressão (Chrome só imprime fundo com print-color-adjust). */
+        .doc-page, .doc-page * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .doc-page h1 { padding: 0 0 1mm; border-bottom: 0.8mm solid #e87523; color: #a65526; }
+        .doc-table.sep td { padding: 0.45mm 1.2mm; font-size: 7.8pt; }
+        /* Colunas fixas: nome em até 2 linhas, endereço menor, números sem quebra. */
+        .romaneio { table-layout: fixed; }
+        .romaneio td, .romaneio th { line-height: 1.08; padding: 0.5mm 1mm; }
+        .romaneio td.time, .romaneio td.num { white-space: nowrap; }
+        .romaneio td.time { font-size: 7pt; }
+        .romaneio td.name { font-size: 7.6pt; font-weight: 700; }
+        .romaneio td.addr { font-size: 6.3pt; }
+        .doc-table.compact { table-layout: fixed; }
+        .doc-table.compact td { white-space: nowrap; line-height: 1.1; padding: 0.35mm 0.4mm; font-size: 6.2pt; }
+        .doc-table.compact th { font-size: 5.8pt; line-height: 1.05; padding: 0.4mm 0.3mm; }
+        .pack .doc-table td { padding: 0.45mm 1.2mm; }
+        /* Verso com muitas entregas: tudo um pouco menor para caber numa folha. */
+        .doc-page.dense .doc-table td, .doc-page.dense .doc-table th { padding: 0.25mm 1mm; font-size: 7pt; line-height: 1.05; }
+        .doc-page.dense h2 { margin: 2mm 0 1mm; }
+        .pack h2 { color: var(--c); }
+        .pack th { background: var(--c) !important; color: #fff !important; }
+        .pack tr.total td { background: var(--t) !important; color: var(--c); }
+        .doc-table td.bar.b-1, .doc-table td.bar.b-2, .doc-table td.bar.b-3 { border-left: 1.6mm solid var(--c) !important; }
       }
     </style>
   </head>
@@ -392,16 +439,16 @@
         const rows = rowsOf(date);
         const tot = (list, i) => list.reduce((s, r) => s + r.qty[i], 0);
         const packs = (i) => rows.reduce((s, r) => s + r.parts[i].length, 0);
-        // A frente comporta ~36 linhas (28 clientes + 8 avulsas); além disso o rodapé seria cortado.
-        if (rows.length > 36)
+        // Testado: 28 clientes + 10 avulsas cabem (frente e verso); acima disso pode cortar o rodapé.
+        if (rows.length > 38)
           el("dayInfo").innerHTML += `<br><strong style="color:#a32a17">Atenção: ${rows.length} entregas — o romaneio pode não caber em uma folha. Junte avulsas ou remova clientes sem entrega em Clientes e bases.</strong>`;
-        el("dayCards").innerHTML = TYPES.map(([, label], i) => `<div class="card"><span>${label}</span><strong>${fmt(tot(rows, i))} pães</strong><div class="hint">${packs(i)} pacote(s)</div></div>`).join("");
+        el("dayCards").innerHTML = TYPES.map(([t, label], i) => `<div class="card t-${t}"><span>${label}</span><strong>${fmt(tot(rows, i))} pães</strong><div class="hint">${packs(i)} pacote(s)</div></div>`).join("");
         const body = [1, 2, 3].map((b) => {
           const list = rows.filter((r) => r.block === b);
           if (!list.length) return "";
-          return `<tr class="block"><td colspan="8">${BLOCKS[b]}</td></tr>` + list.map((r) => `<tr><td>${esc(r.client.time)}</td><td class="left">${r.extraIndex !== undefined ? `<input type="text" data-extra="${r.extraIndex}" data-extra-field="name" value="${esc(r.client.name)}" placeholder="Nome">` : esc(r.client.name)}</td><td class="left">${r.extraIndex !== undefined ? `<input type="text" data-extra="${r.extraIndex}" data-extra-field="address" value="${esc(r.client.address)}" placeholder="Endereço">` : esc(r.client.address)}</td>${TYPES.map((_, i) => `<td><input class="qty" type="number" min="0" step="1" value="${r.qty[i] || 0}" data-row="${esc(r.key)}" data-type="${i}"></td>`).join("")}<td class="packs">${TYPES.map(([, l], i) => (r.parts[i].length ? `${l[0]}: ${packsText(r.parts[i])}` : "")).filter(Boolean).join("<br>")}</td><td>${r.extraIndex !== undefined ? `<button class="btn small danger" type="button" data-remove-extra="${r.extraIndex}">Remover</button>` : ""}</td></tr>`).join("") + `<tr class="total"><td colspan="3" class="left">TOTAL — ${BLOCKS[b]}</td>${TYPES.map((_, i) => `<td>${fmt(tot(list, i))}</td>`).join("")}<td colspan="2"></td></tr>`;
+          return `<tr class="block b-${b}"><td colspan="8">${BLOCKS[b]}</td></tr>` + list.map((r) => `<tr><td class="bar b-${b}">${esc(r.client.time)}</td><td class="left">${r.extraIndex !== undefined ? `<input type="text" data-extra="${r.extraIndex}" data-extra-field="name" value="${esc(r.client.name)}" placeholder="Nome">` : esc(r.client.name)}</td><td class="left">${r.extraIndex !== undefined ? `<input type="text" data-extra="${r.extraIndex}" data-extra-field="address" value="${esc(r.client.address)}" placeholder="Endereço">` : esc(r.client.address)}</td>${TYPES.map(([t], i) => `<td class="t-${t}"><input class="qty" type="number" min="0" step="1" value="${r.qty[i] || 0}" data-row="${esc(r.key)}" data-type="${i}"></td>`).join("")}<td class="packs">${TYPES.map(([, l], i) => (r.parts[i].length ? `${l[0]}: ${packsText(r.parts[i])}` : "")).filter(Boolean).join("<br>")}</td><td>${r.extraIndex !== undefined ? `<button class="btn small danger" type="button" data-remove-extra="${r.extraIndex}">Remover</button>` : ""}</td></tr>`).join("") + `<tr class="total b-${b}"><td colspan="3" class="left">TOTAL — ${BLOCKS[b]}</td>${TYPES.map(([t], i) => `<td class="t-${t}">${fmt(tot(list, i))}</td>`).join("")}<td colspan="2"></td></tr>`;
         }).join("");
-        el("dayTable").innerHTML = `<table class="grid"><thead><tr><th>Horário</th><th>Setor</th><th>Endereço</th><th>Francês</th><th>Leite</th><th>Integral</th><th>Pacotes</th><th></th></tr></thead><tbody>${body}<tr class="total"><td colspan="3" class="left">TOTAL GERAL</td>${TYPES.map((_, i) => `<td>${fmt(tot(rows, i))}</td>`).join("")}<td colspan="2">${packs(0) + packs(1) + packs(2)} pacotes</td></tr></tbody></table>`;
+        el("dayTable").innerHTML = `<table class="grid"><thead><tr><th>Horário</th><th>Setor</th><th>Endereço</th><th class="t-frances">Francês</th><th class="t-leite">Leite</th><th class="t-integral">Integral</th><th>Pacotes</th><th></th></tr></thead><tbody>${body}<tr class="total grand"><td colspan="3" class="left">TOTAL GERAL</td>${TYPES.map((_, i) => `<td>${fmt(tot(rows, i))}</td>`).join("")}<td colspan="2">${packs(0) + packs(1) + packs(2)} pacotes</td></tr></tbody></table>`;
         document.querySelectorAll("#dayTable [data-row]").forEach((input) => (input.onchange = () => {
           const day = materialize(date);
           const value = Math.max(0, Math.floor(Number(input.value) || 0));
@@ -428,25 +475,26 @@
         const body = [1, 2, 3].map((b) => {
           const list = rows.filter((r) => r.block === b);
           if (!list.length) return "";
-          return list.map((r) => `<tr><td class="time">${esc(r.client.time)}</td><td class="left">${esc(r.client.name)}</td><td class="left">${esc(r.client.address)}</td>${TYPES.map((_, i) => `<td class="num">${num(r.qty[i])}</td>`).join("")}<td class="sign"></td></tr>`).join("") +
-            `<tr class="total"><td colspan="3" class="left">TOTAL ${BLOCKS[b].toLocaleUpperCase("pt-BR")}</td>${TYPES.map((_, i) => `<td>${fmt(tot(list, i))}</td>`).join("")}<td></td></tr>`;
+          return list.map((r) => `<tr><td class="time bar b-${b}">${esc(r.client.time)}</td><td class="left name">${esc(r.client.name)}</td><td class="left addr">${esc(r.client.address)}</td>${TYPES.map(([t], i) => `<td class="num ${r.qty[i] ? `t-${t}` : ""}">${num(r.qty[i])}</td>`).join("")}<td class="sign"></td></tr>`).join("") +
+            `<tr class="total b-${b}"><td colspan="3" class="left">TOTAL ${BLOCKS[b].toLocaleUpperCase("pt-BR")}</td>${TYPES.map(([t], i) => `<td class="t-${t}">${fmt(tot(list, i))}</td>`).join("")}<td></td></tr>`;
         }).join("");
         // Linhas encolhem quando há muitas entregas, para a frente caber sempre em 1 folha.
         const bodyRows = rows.length + [1, 2, 3].filter((b) => rows.some((r) => r.block === b)).length + 1;
-        const rowHeight = Math.max(4.4, Math.min(6.6, 200 / bodyRows)).toFixed(2);
-        const front = `<div class="doc-page"><h1>${esc(title)}</h1><table class="doc-table romaneio" style="--row-h:${rowHeight}mm"><thead><tr><th>Horário</th><th>Setor</th><th>Endereço</th><th>Francês</th><th>Leite</th><th>Integral</th><th>ASSINATURA</th></tr></thead><tbody>${body}<tr class="total"><td colspan="3" class="left">TOTAL GERAL</td>${TYPES.map((_, i) => `<td>${fmt(tot(rows, i))}</td>`).join("")}<td></td></tr></tbody></table><div class="sign-lines"><div>Entregador</div><div>Conferido por</div></div></div>`;
+        const rowHeight = Math.max(4.2, Math.min(7.4, 222 / bodyRows)).toFixed(2);
+        const front = `<div class="doc-page"><h1>${esc(title)}</h1><table class="doc-table romaneio" style="--row-h:${rowHeight}mm"><colgroup><col style="width:15mm"><col style="width:58mm"><col style="width:48mm"><col style="width:12mm"><col style="width:12mm"><col style="width:12mm"><col></colgroup><thead><tr><th>Horário</th><th>Setor</th><th>Endereço</th><th class="t-frances">Francês</th><th class="t-leite">Leite</th><th class="t-integral">Integral</th><th>ASSINATURA</th></tr></thead><tbody>${body}<tr class="total grand"><td colspan="3" class="left">TOTAL GERAL</td>${TYPES.map((_, i) => `<td>${fmt(tot(rows, i))}</td>`).join("")}<td></td></tr></tbody></table><div class="sign-lines"><div>Entregador</div><div>Conferido por</div></div></div>`;
         const packTable = ([t, label], i) => {
           const counts = new Map();
           rows.forEach((r) => r.parts[i].forEach((p) => counts.set(p, (counts.get(p) || 0) + 1)));
           const sizes = [...counts.keys()].sort((a, b) => b - a);
           const n = sizes.reduce((s, k) => s + counts.get(k), 0);
           const heading = { frances: "PÃES FRANCÊS", leite: "PÃES DE LEITE", integral: "PÃO INTEGRAL" }[t] || label;
-          return `<div><h2>${heading} (máx. ${maxOf(t)})</h2><table class="doc-table"><thead><tr><th>Pacote</th><th>Qtd Pct</th><th>Total Pães</th></tr></thead><tbody>${
+          return `<div class="pack t-${t}"><h2>${heading} (máx. ${maxOf(t)})</h2><table class="doc-table"><thead><tr><th>Pacote</th><th>Qtd Pct</th><th>Total Pães</th></tr></thead><tbody>${
             sizes.length ? sizes.map((s) => `<tr><td>PCT ${String(s).padStart(2, "0")}</td><td>${counts.get(s)}</td><td>${fmt(s * counts.get(s))}</td></tr>`).join("") : '<tr><td colspan="3">—</td></tr>'
           }<tr class="total"><td>TOTAL PACOTES</td><td>${n}</td><td>${fmt(tot(rows, i))}</td></tr></tbody></table></div>`;
         };
-        const separation = rows.filter((r) => r.qty.some(Boolean)).map((r) => `<tr><td class="left">${esc(r.client.name)}</td>${TYPES.map((_, i) => `<td>${packsText(r.parts[i])}</td>`).join("")}</tr>`).join("");
-        const back = `<div class="doc-page"><h1>${esc(title)}</h1><p class="doc-sub">PACOTES PARA PRODUÇÃO E SEPARAÇÃO</p><div class="pack-columns">${TYPES.map(packTable).join("")}</div><h2>SEPARAÇÃO POR CLIENTE PARA ENTREGA</h2><table class="doc-table"><thead><tr><th>Cliente</th><th>Francês</th><th>Leite</th><th>Integral</th></tr></thead><tbody>${separation || '<tr><td colspan="4">Nenhuma entrega neste dia.</td></tr>'}</tbody></table></div>`;
+        const separation = rows.filter((r) => r.qty.some(Boolean)).map((r) => `<tr><td class="left bar b-${r.block}">${esc(r.client.name)}</td>${TYPES.map(([t], i) => `<td class="${r.parts[i].length ? `t-${t}` : ""}">${packsText(r.parts[i])}</td>`).join("")}</tr>`).join("");
+        const sepCount = rows.filter((r) => r.qty.some(Boolean)).length;
+        const back = `<div class="doc-page ${sepCount > 30 ? "dense" : ""}"><h1>${esc(title)}</h1><p class="doc-sub">PACOTES PARA PRODUÇÃO E SEPARAÇÃO</p><div class="pack-columns">${TYPES.map(packTable).join("")}</div><h2>SEPARAÇÃO POR CLIENTE PARA ENTREGA</h2><table class="doc-table sep"><thead><tr><th>Cliente</th><th class="t-frances">Francês</th><th class="t-leite">Leite</th><th class="t-integral">Integral</th></tr></thead><tbody>${separation || '<tr><td colspan="4">Nenhuma entrega neste dia.</td></tr>'}</tbody></table></div>`;
         return front + back;
       }
       function printHtml(html) {
@@ -504,12 +552,14 @@
           return `<tr class="${wd === 0 || wd === 6 ? "weekend" : ""}"><td>${d.slice(8)}/${d.slice(5, 7)} ${weekday(d).slice(0, 3)}</td>${md.groups.map((g) => g.types.map((t) => `<td>${num(md.value(d, g.id, t))}</td>`).join("")).join("")}</tr>`;
         }).join("");
         const totalRow = (label, f) => `<tr class="total"><td>${label}</td>${md.groups.map((g) => g.types.map((t) => `<td>${f(g.totals[t])}</td>`).join("")).join("")}</tr>`;
-        return `<table class="${print ? "doc-table compact" : "grid"}"><thead><tr><th rowspan="2">Dia</th>${head1}</tr><tr>${head2}</tr></thead><tbody>${body}${totalRow("Total und", fmt)}${totalRow("Total kg", (n) => kgText(n, md.kg))}</tbody></table>`;
+        // Na impressão, coluna do dia fixa e o resto dividido igualmente entre as AFs.
+        const colgroup = print ? `<colgroup><col style="width:15mm">${md.groups.flatMap((g) => g.types).map(() => "<col>").join("")}</colgroup>` : "";
+        return `<table class="${print ? "doc-table compact" : "grid"}">${colgroup}<thead><tr><th rowspan="2">Dia</th>${head1}</tr><tr>${head2}</tr></thead><tbody>${body}${totalRow("Total und", fmt)}${totalRow("Total kg", (n) => kgText(n, md.kg))}</tbody></table>`;
       }
       function billingHtml(md, print = false) {
         const tot = (t) => md.billing.reduce((s, b) => s + b[t], 0);
         const rows = md.billing.map((b) => `<tr><td class="left"><strong>${esc(b.bill)}</strong><br><small>${esc([...new Set(b.afs)].join(" + "))}</small></td>${TYPES.map(([t]) => `<td>${fmt(b[t])}</td>`).join("")}${TYPES.map(([t]) => `<td>${kgText(b[t], md.kg)}</td>`).join("")}<td><strong>${kgText(b.frances + b.leite + b.integral, md.kg)}</strong></td></tr>`).join("");
-        return `<table class="${print ? "doc-table" : "grid"}"><thead><tr><th rowspan="2">Faturamento</th><th colspan="3">Unidades</th><th colspan="3">Quilos (× ${md.kg.toLocaleString("pt-BR")} kg)</th><th rowspan="2">Total kg</th></tr><tr><th>Francês</th><th>Leite</th><th>Integral</th><th>Francês</th><th>Leite</th><th>Integral</th></tr></thead><tbody>${rows}<tr class="total"><td class="left">TOTAL</td>${TYPES.map(([t]) => `<td>${fmt(tot(t))}</td>`).join("")}${TYPES.map(([t]) => `<td>${kgText(tot(t), md.kg)}</td>`).join("")}<td>${kgText(tot("frances") + tot("leite") + tot("integral"), md.kg)}</td></tr></tbody></table>`;
+        return `<table class="${print ? "doc-table" : "grid"}"><thead><tr><th rowspan="2">Faturamento</th><th colspan="3">Unidades</th><th colspan="3">Quilos (× ${md.kg.toLocaleString("pt-BR")} kg)</th><th rowspan="2">Total kg</th></tr><tr><th class="t-frances">Francês</th><th class="t-leite">Leite</th><th class="t-integral">Integral</th><th class="t-frances">Francês</th><th class="t-leite">Leite</th><th class="t-integral">Integral</th></tr></thead><tbody>${rows}<tr class="total"><td class="left">TOTAL</td>${TYPES.map(([t]) => `<td>${fmt(tot(t))}</td>`).join("")}${TYPES.map(([t]) => `<td>${kgText(tot(t), md.kg)}</td>`).join("")}<td>${kgText(tot("frances") + tot("leite") + tot("integral"), md.kg)}</td></tr></tbody></table>`;
       }
       function renderMonth() {
         el("monthInput").value = ui.month;
@@ -558,7 +608,7 @@
         el("baseDays").innerHTML = `<div class="seg">${DAYS.map(([k, l]) => `<button type="button" data-base-day="${k}" class="${ui.baseDay === k ? "active" : ""}">${l.replace("-feira", "")}</button>`).join("")}</div>`;
         document.querySelectorAll("[data-base-day]").forEach((b) => (b.onclick = () => { collectBase(); ui.baseDay = b.dataset.baseDay; renderBase(); }));
         const base = data.base[ui.baseDay];
-        el("baseTable").innerHTML = `<table class="grid"><thead><tr><th>Cliente</th><th>Horário</th><th>Endereço</th><th>AF</th><th>Francês</th><th>Leite</th><th>Integral</th><th></th></tr></thead><tbody>${data.clients.map((c) => {
+        el("baseTable").innerHTML = `<table class="grid"><thead><tr><th>Cliente</th><th>Horário</th><th>Endereço</th><th>AF</th><th class="t-frances">Francês</th><th class="t-leite">Leite</th><th class="t-integral">Integral</th><th></th></tr></thead><tbody>${data.clients.map((c) => {
           const q = base[c.id] || [0, 0, 0];
           const t = (f, v, w = "") => `<input type="text" data-c="${c.id}" data-f="${f}" value="${esc(v)}" ${w}>`;
           return `<tr><td class="left">${t("name", c.name, 'style="min-width:220px"')}</td><td>${t("time", c.time, 'style="width:90px"')}</td><td class="left">${t("address", c.address, 'style="min-width:220px"')}</td><td><select data-c="${c.id}" data-f="group">${groupOptions(c.group)}</select></td>${[0, 1, 2].map((i) => `<td><input class="qty" type="number" min="0" step="1" data-c="${c.id}" data-q="${i}" value="${Number(q[i]) || 0}"></td>`).join("")}<td><button class="btn small danger" type="button" data-del="${c.id}">Remover</button></td></tr>`;
