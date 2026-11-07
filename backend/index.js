@@ -912,7 +912,8 @@ app.post('/api/usuarios', verificarToken, async (req, res) => {
     const hash = await bcrypt.hash(senha, 10);
     if (lider_id) {
       const perfilUsuario = normalizarPerfil(perfil);
-      const perfisPermitidos = perfilUsuario === 'leitor' ? ['editor','gerente'] : perfilUsuario === 'editor' ? ['gerente','administrador'] : ['administrador'];
+      // Funcionário → líder ou gerente; líder e gerente → gerente ou administrador (07/11/2026).
+      const perfisPermitidos = perfilUsuario === 'leitor' ? ['editor','gerente'] : ['gerente','administrador'];
       const lider=await pool.query('SELECT id FROM usuarios WHERE id=$1 AND LOWER(perfil)=ANY($2::text[])',[Number(lider_id),perfisPermitidos]);
       if(!lider.rows.length)return res.status(400).json({error:'O responsável selecionado não possui o perfil adequado'});
     }
@@ -947,7 +948,9 @@ app.put('/api/usuarios/:id', verificarToken, async (req, res) => {
     if (modelo_avaliacao_id) { const m=await pool.query('SELECT nome FROM modelos_avaliacao WHERE id=$1 AND ativo=TRUE',[Number(modelo_avaliacao_id)]);if(!m.rows.length)return res.status(400).json({error:'Modelo de avaliação inválido'});nomeModelo=m.rows[0].nome; }
     if (['leitor','editor','gerente'].includes(perfilNormalizado) && !modelo_avaliacao_id) return res.status(400).json({ error: 'Selecione a função/modelo de avaliação' });
     if (lider_id) {
-      const permitidos=perfilNormalizado==='leitor'?['editor','gerente']:perfilNormalizado==='editor'?['gerente','administrador']:['administrador'];
+      if (String(lider_id) === String(req.params.id)) return res.status(400).json({ error: 'O usuário não pode ser o próprio responsável' });
+      // Funcionário → líder ou gerente; líder e gerente → gerente ou administrador (07/11/2026).
+      const permitidos=perfilNormalizado==='leitor'?['editor','gerente']:['gerente','administrador'];
       const r=await pool.query('SELECT id FROM usuarios WHERE id=$1 AND LOWER(perfil)=ANY($2::text[])',[Number(lider_id),permitidos]);
       if(!r.rows.length)return res.status(400).json({error:'O responsável selecionado não possui o perfil adequado'});
     }
@@ -1146,9 +1149,9 @@ app.post('/api/usuarios/importar', verificarToken, somenteAdministrador, importa
         const responsavel = porLogin.get(responsavelLogin);
         if (!responsavel) { falhar(`Responsável "${responsavelLogin}" não encontrado (use um login já cadastrado)`); continue; }
         if (normalizarStatusUsuario(responsavel.status || '') !== 'ativo') { falhar(`Responsável "${responsavelLogin}" não está ativo`); continue; }
-        const esperados = perfil === 'Leitor' ? ['editor','gerente'] : perfil === 'Editor' ? ['gerente', 'administrador'] : ['administrador'];
+        const esperados = perfil === 'Leitor' ? ['editor','gerente'] : ['gerente', 'administrador'];
         if (!esperados.includes(String(responsavel.perfil || '').toLowerCase())) {
-          falhar(`Responsável "${responsavelLogin}" não tem o perfil adequado (${perfil === 'Leitor' ? 'precisa ser Líder ou Gerente' : perfil === 'Editor' ? 'precisa ser Gerente ou Administrador' : 'precisa ser Administrador'})`);
+          falhar(`Responsável "${responsavelLogin}" não tem o perfil adequado (${perfil === 'Leitor' ? 'precisa ser Líder ou Gerente' : 'precisa ser Gerente ou Administrador'})`);
           continue;
         }
         liderId = Number(responsavel.id);
@@ -1514,9 +1517,10 @@ app.post('/api/avaliacoes', verificarToken, podeGerenciarAvaliacoes, async (req,
     return res.status(400).json({ error: 'Colaborador e mês de referência são obrigatórios' });
   }
   try {
-    const permitido=await pool.query(`SELECT id,perfil,modelo_avaliacao_id FROM usuarios WHERE id=$1 AND modelo_avaliacao_id IS NOT NULL ${restringirAoProprioTime(req.usuarioPerfil)?"AND LOWER(perfil)='leitor' AND lider_id=$2":''}`,restringirAoProprioTime(req.usuarioPerfil)?[Number(colaborador_id),req.usuarioId]:[Number(colaborador_id)]);
+    const permitido=await pool.query(`SELECT id,perfil,modelo_avaliacao_id,lider_id FROM usuarios WHERE id=$1 AND modelo_avaliacao_id IS NOT NULL ${restringirAoProprioTime(req.usuarioPerfil)?"AND LOWER(perfil)='leitor' AND lider_id=$2":''}`,restringirAoProprioTime(req.usuarioPerfil)?[Number(colaborador_id),req.usuarioId]:[Number(colaborador_id)]);
     if(!permitido.rows.length)return res.status(403).json({error:'Este funcionário não está vinculado a você'});
-    if(normalizarPerfil(permitido.rows[0].perfil)==='gerente'&&normalizarPerfil(req.usuarioPerfil)!=='administrador')return res.status(403).json({error:'Somente o Administrador pode avaliar Gerentes'});
+    // Gerente é avaliado pelo Administrador ou pelo gerente que é o responsável dele (ex.: Bia → José Rogério).
+    if(normalizarPerfil(permitido.rows[0].perfil)==='gerente'&&normalizarPerfil(req.usuarioPerfil)!=='administrador'&&Number(permitido.rows[0].lider_id)!==Number(req.usuarioId))return res.status(403).json({error:'Somente o Administrador ou o responsável cadastrado podem avaliar este Gerente'});
     const aplicador=(await pool.query('SELECT nome FROM usuarios WHERE id=$1',[req.usuarioId])).rows[0]?.nome||'Usuário';
     const perguntas=await pool.query('SELECT * FROM perguntas_avaliacao WHERE ativa=TRUE AND modelo_avaliacao_id=$1 ORDER BY ordem,id',[permitido.rows[0].modelo_avaliacao_id]);
     const calculo = prepararAvaliacaoDinamica(perguntas.rows,respostas);
