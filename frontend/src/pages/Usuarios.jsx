@@ -107,7 +107,10 @@ export default function Usuarios() {
   };
 
   const abrirNovo = () => { setEditandoUsuarioId(null);setNome("");setEmail("");setSenha("");setMatricula("");setCpf("");setPerfil("Leitor");setStatus("ativo");setLiderId("");setModeloId("");setCategoriaId("");setSetorIds([]);setMostrarModal(true); };
-  const abrirEdicao = (u) => { setEditandoUsuarioId(u.id);setNome(u.nome||"");setEmail(u.email||"");setSenha("");setMatricula(u.matricula||"");setCpf(u.cpf||"");setPerfil(u.perfil||"Leitor");setStatus(u.status||"ativo");setLiderId(String(u.lider_id||""));setModeloId(String(u.modelo_avaliacao_id||""));setCategoriaId(String(u.categoria_acesso_id||""));setSetorIds(Array.isArray(u.setor_ids)?u.setor_ids.map(String):(Array.isArray(u.setores)?u.setores.map(s=>String(s.id)):[]));setMostrarModal(true); };
+  // Perfis importados por planilha vêm em minúsculas ("leitor"); sem normalizar, o select de perfil
+  // não casa e o campo "Responsável pela avaliação" (líder) some na edição.
+  const perfilDoFormulario = (p) => ({ leitor: "Leitor", editor: "Editor", gerente: "Gerente", rh: "RH", administrador: "Administrador" }[String(p || "").toLowerCase()] || "Leitor");
+  const abrirEdicao = (u) => { setEditandoUsuarioId(u.id);setNome(u.nome||"");setEmail(u.email||"");setSenha("");setMatricula(u.matricula||"");setCpf(u.cpf||"");setPerfil(perfilDoFormulario(u.perfil));setStatus(u.status||"ativo");setLiderId(String(u.lider_id||""));setModeloId(String(u.modelo_avaliacao_id||""));setCategoriaId(String(u.categoria_acesso_id||""));setSetorIds(Array.isArray(u.setor_ids)?u.setor_ids.map(String):(Array.isArray(u.setores)?u.setores.map(s=>String(s.id)):[]));setMostrarModal(true); };
 
   const handleExcluir = async (id) => {
     if (!confirm("Deseja realmente excluir este usuário?")) return;
@@ -348,7 +351,7 @@ export default function Usuarios() {
                 {["Leitor", "Editor", "Gerente"].includes(perfil) && (
                   <div>
                     <label className="block text-sm font-medium mb-1 text-[var(--text-muted)]">
-                      Responsável pela avaliação
+                      {perfil === "Leitor" ? "Líder responsável" : "Responsável pela avaliação"}
                     </label>
                     <select
                       required
