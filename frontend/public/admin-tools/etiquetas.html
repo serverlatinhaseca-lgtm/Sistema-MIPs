@@ -3409,9 +3409,25 @@
           (state.delivery === "paraibuna"
             ? ` • ${state.route === "cidade" ? "Cidade" : "Roça"}`
             : "");
-        const headerText = [headerTitle, date ? formatDate(date) : ""]
+        // Totais do dia inteiro (repetidos em todas as folhas do dia).
+        const labelCount = labs.filter((l) => l.kind !== "blank").length;
+        const unitTotals = {};
+        labs
+          .filter((l) => l.kind === "package")
+          .forEach((l) => {
+            const unit = unitForLabel(l.productId, state.delivery);
+            unitTotals[unit] = (unitTotals[unit] || 0) + (Number(l.quantity) || 0);
+          });
+        const quantityText = Object.entries(unitTotals)
+          .map(([unit, qty]) => `${qty.toLocaleString("pt-BR")} ${unit}`)
+          .join(" + ");
+        const headerText = [
+          [headerTitle, date ? formatDate(date) : ""].filter(Boolean).join(" — "),
+          quantityText,
+          `${labelCount} ${labelCount === 1 ? "etiqueta" : "etiquetas"}`,
+        ]
           .filter(Boolean)
-          .join(" — ");
+          .join(" • ");
         return chunks
           .map(
             (page, pageIndex) =>
