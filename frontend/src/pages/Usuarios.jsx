@@ -359,16 +359,19 @@ export default function Usuarios() {
                       onChange={(e) => setLiderId(e.target.value)}
                       className="w-full p-3 rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)] text-[var(--text-main)]"
                     >
-                      <option value="">{perfil === "Leitor" ? "Selecione um Líder" : perfil === "Editor" ? "Selecione um Gerente ou Administrador" : "Selecione um Administrador"}</option>
+                      <option value="">{perfil === "Leitor" ? "Selecione um Líder ou Gerente" : perfil === "Editor" ? "Selecione um Gerente ou Administrador" : "Selecione um Administrador"}</option>
+                      {/* Mesma regra do backend: funcionário → líder ou gerente (ex.: a Bia, gerente,
+                          responde direto por funcionários); líder → gerente ou ADM; gerente → ADM. */}
                       {usuarios
                         .filter((u) => {
                           const p = u.perfil?.toLowerCase();
-                          const permitido = perfil === "Leitor" ? p === "editor" : perfil === "Editor" ? ["gerente","administrador"].includes(p) : p === "administrador";
+                          const permitido = perfil === "Leitor" ? ["editor","gerente"].includes(p) : perfil === "Editor" ? ["gerente","administrador"].includes(p) : p === "administrador";
                           return permitido && u.id !== editandoUsuarioId;
                         })
+                        .sort((a, b) => String(a.nome).localeCompare(String(b.nome), "pt-BR"))
                         .map((u) => (
                           <option key={u.id} value={u.id}>
-                            {u.nome}
+                            {u.nome} ({nomePerfil(u.perfil)})
                           </option>
                         ))}
                     </select>
