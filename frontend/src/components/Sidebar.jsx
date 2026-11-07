@@ -85,6 +85,11 @@ export default function Sidebar({ emDrawer = false, aoNavegar = () => {} }) {
   const isActive = (path) => location.pathname === path;
   const ir = (rota) => { aoNavegar(); navigate(rota); setVisivel(false); };
 
+  // Pasta no trilho recolhido: um ícone só; ao clicar abre a barra com a pasta expandida.
+  const IconePasta = ({ chave, titulo, rotas }) => {
+    const ativo = rotas.some((r) => location.pathname === r || location.pathname.startsWith(`${r}/`));
+    return <button onClick={() => { setPastas((v) => ({ ...v, [chave]: true })); setVisivel(true); }} title={`${titulo} (pasta)`} aria-label={`Abrir pasta ${titulo}`} className={`w-11 min-h-11 py-1.5 rounded-xl flex flex-col items-center justify-center gap-0.5 text-[var(--sidebar-text)] transition-colors ${ativo ? 'bg-white/10' : 'opacity-70 hover:opacity-100 hover:bg-white/5'}`}><Folder size={20} /><span className="text-[8px] leading-none font-semibold truncate max-w-full">{titulo === 'Configuração' ? 'Config.' : titulo === 'Ferramentas' ? 'Ferram.' : titulo}</span></button>;
+  };
   const IconBtn = ({ titulo, ativo, abrir, children }) => <button onClick={abrir} title={titulo} aria-label={titulo} className={`w-11 h-11 rounded-xl grid place-items-center text-[var(--sidebar-text)] transition-colors ${ativo ? 'bg-white/10' : 'opacity-70 hover:opacity-100 hover:bg-white/5'}`}>{children}</button>;
   const trilho = <div onMouseEnter={() => setVisivel(true)} className="hidden md:flex flex-col items-center py-5 gap-1 fixed left-0 top-0 bottom-0 w-16 bg-[var(--sidebar-bg)] border-r border-[var(--border-color)] z-40">
     {branding.logo_site ? <img src={branding.logo_site} alt="Logo" className="w-9 h-9 object-contain bg-white rounded-lg p-0.5 mb-4" /> : <div className="w-9 h-9 bg-[var(--primary)] rounded-lg flex items-center justify-center text-white font-bold mb-4">M</div>}
@@ -95,20 +100,24 @@ export default function Sidebar({ emDrawer = false, aoNavegar = () => {} }) {
     <IconBtn titulo={user.perfil?.toLowerCase() === 'leitor' ? 'Meu desempenho' : 'Avaliações'} ativo={isActive('/avaliacoes')} abrir={() => ir('/avaliacoes')}><ClipboardCheck size={20} /></IconBtn>
     </>}
     <IconBtn titulo="Reclamações" ativo={isActive('/reclamacoes')} abrir={() => ir('/reclamacoes')}><AlertTriangle size={20} /></IconBtn>
-    {podeVerDesabafos && <IconBtn titulo="Desabafos" ativo={isActive('/desabafos')} abrir={() => ir('/desabafos')}><Ghost size={20} /></IconBtn>}
-    {podeVerFilaAtendimento && (
-      <IconBtn titulo="Atendimento" ativo={isActive('/atendimento')} abrir={() => ir('/atendimento')}>
-        <IconeAtendimento tamanho={20} />
-      </IconBtn>
+    {/* Mesma estrutura da barra aberta: o que está dentro de pasta aparece só como o ícone da pasta. */}
+    {ehAdministrador || ehGerente ? (
+      <IconePasta chave="rh" titulo="RH" rotas={ehAdministrador ? ['/atendimento','/banco-horas','/folgas','/comunicados','/aso','/desabafos'] : ['/banco-horas','/folgas']} />
+    ) : (
+      <>
+        <IconBtn titulo="Atendimento" ativo={isActive('/atendimento')} abrir={() => ir('/atendimento')}><IconeAtendimento tamanho={20} /></IconBtn>
+        <IconBtn titulo={perfil === 'leitor' ? 'Meu Banco de Horas' : 'Banco de Horas'} ativo={isActive('/banco-horas')} abrir={() => ir('/banco-horas')}><FileText size={20} /></IconBtn>
+        <IconBtn titulo={perfil === 'leitor' ? 'Minhas Folgas' : 'Folgas'} ativo={isActive('/folgas')} abrir={() => ir('/folgas')}><CalendarDays size={20} /></IconBtn>
+        <IconBtn titulo="Comunicados" ativo={isActive('/comunicados')} abrir={() => ir('/comunicados')}><Megaphone size={20} /></IconBtn>
+        <IconBtn titulo={perfil === 'leitor' ? 'Meu ASO' : 'ASO'} ativo={isActive('/aso')} abrir={() => ir('/aso')}><HeartPulse size={20} /></IconBtn>
+        {ehPerfilRH && <IconBtn titulo="Desabafos" ativo={isActive('/desabafos')} abrir={() => ir('/desabafos')}><Ghost size={20} /></IconBtn>}
+      </>
     )}
-    <IconBtn titulo="Banco de Horas" ativo={isActive('/banco-horas')} abrir={() => ir('/banco-horas')}><FileText size={20} /></IconBtn>
-    <IconBtn titulo="Folgas" ativo={isActive('/folgas')} abrir={() => ir('/folgas')}><CalendarDays size={20} /></IconBtn>
-    <IconBtn titulo="Comunicados" ativo={isActive('/comunicados')} abrir={() => ir('/comunicados')}><Megaphone size={20} /></IconBtn>
-    {podeVerASO && <IconBtn titulo={perfil === 'leitor' ? 'Meu ASO' : 'ASO'} ativo={isActive('/aso')} abrir={() => ir('/aso')}><HeartPulse size={20} /></IconBtn>}
-    {['editor','gerente'].includes(user.perfil?.toLowerCase()) && <IconBtn titulo="Meu desempenho" ativo={isActive('/meu-desempenho')} abrir={() => ir('/meu-desempenho')}><ClipboardCheck size={20} /></IconBtn>}
-    {user.perfil?.toLowerCase() === 'administrador' && <>
-      <IconBtn titulo="Usuários" ativo={isActive('/usuarios')} abrir={() => ir('/usuarios')}><Users size={20} /></IconBtn>
-      <IconBtn titulo="Central de configurações" ativo={isActive('/configuracoes')} abrir={() => ir('/configuracoes')}><Settings size={20} /></IconBtn>
+    {ehGerente && <IconBtn titulo="Comunicados" ativo={isActive('/comunicados')} abrir={() => ir('/comunicados')}><Megaphone size={20} /></IconBtn>}
+    {['editor','gerente'].includes(perfil) && <IconBtn titulo="Meu desempenho" ativo={isActive('/meu-desempenho')} abrir={() => ir('/meu-desempenho')}><ClipboardCheck size={20} /></IconBtn>}
+    {ehAdministrador && <>
+      <IconePasta chave="ferramentas" titulo="Ferramentas" rotas={['/ferramentas/etiquetas','/ferramentas/caixas','/ferramentas/romaneio']} />
+      <IconePasta chave="configuracao" titulo="Configuração" rotas={['/usuarios','/configuracoes']} />
     </>}
     <div className="flex-1" />
     <IconBtn titulo="Sair" abrir={() => { localStorage.removeItem('token'); localStorage.removeItem('user'); sessionStorage.clear(); ir('/'); }}><span className="text-red-400 flex"><LogOut size={20} /></span></IconBtn>
