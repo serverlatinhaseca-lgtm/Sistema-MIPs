@@ -2067,16 +2067,16 @@
           ? "integral"
           : "frances";
       // Determina a unidade de medida com base no produto
+      // Etiqueta impressa em maiúsculas, como antes da 2.14.2 ("50 PÃES" / "50 LANCHES").
       const unitForLabel = (productId, delivery) => {
+        // Johnson é sempre lanche (o cadastro padrão do produto diz "pães").
+        if (delivery === "johnson") return "LANCHES";
         const product = productById(delivery, productId);
-        if (product && product.unitPlural) return product.unitPlural;
-        // Fallback para produtos antigos
         const id = String(productId || "");
-        if (id.includes("bolo")) return "bolos";
-        if (id.includes("leite")) return "pães";
-        if (id.includes("integral")) return "pães";
-        if (id.includes("frios")) return "lanches";
-        return "pães";
+        const unit =
+          product?.unitPlural ||
+          (id.includes("bolo") ? "bolos" : id.includes("frios") ? "lanches" : "pães");
+        return unit.toLocaleUpperCase("pt-BR");
       };
       const productsFor = (delivery) => state.products[delivery] || [];
       // Alias de migração: "sem recheio" era o sem margarina.
@@ -3373,7 +3373,7 @@
               }${firstPackage.shift ? ` • ${firstPackage.shift}` : ""}${
                 firstPackage.afternoon ? " • TARDE" : ""
               }</strong><span>${firstPackage.quantity} ${
-                unitForLabel(firstPackage.pid, state.delivery)
+                unitForLabel(firstPackage.productId, state.delivery)
               }</span><small>${firstPackage.product}</small></div>`
             : ""
         }${
@@ -3438,7 +3438,7 @@
                       }${l.afternoon ? " • TARDE" : ""}</strong><span>${
                         l.quantity
                       } ${
-                        unitForLabel(l.pid, state.delivery)
+                        unitForLabel(l.productId, state.delivery)
                       }</span><small>${l.product}</small></div>`
                 )
                 .join("")}</div>`
@@ -3539,7 +3539,7 @@
           );
           doc.setFontSize(7.8);
           doc.text(
-            `${label.quantity} ${unitForLabel(label.pid, state.delivery)}`,
+            `${label.quantity} ${unitForLabel(label.productId, state.delivery)}`,
             cx,
             y + 8,
             { align: "center" }
