@@ -647,6 +647,71 @@
         background: var(--green);
         color: white;
       }
+      .bulk-print {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-top: 4px;
+        padding-top: 10px;
+        border-top: 1px dashed #a9c4b2;
+      }
+      .bulk-print-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.74rem;
+      }
+      .bulk-link {
+        border: 0;
+        background: none;
+        color: #295c42;
+        font-size: 0.7rem;
+        font-weight: 800;
+        text-decoration: underline;
+        cursor: pointer;
+      }
+      .bulk-days {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .bulk-day {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        min-height: 30px;
+        padding: 0 9px;
+        border: 1px solid #c7d9cd;
+        border-radius: 8px;
+        background: white;
+        color: #295c42;
+        font-size: 0.7rem;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .bulk-day.checked {
+        border-color: var(--green);
+        background: #e3f1e8;
+      }
+      .bulk-print-button {
+        min-height: 36px;
+        border: 0;
+        border-radius: 8px;
+        background: var(--green);
+        color: white;
+        font-size: 0.74rem;
+        font-weight: 800;
+        cursor: pointer;
+      }
+      .bulk-print-button:disabled {
+        background: #c7d9cd;
+        color: #5b7a67;
+        cursor: default;
+      }
+      html[data-theme="dark"] .bulk-day { background: #241b17 !important; border-color: #51392e !important; color: #d2c1b7 !important; }
+      html[data-theme="dark"] .bulk-day.checked { background: #1f3a2b !important; border-color: #3f8a5f !important; color: #fff !important; }
+      html[data-theme="dark"] .bulk-link { color: #73c493 !important; }
 
       .empty-state {
         display: grid;
@@ -1930,6 +1995,8 @@
         orders: [],
         archivedOrders: [],
         selectedOrderIds: new Set(),
+        // Dias marcados para impressão em massa (só sessão, não é salvo).
+        bulkDates: new Set(),
         editingOrderId: null,
       };
       // Filtro da base diária (só sessão, não é salvo).
@@ -2294,7 +2361,7 @@
                     state.date === date ? "active" : ""
                   }">${formatDate(date)}</button>`
               )
-              .join("")}</div></div>`
+              .join("")}</div>${dates.length > 1 ? bulkPrintHtml(dates) : ""}</div>`
           : "";
         document.querySelectorAll("[data-date]").forEach(
           (btn) =>
@@ -2303,6 +2370,41 @@
               render();
             })
         );
+        document.querySelectorAll("[data-bulk-date]").forEach(
+          (input) =>
+            (input.onchange = () => {
+              const date = input.dataset.bulkDate;
+              input.checked ? state.bulkDates.add(date) : state.bulkDates.delete(date);
+              renderDateChooser();
+            })
+        );
+        const bulkAll = el("bulkSelectAll");
+        if (bulkAll)
+          bulkAll.onclick = () => {
+            const allMarked = dates.every((d) => state.bulkDates.has(d));
+            dates.forEach((d) => (allMarked ? state.bulkDates.delete(d) : state.bulkDates.add(d)));
+            renderDateChooser();
+          };
+        const bulkPrint = el("bulkPrintButton");
+        if (bulkPrint) bulkPrint.onclick = printBulkDates;
+      }
+
+      // Bloco separado dos botões de dia: marcar vários dias e imprimir tudo de uma vez.
+      function bulkPrintHtml(dates) {
+        const marked = dates.filter((d) => state.bulkDates.has(d)).length;
+        const allMarked = marked === dates.length;
+        return `<div class="bulk-print"><div class="bulk-print-head"><strong>Imprimir vários dias</strong><button type="button" id="bulkSelectAll" class="bulk-link">${
+          allMarked ? "Desmarcar todos" : "Marcar todos"
+        }</button></div><div class="bulk-days">${dates
+          .map(
+            (date) =>
+              `<label class="bulk-day ${state.bulkDates.has(date) ? "checked" : ""}"><input type="checkbox" data-bulk-date="${date}" ${
+                state.bulkDates.has(date) ? "checked" : ""
+              }><span>${formatDate(date)}</span></label>`
+          )
+          .join("")}</div><button type="button" id="bulkPrintButton" class="bulk-print-button" ${
+          marked ? "" : "disabled"
+        }>${marked ? `Imprimir ${marked} dia(s)` : "Marque os dias para imprimir"}</button></div>`;
       }
 
       function dateInput(label = "Data da entrega") {
@@ -3282,6 +3384,22 @@
               )}</strong></div>`
             : ""
         }`;
+        el("printArea").innerHTML = sheetsHtml(labs, state.date);
+      }
+
+      // Etiquetas de um dia qualquer da entrega atual, sem mudar o dia aberto.
+      function labelsForDate(date) {
+        const previous = state.date;
+        state.date = date;
+        try {
+          return labels();
+        } finally {
+          state.date = previous;
+        }
+      }
+
+      // Folhas Pimaco 6187 (80 por folha) com cabeçalho entrega/data na margem superior.
+      function sheetsHtml(labs, date) {
         const chunks = [];
         for (let i = 0; i < labs.length; i += 80)
           chunks.push(labs.slice(i, i + 80));
@@ -3290,10 +3408,10 @@
           (state.delivery === "paraibuna"
             ? ` • ${state.route === "cidade" ? "Cidade" : "Roça"}`
             : "");
-        const headerText = [headerTitle, state.date ? formatDate(state.date) : ""]
+        const headerText = [headerTitle, date ? formatDate(date) : ""]
           .filter(Boolean)
           .join(" — ");
-        el("printArea").innerHTML = chunks
+        return chunks
           .map(
             (page, pageIndex) =>
               `<div class="label-sheet"><div class="print-sheet-header">${headerText}${
@@ -3325,6 +3443,23 @@
                 .join("")}</div>`
           )
           .join("");
+      }
+
+      // Impressão em massa: cada dia marcado sai em folhas próprias, na ordem das datas.
+      function printBulkDates() {
+        const available = allDates();
+        const dates = [...state.bulkDates].filter((d) => available.includes(d)).sort();
+        const groups = dates
+          .map((date) => ({ date, labs: labelsForDate(date) }))
+          .filter((g) => g.labs.length);
+        if (!groups.length) {
+          alert("Nenhuma etiqueta encontrada nos dias marcados.");
+          return;
+        }
+        el("printArea").innerHTML = groups.map((g) => sheetsHtml(g.labs, g.date)).join("");
+        // Volta a área de impressão para o dia aberto depois de imprimir.
+        window.addEventListener("afterprint", () => renderPreviewAndPrint(), { once: true });
+        window.print();
       }
 
       function downloadPdf() {
