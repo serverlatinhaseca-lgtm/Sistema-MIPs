@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { AlertTriangle, LayoutDashboard, BookOpen, Calculator, Users, ClipboardCheck, Sun, Moon, LogOut, KeyRound, Settings, Tag, Folder, ChevronDown, ChevronRight, Pin, PinOff, HeartPulse, MessageCircle, Megaphone, Building2, FileText, CalendarDays, Ghost } from 'lucide-react';
+import { AlertTriangle, LayoutDashboard, BookOpen, Calculator, Users, ClipboardCheck, ClipboardList, Sun, Moon, LogOut, KeyRound, Settings, Tag, Folder, ChevronDown, ChevronRight, Pin, PinOff, HeartPulse, MessageCircle, Megaphone, Building2, FileText, CalendarDays, Ghost } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import useBranding from '../useBranding';
@@ -217,6 +217,7 @@ export default function Sidebar({ emDrawer = false, aoNavegar = () => {} }) {
             <Pasta titulo="Ferramentas" aberta={pastas.ferramentas} alternar={()=>setPastas(v=>({...v,ferramentas:!v.ferramentas}))}>
               <Item icon={<Tag size={18}/>} titulo="Etiquetas" ativo={isActive('/ferramentas/etiquetas')} abrir={()=>navigate('/ferramentas/etiquetas')}/>
               <Item icon={<Calculator size={18}/>} titulo="Pacotes e Caixas" ativo={isActive('/ferramentas/caixas')} abrir={()=>navigate('/ferramentas/caixas')}/>
+              <Item icon={<ClipboardList size={18}/>} titulo="Romaneio Santa Branca" ativo={isActive('/ferramentas/romaneio')} abrir={()=>navigate('/ferramentas/romaneio')}/>
             </Pasta>
             <Pasta titulo="Configuração" aberta={pastas.configuracao} alternar={()=>setPastas(v=>({...v,configuracao:!v.configuracao}))}>
               <Item icon={<Users size={18}/>} titulo="Usuários" ativo={isActive('/usuarios')} abrir={()=>navigate('/usuarios')}/>

@@ -435,7 +435,7 @@ const normalizarStatusUsuario = (status) => String(status || '').trim().toLowerC
 const BLOQUEIO_MUDAR_SITUACAO = 'Acesso bloqueado para usuários com a situação alterada.';
 const restringirAoProprioTime = (perfil) => normalizarPerfil(perfil) === 'editor';
 
-const CHAVES_FERRAMENTAS_ADMIN = new Set(['etiquetas', 'caixas']);
+const CHAVES_FERRAMENTAS_ADMIN = new Set(['etiquetas', 'caixas', 'romaneio']);
 
 app.get('/api/ferramentas-admin/:chave', verificarToken, somenteAdministrador, async (req, res) => {
   if (!CHAVES_FERRAMENTAS_ADMIN.has(req.params.chave)) return res.status(404).json({ error: 'Ferramenta não encontrada' });

@@ -4,7 +4,8 @@ import Sidebar from '../components/Sidebar';
 
 const FERRAMENTAS = {
   '/ferramentas/etiquetas': { titulo: 'Etiquetas', descricao: 'Emissão, configuração de rotas e impressão em folha Pimaco 6187.', arquivo: '/admin-tools/etiquetas.html' },
-  '/ferramentas/caixas': { titulo: 'Pacotes e Caixas', descricao: 'Cálculo de produção para bisnaguinhas e pães hot dog.', arquivo: '/admin-tools/caixas.html' }
+  '/ferramentas/caixas': { titulo: 'Pacotes e Caixas', descricao: 'Cálculo de produção para bisnaguinhas e pães hot dog.', arquivo: '/admin-tools/caixas.html' },
+  '/ferramentas/romaneio': { titulo: 'Romaneio Santa Branca', descricao: 'Romaneio de entrega com assinatura, pacotes no verso e contagem mensal para o financeiro.', arquivo: '/admin-tools/romaneio.html' }
 };
 
 export default function FerramentasAdmin() {

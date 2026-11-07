@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Romaneio Santa Branca</title>
+    <style>
+      :root {
+        --ink: #231d18;
+        --muted: #6e655d;
+        --line: #e5ddd3;
+        --paper: #fffdf9;
+        --cream: #faf7f2;
+        --orange: #e87523;
+        --orange-dark: #a65526;
+        --green: #2f6b4f;
+        --soft: #fff3e8;
+      }
+      * { box-sizing: border-box; }
+      [hidden] { display: none !important; }
+      body { margin: 0; background: transparent; color: var(--ink); font-family: Inter, "Segoe UI", Arial, sans-serif; font-size: 14px; }
+      button, input, select { font: inherit; }
+      .app { display: flex; flex-direction: column; gap: 14px; padding: 2px 2px 40px; }
+      .tabs { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+      .tab { min-height: 40px; padding: 0 16px; border: 1px solid var(--line); border-radius: 10px; background: #fff; color: var(--ink); font-weight: 700; cursor: pointer; }
+      .tab.active { border-color: var(--orange); background: var(--soft); color: var(--orange-dark); }
+      .badge { margin-left: auto; padding: 6px 12px; border-radius: 999px; border: 1px solid #ffd0aa; background: var(--soft); color: #8f461f; font-size: 12px; font-weight: 700; }
+      .badge:empty { display: none; }
+      .badge.error { border-color: #f3b4a8; background: #fdecea; color: #a32a17; }
+      .panel { padding: 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); }
+      .panel h2 { margin: 0 0 4px; font-size: 18px; }
+      .panel p.sub { margin: 0 0 14px; color: var(--muted); font-size: 13px; }
+      .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-bottom: 14px; }
+      .field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: var(--muted); }
+      .field input, .field select { min-height: 38px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); font-weight: 400; }
+      .btn { min-height: 38px; padding: 0 14px; border: 1px solid #cfc4b8; border-radius: 9px; background: #fff; color: var(--ink); font-weight: 700; cursor: pointer; }
+      .btn.primary { border: 0; background: linear-gradient(135deg, #ff9b48, #e87523); color: #fff; }
+      .btn.dark { border: 0; background: var(--orange-dark); color: #fff; }
+      .btn:disabled { opacity: 0.5; cursor: default; }
+      .btn.small { min-height: 30px; padding: 0 10px; font-size: 12px; }
+      .btn.danger { border-color: #e7b3a9; color: #a32a17; }
+      .day-info { padding: 9px 12px; border-radius: 9px; background: var(--cream); color: var(--muted); font-size: 13px; }
+      .day-info strong { color: var(--ink); }
+      .scroll { overflow-x: auto; }
+      table.grid { width: 100%; border-collapse: collapse; font-size: 13px; }
+      .grid th, .grid td { padding: 5px 7px; border: 1px solid var(--line); text-align: center; white-space: nowrap; }
+      .grid th { background: var(--cream); font-weight: 800; }
+      .grid td.left { text-align: left; white-space: normal; }
+      .grid td.packs { color: var(--muted); font-size: 11px; text-align: left; white-space: normal; min-width: 150px; }
+      .grid tr.total td { background: var(--soft); font-weight: 800; }
+      .grid tr.block td { background: #f1ebe3; font-weight: 800; text-align: left; }
+      .grid tr.weekend td { color: var(--muted); background: var(--cream); }
+      .grid input, .grid select { width: 100%; min-width: 50px; padding: 5px 6px; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--ink); }
+      .grid input.qty { width: 74px; text-align: center; }
+      .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin: 14px 0; }
+      .card { padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--cream); }
+      .card span { display: block; color: var(--muted); font-size: 11px; font-weight: 800; text-transform: uppercase; }
+      .card strong { font-size: 17px; }
+      .hint { color: var(--muted); font-size: 12px; }
+      .seg { display: inline-flex; gap: 4px; padding: 3px; border: 1px solid var(--line); border-radius: 10px; background: #fff; margin-bottom: 10px; }
+      .seg button { min-height: 32px; padding: 0 12px; border: 0; border-radius: 7px; background: none; color: var(--ink); font-weight: 700; cursor: pointer; }
+      .seg button.active { background: var(--soft); color: var(--orange-dark); }
+      .msg { min-height: 18px; color: var(--green); font-size: 13px; font-weight: 700; }
+      .print-area { display: none; }
+
+      html[data-theme="dark"] body { color: #f7efe9; }
+      html[data-theme="dark"] .panel { background: #201713; border-color: #4a342a; }
+      html[data-theme="dark"] .tab, html[data-theme="dark"] .btn, html[data-theme="dark"] .seg { background: #2a1f1a; border-color: #62483b; color: #f7efe9; }
+      html[data-theme="dark"] .tab.active, html[data-theme="dark"] .seg button.active { background: #4a2b1d; border-color: #ff8d2f; color: #ffb477; }
+      html[data-theme="dark"] .seg button { color: #f7efe9; }
+      html[data-theme="dark"] .btn.primary { background: linear-gradient(135deg, #ff9b48, #e87523); color: #fff; }
+      html[data-theme="dark"] .btn.dark { background: #a65526; color: #fff; }
+      html[data-theme="dark"] .grid th, html[data-theme="dark"] .card, html[data-theme="dark"] .day-info { background: #2a1f1a; color: #f7efe9; }
+      html[data-theme="dark"] .grid th, html[data-theme="dark"] .grid td, html[data-theme="dark"] .card { border-color: #4a342a; }
+      html[data-theme="dark"] .grid tr.total td { background: #3a2619; }
+      html[data-theme="dark"] .grid tr.block td { background: #31231c; }
+      html[data-theme="dark"] .grid tr.weekend td { background: #241b17; }
+      html[data-theme="dark"] input, html[data-theme="dark"] select { background: #17100d !important; color: #f7efe9 !important; border-color: #5a4034 !important; }
+      html[data-theme="dark"] .card span, html[data-theme="dark"] .hint, html[data-theme="dark"] .panel p.sub, html[data-theme="dark"] .field, html[data-theme="dark"] .grid td.packs { color: #c8b8ae; }
+
+      /* ---------- Impressão ---------- */
+      @page { size: 215.9mm 279.4mm; margin: 0; }
+      @page paisagem { size: 279.4mm 215.9mm; margin: 0; }
+      @media print {
+        body { margin: 0; background: #fff; }
+        .app { display: none !important; }
+        .print-area { display: block; }
+        .doc-page {
+          width: 215.9mm; height: 279.4mm; padding: 10mm 10mm; overflow: hidden;
+          page-break-after: always; break-after: page;
+          font-family: Arial, Helvetica, sans-serif; color: #000; background: #fff;
+        }
+        .doc-page:last-child { page-break-after: auto; break-after: auto; }
+        .doc-page.landscape { page: paisagem; width: 279.4mm; height: 215.9mm; padding: 7mm 8mm; }
+        .doc-page h1 { margin: 0 0 3mm; font-size: 13pt; text-align: center; }
+        .doc-page h2 { margin: 4mm 0 1.5mm; font-size: 10pt; }
+        .doc-page .doc-sub { margin: -1.5mm 0 3mm; font-size: 8pt; text-align: center; }
+        .doc-table { width: 100%; border-collapse: collapse; font-size: 8.4pt; }
+        .doc-table th, .doc-table td { border: 0.3mm solid #000; padding: 0.8mm 1.4mm; text-align: center; vertical-align: middle; }
+        .doc-table th { background: #d9d9d9; font-weight: 800; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .doc-table td.left { text-align: left; }
+        .doc-table tr.total td { font-weight: 800; background: #eeeeee; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .romaneio td { height: var(--row-h, 6.6mm); }
+        .romaneio td.sign { width: 42mm; }
+        .romaneio td.time { width: 17mm; }
+        .romaneio td.num { width: 14mm; font-weight: 700; }
+        .pack-columns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5mm; }
+        .doc-table.compact { font-size: 6.6pt; }
+        .doc-table.compact th, .doc-table.compact td { padding: 0.5mm 0.6mm; }
+        .doc-foot { margin-top: 3mm; font-size: 8pt; }
+        .sign-lines { display: grid; grid-template-columns: 1fr 1fr; gap: 12mm; margin-top: 10mm; font-size: 8.5pt; }
+        .sign-lines div { padding-top: 1.5mm; border-top: 0.3mm solid #000; text-align: center; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <div class="tabs" id="tabs"></div>
+
+      <!-- ROMANEIO DO DIA -->
+      <section class="panel" id="viewDay">
+        <h2>Romaneio do dia</h2>
+        <p class="sub">Escolha a data: a base daquele dia da semana entra sozinha e pode ser ajustada. A impressão sai em 2 folhas por dia — frente: romaneio com assinatura; verso: pacotes.</p>
+        <div class="toolbar">
+          <label class="field">Data da entrega<input type="date" id="dayDate" /></label>
+          <button class="btn" type="button" id="reloadBase">Recarregar base do dia</button>
+          <button class="btn primary" type="button" id="printDay">Imprimir romaneio (frente e verso)</button>
+          <button class="btn dark" type="button" id="printWeek">Imprimir a semana (seg a sex)</button>
+        </div>
+        <div class="day-info" id="dayInfo"></div>
+        <div class="cards" id="dayCards"></div>
+        <div class="scroll" id="dayTable"></div>
+        <div class="toolbar" style="margin-top:12px">
+          <button class="btn small" type="button" id="addExtra">+ Adicionar entrega avulsa neste dia</button>
+        </div>
+      </section>
+
+      <!-- CONTAGEM DO MÊS -->
+      <section class="panel" id="viewMonth" hidden>
+        <h2>Contagem do mês — financeiro</h2>
+        <p class="sub">Pães entregues por dia em cada autorização de fornecimento (AF), com o total em unidades e em kg para o faturamento. Conta os dias salvos no romaneio.</p>
+        <div class="toolbar">
+          <label class="field">Mês de referência<input type="month" id="monthInput" /></label>
+          <label class="field">Peso de cada pão (kg)<input type="number" id="kgInput" min="0.001" step="0.001" style="width:120px" /></label>
+          <button class="btn primary" type="button" id="printMonth">Imprimir contagem</button>
+          <button class="btn" type="button" id="csvMonth">Baixar em CSV</button>
+        </div>
+        <div class="cards" id="monthCards"></div>
+        <div class="scroll" id="monthGrid"></div>
+        <h2 style="margin-top:18px">Faturamento</h2>
+        <div class="scroll" id="billingTable"></div>
+      </section>
+
+      <!-- CLIENTES E BASES -->
+      <section class="panel" id="viewBase" hidden>
+        <h2>Clientes e base por dia da semana</h2>
+        <p class="sub">Horário, endereço e AF valem para todos os dias; as quantidades são do dia escolhido. Deixe 0 para não entregar aquele pão. Mudar a base não altera dias já salvos.</p>
+        <div id="baseDays"></div>
+        <div class="scroll" id="baseTable"></div>
+        <div class="toolbar" style="margin-top:12px">
+          <label class="field">Novo cliente<input type="text" id="newClientName" maxlength="80" placeholder="Nome do cliente" style="min-width:260px" /></label>
+          <label class="field">AF<select id="newClientGroup"></select></label>
+          <button class="btn" type="button" id="addClient">Adicionar cliente</button>
+        </div>
+        <div class="toolbar">
+          <label class="field">Pacote máx. francês<input type="number" id="maxFrances" min="1" step="1" style="width:110px" /></label>
+          <label class="field">Pacote máx. leite<input type="number" id="maxLeite" min="1" step="1" style="width:110px" /></label>
+          <label class="field">Pacote máx. integral<input type="number" id="maxIntegral" min="1" step="1" style="width:110px" /></label>
+        </div>
+        <div class="toolbar">
+          <button class="btn primary" type="button" id="saveBase">Salvar clientes e base</button>
+          <button class="btn danger" type="button" id="resetBase">Restaurar base das planilhas</button>
+        </div>
+        <div class="msg" id="baseMsg"></div>
+      </section>
+    </div>
+
+    <section class="print-area" id="printArea"></section>
+
+    <script>
+      // ---------- Acesso e banco (mesmo padrão das outras ferramentas) ----------
+      const portalUser = JSON.parse(localStorage.getItem("user") || "{}");
+      const portalToken = localStorage.getItem("token");
+      if (!portalToken || String(portalUser.perfil || "").toLowerCase() !== "administrador") {
+        window.top.location.href = "/mips";
+      }
+      const apiBase = window.location.protocol === "https:" ? "" : `http://${window.location.hostname}:7001`;
+      const api = `${apiBase}/api/ferramentas-admin/romaneio`;
+      const CACHE_KEY = "romaneio-santa-branca";
+
+      // ---------- Dados padrão (planilhas "Santa Branca - <dia>.xlsx") ----------
+      // "bill" junta AFs no faturamento (Saúde + Saúde 2 = Saúde 1; Paço + RH = Paço Municipal).
+      const GROUPS = [
+        { id: "escolas", name: "Educação Escolas", af: "AF 175/2025", bill: "Educação (Escolas)" },
+        { id: "educacao2", name: "Educação 2", af: "AF 293/2025", bill: "Educação 2" },
+        { id: "saude", name: "Saúde", af: "AF 900/2025", bill: "Saúde 1" },
+        { id: "ubs", name: "Saúde UBS", af: "AF 899/2025", bill: "Saúde (UBS)" },
+        { id: "paco", name: "Paço Municipal", af: "AF 212/2025", bill: "Paço Municipal" },
+        { id: "tutelar", name: "Cons. Tutelar", af: "AF 343/2025", bill: "Conselho Tutelar" },
+        { id: "acolhimento", name: "Casa Acolhim.", af: "AF 963/2025", bill: "Casa Acolhimento" },
+        { id: "cras", name: "CRAS", af: "AF 1119/2025", bill: "CRAS" },
+        { id: "promocao", name: "Promo Social", af: "AF 1099/2025", bill: "Promoção Social" },
+        { id: "esportes", name: "Esportes", af: "AF 261/2025", bill: "Esporte" },
+        { id: "rh", name: "RH", af: "Paço Municipal", bill: "Paço Municipal" },
+        { id: "procom", name: "CAC/PROCOM", af: "AF 1163/2025", bill: "Procom" },
+        { id: "cultura", name: "Cultura", af: "AF 1159/2025", bill: "Cultura" },
+        { id: "obras", name: "Obras", af: "AF 914/2025", bill: "Obras" },
+        { id: "saude2", name: "Sec. Saúde 2", af: "Saúde 1", bill: "Saúde 1" },
+      ];
+      const BLOCKS = { 1: "Escolas", 2: "Educação", 3: "Demais secretarias" };
+      const blockOf = (group) => (group === "escolas" ? 1 : group === "educacao2" ? 2 : 3);
+      const DAYS = [["seg", "Segunda-feira"], ["ter", "Terça-feira"], ["qua", "Quarta-feira"], ["qui", "Quinta-feira"], ["sex", "Sexta-feira"]];
+      const TYPES = [["frances", "Francês"], ["leite", "Leite"], ["integral", "Integral"]];
+      const TYPE_SHORT = { frances: "F", leite: "L", integral: "I" };
+      // Quantidades por dia: [francês, leite, integral]
+      const school = (q, i = 0) => ({ seg: [0, q, i], ter: [0, 0, i], qua: [q, 0, i], qui: [0, 0, i], sex: [0, q, i] });
+      const alt = (q, sex) => ({ seg: [0, q, 0], ter: [q, 0, 0], qua: [0, q, 0], qui: [q, 0, 0], sex: sex || [0, q, 0] });
+      const same = (f, l, sex) => ({ seg: [f, l, 0], ter: [f, l, 0], qua: [f, l, 0], qui: [f, l, 0], sex: sex || [f, l, 0] });
+      const DEFAULT_CLIENTS = [
+        ["emef-barao", "EMEF Barão de Santa Branca", "6 às 7:30", "Rua Nestor Samuel de Oliveira, 193 - Centro", "escolas", school(200, 2)],
+        ["emef-benedita", "EMEF Profª Benedita Pereira de Albuquerque", "6 às 7:30", "Rua Nove de Julho, 14 - Jd. Santa Cecília", "escolas", school(280)],
+        ["emef-francisca", "EMEF Profª Francisca Rosa Gomes", "6 às 7:30", "Rua Brigadeiro Aguiar, 508 - Centro", "escolas", school(440)],
+        ["emef-palmyra", "EMEF Profª Palmyra Martins Rosa Perillo", "6 às 7:30", "Rua Joaquim Maria Senna, 43 - Parque Cambuci", "escolas", school(400)],
+        ["emef-isaura", "EMEF Profª Isaura M. R. de Siqueira", "6 às 7:30", "Rua Arthur Rosa Porto Filho, 215 - Jardim São José", "escolas", school(160)],
+        ["emeif-apparecida", "EMEIF Profº Maria Apparecida Fonseca", "6 às 7:30", "Rua Independência, 300 - Centro", "escolas", school(130)],
+        ["emeif-sylvia", "EMEIF Profº Sylvia Cantinho Braga", "6 às 7:30", "Rua Independência, 300 - Centro", "escolas", school(80)],
+        ["emei-terezinha", "EMEI Terezinha do Menino Jesus P. Wuó", "6 às 9:30", "Praça General Euclides Figueiredo, 55 - Jd. Prado", "escolas", school(180)],
+        ["creche-1", "Creche Municipal de Santa Branca - Unidade I", "6 às 9:30", "Rua Brigadeiro Aguiar, 114 - Centro", "escolas", school(60)],
+        ["creche-2", "Creche Municipal de Santa Branca - Unidade II", "6 às 9:30", "Rua José Octavio da Silva Leme, s/n - Cambuci", "escolas", school(60)],
+        ["sec-educacao", "Secretaria da Educação", "—", "Rua Independência, 300 - Centro", "educacao2", same(0, 20)],
+        ["garagem", "Garagem do Transporte Escolar", "—", "Rua Independência, 300 - Centro", "educacao2", same(50, 0)],
+        ["merenda", "Merenda Escolar", "—", "Rua Independência, 300 - Centro", "educacao2", same(10, 0)],
+        ["sec-saude", "Secretaria de Saúde", "07:00", "Rua João Pessoa, 338, Centro", "saude", alt(26)],
+        ["ubs-central", "UBS Central", "07:00", "Rua João de Moraes, 93 - Centro", "ubs", alt(40)],
+        ["ubs-2", "UBS II", "07:00", "Rua Arthur Rosa Filho, s/n - Jd. São José", "ubs", alt(40)],
+        ["pronto-atendimento", "Pronto Atendimento Municipal", "07:00", "Praça Rui Barbosa, 109 - Centro", "saude", alt(80, [80, 120, 0])],
+        ["prefeitura", "Prefeitura de Santa Branca", "08:00", "Rua Prudente de Moraes, 93 - Centro", "paco", same(15, 15)],
+        ["conselho-tutelar", "Conselho Tutelar", "", "Rua José Joaquim Nogueira, 210 - Centro", "tutelar", same(10, 10)],
+        ["casa-acolhimento", "Casa de Acolhimento", "08:00", "Rua João de Paula Vieira, 72 - Centro", "acolhimento", same(6, 0, [6, 6, 0])],
+        ["cras", "CRAS", "08:00", "Rua Prudente de Moraes, 158 - Centro", "cras", same(12, 0)],
+        ["promocao-social", "Promoção Social", "08:00", "Rua José Joaquim Nogueira, 63 - Centro", "promocao", same(5, 5)],
+        ["esportes", "Diretoria de Esportes e Lazer", "", "Rua Brigadeiro Aguiar, s/n - Centro", "esportes", same(0, 7)],
+        ["rh", "RH", "", "Rua Vinte e Dois de Maio, Nº 33", "rh", same(7, 3)],
+        ["procom", "CAC - Procom", "08:00", "Praça Ajudante Braga, 48 - Centro", "procom", same(9, 9)],
+        ["cultura", "Diretoria de Cultura", "08:00", "Praça Ajudante Braga, 81 - Centro", "cultura", same(0, 0)],
+        ["obras", "Secretaria de Obras", "08:00", "Rua Padre Benedito Rodrigues da Cunha, nº 94 – Jardim Prado", "obras", alt(170, [170, 0, 0])],
+        ["sec-saude-2", "Secretaria de Saúde 2", "", "Rua Capitão Candido de Siqueira Porto, 166", "saude2", alt(8)],
+      ];
+      function defaultBase() {
+        const base = Object.fromEntries(DAYS.map(([k]) => [k, {}]));
+        const clients = DEFAULT_CLIENTS.map(([id, name, time, address, group, days]) => {
+          DAYS.forEach(([k]) => (base[k][id] = [...days[k]]));
+          return { id, name, time, address, group };
+        });
+        return { clients, base };
+      }
+      function defaultData() {
+        return { ...defaultBase(), days: {}, rules: { kgPerUnit: 0.05, packMax: { frances: 20, leite: 30, integral: 20 } } };
+      }
+
+      // ---------- Estado ----------
+      let data = defaultData();
+      const ui = { view: "day", date: "", month: "", baseDay: "seg", loaded: false, loadFailed: false };
+
+      const el = (id) => document.getElementById(id);
+      const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+      const num = (n) => (n ? Number(n).toLocaleString("pt-BR") : "");
+      const fmt = (n) => Number(n || 0).toLocaleString("pt-BR");
+      const formatDate = (d) => (d ? d.split("-").reverse().join("/") : "");
+      const weekday = (d) => new Intl.DateTimeFormat("pt-BR", { weekday: "long" }).format(new Date(`${d}T12:00:00`));
+      const dayKey = (d) => (d ? [null, "seg", "ter", "qua", "qui", "sex", null][new Date(`${d}T12:00:00`).getDay()] : null);
+      const group = (id) => GROUPS.find((g) => g.id === id);
+      const today = () => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`; };
+      const addDays = (d, n) => { const x = new Date(`${d}T12:00:00`); x.setDate(x.getDate() + n); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`; };
+
+      // Pacotes: máximo por tipo, menor nº de pacotes, maiores primeiro.  200 leite → [30×6, 20]
+      function split(total, max) {
+        total = Math.floor(Number(total) || 0);
+        if (total <= 0) return [];
+        return [...Array(Math.floor(total / max)).fill(max), ...(total % max ? [total % max] : [])];
+      }
+      const maxOf = (type) => Math.max(1, Number(data.rules.packMax?.[type]) || { frances: 20, leite: 30, integral: 20 }[type]);
+      function packsText(parts) {
+        const counts = new Map();
+        parts.forEach((p) => counts.set(p, (counts.get(p) || 0) + 1));
+        return [...counts.entries()].sort((a, b) => b[0] - a[0]).map(([s, n]) => `${n} pct de ${String(s).padStart(2, "0")}`).join(" + ");
+      }
+
+      // ---------- Banco ----------
+      let saveTimer;
+      function setBadge(text, error = false) {
+        ui.badge = text;
+        ui.badgeError = error;
+        const b = document.querySelector(".badge");
+        if (!b) return;
+        b.textContent = text;
+        b.classList.toggle("error", error);
+      }
+      function save() {
+        try { localStorage.setItem(CACHE_KEY, JSON.stringify(data)); } catch {}
+        if (!ui.loaded || ui.loadFailed) return; // nunca sobrescrever o banco sem ter lido antes
+        clearTimeout(saveTimer);
+        setBadge("Salvando no banco...");
+        saveTimer = setTimeout(() => send(), 300);
+      }
+      async function send(attempt = 1) {
+        try {
+          const r = await fetch(api, { method: "PUT", headers: { "Content-Type": "application/json", Authorization: `Bearer ${portalToken}` }, body: JSON.stringify({ dados: data }) });
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          setBadge("Salvo no banco");
+        } catch (e) {
+          if (attempt < 2) { await new Promise((res) => setTimeout(res, 1500)); return send(attempt + 1); }
+          setBadge("Falha ao salvar no banco", true);
+        }
+      }
+      function normalize(d) {
+        const def = defaultData();
+        if (!d || typeof d !== "object") return def;
+        const ok = Array.isArray(d.clients) && d.base && DAYS.every(([k]) => d.base[k] && typeof d.base[k] === "object");
+        return {
+          clients: ok ? d.clients : def.clients,
+          base: ok ? d.base : def.base,
+          days: d.days && typeof d.days === "object" ? d.days : {},
+          rules: { ...def.rules, ...(d.rules || {}), packMax: { ...def.rules.packMax, ...(d.rules?.packMax || {}) } },
+        };
+      }
+      async function load() {
+        try { data = normalize(JSON.parse(localStorage.getItem(CACHE_KEY) || "null")); } catch {}
+        try {
+          const r = await fetch(api, { headers: { Authorization: `Bearer ${portalToken}` } });
+          if (r.status === 404) { ui.loaded = true; save(); return; }
+          if (!r.ok) throw new Error();
+          const { dados } = await r.json();
+          data = normalize(dados);
+          try { localStorage.setItem(CACHE_KEY, JSON.stringify(data)); } catch {}
+          ui.loaded = true;
+          setBadge("Salvo no banco");
+        } catch {
+          ui.loaded = true;
+          ui.loadFailed = true;
+          setBadge("Não foi possível ler o banco — alterações ficam só neste navegador", true);
+        }
+      }
+
+      // ---------- Dia: quantidades salvas ou base do dia da semana ----------
+      function baseDay(date) {
+        const key = dayKey(date);
+        const base = key ? data.base[key] || {} : {};
+        return { items: Object.fromEntries(data.clients.map((c) => [c.id, [...(base[c.id] || [0, 0, 0])]])), extras: [] };
+      }
+      const savedDay = (date) => data.days[date];
+      const dayData = (date) => savedDay(date) || baseDay(date);
+      // Garante que o dia existe salvo (ao editar ou imprimir).
+      function materialize(date) {
+        if (!data.days[date]) data.days[date] = baseDay(date);
+        return data.days[date];
+      }
+      // Linhas do romaneio: clientes cadastrados (na ordem) + entregas avulsas do dia.
+      function rowsOf(date) {
+        const day = dayData(date);
+        const rows = data.clients.map((c) => ({ key: c.id, client: c, block: blockOf(c.group), qty: (day.items?.[c.id] || [0, 0, 0]).map((n) => Number(n) || 0) }));
+        (day.extras || []).forEach((x, i) => rows.push({ key: `extra-${i}`, extraIndex: i, client: { name: x.name, time: x.time, address: x.address, group: x.group || "" }, block: 3, qty: (x.qty || [0, 0, 0]).map((n) => Number(n) || 0) }));
+        rows.forEach((r) => (r.parts = TYPES.map(([t], i) => split(r.qty[i], maxOf(t)))));
+        return rows;
+      }
+
+      // ---------- Abas ----------
+      function renderTabs() {
+        el("tabs").innerHTML = [["day", "Romaneio do dia"], ["month", "Contagem do mês (financeiro)"], ["base", "Clientes e bases"]]
+          .map(([id, label]) => `<button type="button" class="tab ${ui.view === id ? "active" : ""}" data-view="${id}">${label}</button>`)
+          .join("") + `<span class="badge ${ui.badgeError ? "error" : ""}">${esc(ui.loaded ? ui.badge || "" : "Carregando...")}</span>`;
+        document.querySelectorAll("[data-view]").forEach((b) => (b.onclick = () => { if (ui.view === "base") collectBase(); ui.view = b.dataset.view; render(); }));
+        el("viewDay").hidden = ui.view !== "day";
+        el("viewMonth").hidden = ui.view !== "month";
+        el("viewBase").hidden = ui.view !== "base";
+      }
+
+      // ---------- Romaneio do dia (tela) ----------
+      function renderDay() {
+        const date = ui.date;
+        el("dayDate").value = date;
+        const key = dayKey(date);
+        const saved = !!savedDay(date);
+        el("dayInfo").innerHTML = !date
+          ? "Escolha a data da entrega."
+          : `<strong>${esc(weekday(date))}, ${formatDate(date)}</strong> — ${saved ? "dia salvo (conta no financeiro)." : key ? `mostrando a base de ${esc(weekday(date))}. Ao editar ou imprimir, o dia é salvo.` : "sábado/domingo não tem base; preencha à mão se houver entrega."}`;
+        el("reloadBase").disabled = !date || !key;
+        el("printDay").disabled = !date;
+        el("printWeek").disabled = !date;
+        el("addExtra").disabled = !date;
+        if (!date) { el("dayTable").innerHTML = ""; el("dayCards").innerHTML = ""; return; }
+        const rows = rowsOf(date);
+        const tot = (list, i) => list.reduce((s, r) => s + r.qty[i], 0);
+        const packs = (i) => rows.reduce((s, r) => s + r.parts[i].length, 0);
+        // A frente comporta ~36 linhas (28 clientes + 8 avulsas); além disso o rodapé seria cortado.
+        if (rows.length > 36)
+          el("dayInfo").innerHTML += `<br><strong style="color:#a32a17">Atenção: ${rows.length} entregas — o romaneio pode não caber em uma folha. Junte avulsas ou remova clientes sem entrega em Clientes e bases.</strong>`;
+        el("dayCards").innerHTML = TYPES.map(([, label], i) => `<div class="card"><span>${label}</span><strong>${fmt(tot(rows, i))} pães</strong><div class="hint">${packs(i)} pacote(s)</div></div>`).join("");
+        const body = [1, 2, 3].map((b) => {
+          const list = rows.filter((r) => r.block === b);
+          if (!list.length) return "";
+          return `<tr class="block"><td colspan="8">${BLOCKS[b]}</td></tr>` + list.map((r) => `<tr><td>${esc(r.client.time)}</td><td class="left">${r.extraIndex !== undefined ? `<input type="text" data-extra="${r.extraIndex}" data-extra-field="name" value="${esc(r.client.name)}" placeholder="Nome">` : esc(r.client.name)}</td><td class="left">${r.extraIndex !== undefined ? `<input type="text" data-extra="${r.extraIndex}" data-extra-field="address" value="${esc(r.client.address)}" placeholder="Endereço">` : esc(r.client.address)}</td>${TYPES.map((_, i) => `<td><input class="qty" type="number" min="0" step="1" value="${r.qty[i] || 0}" data-row="${esc(r.key)}" data-type="${i}"></td>`).join("")}<td class="packs">${TYPES.map(([, l], i) => (r.parts[i].length ? `${l[0]}: ${packsText(r.parts[i])}` : "")).filter(Boolean).join("<br>")}</td><td>${r.extraIndex !== undefined ? `<button class="btn small danger" type="button" data-remove-extra="${r.extraIndex}">Remover</button>` : ""}</td></tr>`).join("") + `<tr class="total"><td colspan="3" class="left">TOTAL — ${BLOCKS[b]}</td>${TYPES.map((_, i) => `<td>${fmt(tot(list, i))}</td>`).join("")}<td colspan="2"></td></tr>`;
+        }).join("");
+        el("dayTable").innerHTML = `<table class="grid"><thead><tr><th>Horário</th><th>Setor</th><th>Endereço</th><th>Francês</th><th>Leite</th><th>Integral</th><th>Pacotes</th><th></th></tr></thead><tbody>${body}<tr class="total"><td colspan="3" class="left">TOTAL GERAL</td>${TYPES.map((_, i) => `<td>${fmt(tot(rows, i))}</td>`).join("")}<td colspan="2">${packs(0) + packs(1) + packs(2)} pacotes</td></tr></tbody></table>`;
+        document.querySelectorAll("#dayTable [data-row]").forEach((input) => (input.onchange = () => {
+          const day = materialize(date);
+          const value = Math.max(0, Math.floor(Number(input.value) || 0));
+          const key = input.dataset.row;
+          if (key.startsWith("extra-")) day.extras[Number(key.slice(6))].qty[Number(input.dataset.type)] = value;
+          else { if (!day.items[key]) day.items[key] = [0, 0, 0]; day.items[key][Number(input.dataset.type)] = value; }
+          save(); renderDay();
+        }));
+        document.querySelectorAll("#dayTable [data-extra]").forEach((input) => (input.onchange = () => {
+          materialize(date).extras[Number(input.dataset.extra)][input.dataset.extraField] = input.value.trim();
+          save();
+        }));
+        document.querySelectorAll("#dayTable [data-remove-extra]").forEach((b) => (b.onclick = () => {
+          materialize(date).extras.splice(Number(b.dataset.removeExtra), 1);
+          save(); renderDay();
+        }));
+      }
+
+      // ---------- Impressão do romaneio ----------
+      function romaneioPages(date) {
+        const rows = rowsOf(date);
+        const title = `SANTA BRANCA - ${weekday(date).toLocaleUpperCase("pt-BR")} ${formatDate(date)}`;
+        const tot = (list, i) => list.reduce((s, r) => s + r.qty[i], 0);
+        const body = [1, 2, 3].map((b) => {
+          const list = rows.filter((r) => r.block === b);
+          if (!list.length) return "";
+          return list.map((r) => `<tr><td class="time">${esc(r.client.time)}</td><td class="left">${esc(r.client.name)}</td><td class="left">${esc(r.client.address)}</td>${TYPES.map((_, i) => `<td class="num">${num(r.qty[i])}</td>`).join("")}<td class="sign"></td></tr>`).join("") +
+            `<tr class="total"><td colspan="3" class="left">TOTAL ${BLOCKS[b].toLocaleUpperCase("pt-BR")}</td>${TYPES.map((_, i) => `<td>${fmt(tot(list, i))}</td>`).join("")}<td></td></tr>`;
+        }).join("");
+        // Linhas encolhem quando há muitas entregas, para a frente caber sempre em 1 folha.
+        const bodyRows = rows.length + [1, 2, 3].filter((b) => rows.some((r) => r.block === b)).length + 1;
+        const rowHeight = Math.max(4.4, Math.min(6.6, 200 / bodyRows)).toFixed(2);
+        const front = `<div class="doc-page"><h1>${esc(title)}</h1><table class="doc-table romaneio" style="--row-h:${rowHeight}mm"><thead><tr><th>Horário</th><th>Setor</th><th>Endereço</th><th>Francês</th><th>Leite</th><th>Integral</th><th>ASSINATURA</th></tr></thead><tbody>${body}<tr class="total"><td colspan="3" class="left">TOTAL GERAL</td>${TYPES.map((_, i) => `<td>${fmt(tot(rows, i))}</td>`).join("")}<td></td></tr></tbody></table><div class="sign-lines"><div>Entregador</div><div>Conferido por</div></div></div>`;
+        const packTable = ([t, label], i) => {
+          const counts = new Map();
+          rows.forEach((r) => r.parts[i].forEach((p) => counts.set(p, (counts.get(p) || 0) + 1)));
+          const sizes = [...counts.keys()].sort((a, b) => b - a);
+          const n = sizes.reduce((s, k) => s + counts.get(k), 0);
+          const heading = { frances: "PÃES FRANCÊS", leite: "PÃES DE LEITE", integral: "PÃO INTEGRAL" }[t] || label;
+          return `<div><h2>${heading} (máx. ${maxOf(t)})</h2><table class="doc-table"><thead><tr><th>Pacote</th><th>Qtd Pct</th><th>Total Pães</th></tr></thead><tbody>${
+            sizes.length ? sizes.map((s) => `<tr><td>PCT ${String(s).padStart(2, "0")}</td><td>${counts.get(s)}</td><td>${fmt(s * counts.get(s))}</td></tr>`).join("") : '<tr><td colspan="3">—</td></tr>'
+          }<tr class="total"><td>TOTAL PACOTES</td><td>${n}</td><td>${fmt(tot(rows, i))}</td></tr></tbody></table></div>`;
+        };
+        const separation = rows.filter((r) => r.qty.some(Boolean)).map((r) => `<tr><td class="left">${esc(r.client.name)}</td>${TYPES.map((_, i) => `<td>${packsText(r.parts[i])}</td>`).join("")}</tr>`).join("");
+        const back = `<div class="doc-page"><h1>${esc(title)}</h1><p class="doc-sub">PACOTES PARA PRODUÇÃO E SEPARAÇÃO</p><div class="pack-columns">${TYPES.map(packTable).join("")}</div><h2>SEPARAÇÃO POR CLIENTE PARA ENTREGA</h2><table class="doc-table"><thead><tr><th>Cliente</th><th>Francês</th><th>Leite</th><th>Integral</th></tr></thead><tbody>${separation || '<tr><td colspan="4">Nenhuma entrega neste dia.</td></tr>'}</tbody></table></div>`;
+        return front + back;
+      }
+      function printHtml(html) {
+        el("printArea").innerHTML = html;
+        window.addEventListener("afterprint", () => (el("printArea").innerHTML = ""), { once: true });
+        window.print();
+      }
+      function printDays(dates) {
+        if (!dates.length) return;
+        dates.forEach(materialize); // imprimiu = entregou: o dia passa a contar no financeiro
+        save();
+        render();
+        printHtml(dates.map(romaneioPages).join(""));
+      }
+      function weekOf(date) {
+        const d = new Date(`${date}T12:00:00`).getDay();
+        const monday = addDays(date, d === 0 ? -6 : 1 - d);
+        return [0, 1, 2, 3, 4].map((i) => addDays(monday, i));
+      }
+
+      // ---------- Contagem do mês ----------
+      function monthData(month) {
+        const [y, m] = month.split("-").map(Number);
+        const dates = Array.from({ length: new Date(y, m, 0).getDate() }, (_, i) => `${month}-${String(i + 1).padStart(2, "0")}`);
+        const cell = {};
+        let other = false;
+        dates.forEach((d) => {
+          const day = savedDay(d);
+          if (!day) return;
+          const add = (gid, qty) => TYPES.forEach(([t], i) => { const k = `${d}|${gid}|${t}`; cell[k] = (cell[k] || 0) + (Number(qty?.[i]) || 0); });
+          data.clients.forEach((c) => add(group(c.group) ? c.group : "outros", day.items?.[c.id]));
+          (day.extras || []).forEach((x) => { other = true; add("outros", x.qty); });
+          if (data.clients.some((c) => !group(c.group))) other = true;
+        });
+        const groups = [...GROUPS, ...(other ? [{ id: "outros", name: "Outros / avulsos", af: "sem AF", bill: "Outros / avulsos" }] : [])].map((g) => {
+          const total = (t) => dates.reduce((s, d) => s + (cell[`${d}|${g.id}|${t}`] || 0), 0);
+          const types = TYPES.map(([t]) => t).filter((t) => t !== "integral" || g.id === "escolas" || total("integral") > 0);
+          return { ...g, types, totals: Object.fromEntries(TYPES.map(([t]) => [t, total(t)])) };
+        });
+        const billing = new Map();
+        groups.forEach((g) => {
+          const row = billing.get(g.bill) || { bill: g.bill, afs: [], frances: 0, leite: 0, integral: 0 };
+          row.afs.push(/^AF\b/.test(g.af) ? g.af : g.name);
+          TYPES.forEach(([t]) => (row[t] += g.totals[t]));
+          billing.set(g.bill, row);
+        });
+        return { month, dates, groups, value: (d, gid, t) => cell[`${d}|${gid}|${t}`] || 0, kg: Number(data.rules.kgPerUnit) || 0.05, billing: [...billing.values()], savedDays: dates.filter((d) => savedDay(d)).length };
+      }
+      const kgText = (units, kg) => (units * kg).toLocaleString("pt-BR", { maximumFractionDigits: 3 });
+      function gridHtml(md, print = false) {
+        const head1 = md.groups.map((g) => `<th colspan="${g.types.length}">${esc(g.name)}<br><small>${esc(g.af)}</small></th>`).join("");
+        const head2 = md.groups.map((g) => g.types.map((t) => `<th>${TYPE_SHORT[t]}</th>`).join("")).join("");
+        const body = md.dates.map((d) => {
+          const wd = new Date(`${d}T12:00:00`).getDay();
+          return `<tr class="${wd === 0 || wd === 6 ? "weekend" : ""}"><td>${d.slice(8)}/${d.slice(5, 7)} ${weekday(d).slice(0, 3)}</td>${md.groups.map((g) => g.types.map((t) => `<td>${num(md.value(d, g.id, t))}</td>`).join("")).join("")}</tr>`;
+        }).join("");
+        const totalRow = (label, f) => `<tr class="total"><td>${label}</td>${md.groups.map((g) => g.types.map((t) => `<td>${f(g.totals[t])}</td>`).join("")).join("")}</tr>`;
+        return `<table class="${print ? "doc-table compact" : "grid"}"><thead><tr><th rowspan="2">Dia</th>${head1}</tr><tr>${head2}</tr></thead><tbody>${body}${totalRow("Total und", fmt)}${totalRow("Total kg", (n) => kgText(n, md.kg))}</tbody></table>`;
+      }
+      function billingHtml(md, print = false) {
+        const tot = (t) => md.billing.reduce((s, b) => s + b[t], 0);
+        const rows = md.billing.map((b) => `<tr><td class="left"><strong>${esc(b.bill)}</strong><br><small>${esc([...new Set(b.afs)].join(" + "))}</small></td>${TYPES.map(([t]) => `<td>${fmt(b[t])}</td>`).join("")}${TYPES.map(([t]) => `<td>${kgText(b[t], md.kg)}</td>`).join("")}<td><strong>${kgText(b.frances + b.leite + b.integral, md.kg)}</strong></td></tr>`).join("");
+        return `<table class="${print ? "doc-table" : "grid"}"><thead><tr><th rowspan="2">Faturamento</th><th colspan="3">Unidades</th><th colspan="3">Quilos (× ${md.kg.toLocaleString("pt-BR")} kg)</th><th rowspan="2">Total kg</th></tr><tr><th>Francês</th><th>Leite</th><th>Integral</th><th>Francês</th><th>Leite</th><th>Integral</th></tr></thead><tbody>${rows}<tr class="total"><td class="left">TOTAL</td>${TYPES.map(([t]) => `<td>${fmt(tot(t))}</td>`).join("")}${TYPES.map(([t]) => `<td>${kgText(tot(t), md.kg)}</td>`).join("")}<td>${kgText(tot("frances") + tot("leite") + tot("integral"), md.kg)}</td></tr></tbody></table>`;
+      }
+      function renderMonth() {
+        el("monthInput").value = ui.month;
+        el("kgInput").value = data.rules.kgPerUnit;
+        if (!ui.month) return;
+        const md = monthData(ui.month);
+        const tot = (t) => md.billing.reduce((s, b) => s + b[t], 0);
+        const all = tot("frances") + tot("leite") + tot("integral");
+        el("monthCards").innerHTML = `${TYPES.map(([t, l]) => `<div class="card"><span>${l}</span><strong>${fmt(tot(t))} pães</strong></div>`).join("")}<div class="card"><span>Total do mês</span><strong>${kgText(all, md.kg)} kg</strong><div class="hint">${md.savedDays} dia(s) salvo(s)</div></div>`;
+        el("monthGrid").innerHTML = gridHtml(md);
+        el("billingTable").innerHTML = billingHtml(md);
+        el("printMonth").disabled = !md.savedDays;
+        el("csvMonth").disabled = !md.savedDays;
+      }
+      function monthTitle(month) {
+        return new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(new Date(`${month}-15T12:00:00`)).toLocaleUpperCase("pt-BR");
+      }
+      function printMonth() {
+        const md = monthData(ui.month);
+        printHtml(`<div class="doc-page landscape"><h1>SANTA BRANCA — CONTAGEM DE PÃES • ${monthTitle(ui.month)}</h1><p class="doc-sub">F = francês • L = leite • I = integral • kg = unidades × ${md.kg.toLocaleString("pt-BR")}</p>${gridHtml(md, true)}</div><div class="doc-page landscape"><h1>SANTA BRANCA — FATURAMENTO • ${monthTitle(ui.month)}</h1>${billingHtml(md, true)}</div>`);
+      }
+      function csvMonth() {
+        const md = monthData(ui.month);
+        const q = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+        const cols = md.groups.flatMap((g) => g.types.map((t) => ({ g, t })));
+        const lines = [
+          ["Dia", ...cols.map(({ g, t }) => `${g.name} (${g.af}) - ${TYPES.find(([id]) => id === t)[1]}`)],
+          ...md.dates.map((d) => [formatDate(d), ...cols.map(({ g, t }) => md.value(d, g.id, t) || "")]),
+          ["Total und", ...cols.map(({ g, t }) => g.totals[t])],
+          ["Total kg", ...cols.map(({ g, t }) => kgText(g.totals[t], md.kg))],
+          [],
+          ["Faturamento", "AFs", "Francês und", "Leite und", "Integral und", "Francês kg", "Leite kg", "Integral kg", "Total kg"],
+          ...md.billing.map((b) => [b.bill, [...new Set(b.afs)].join(" + "), b.frances, b.leite, b.integral, kgText(b.frances, md.kg), kgText(b.leite, md.kg), kgText(b.integral, md.kg), kgText(b.frances + b.leite + b.integral, md.kg)]),
+        ];
+        const url = URL.createObjectURL(new Blob(["﻿" + lines.map((l) => l.map(q).join(";")).join("\r\n")], { type: "text/csv;charset=utf-8" }));
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `SANTA_BRANCA_CONTAGEM_${ui.month.replace("-", "_")}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+
+      // ---------- Clientes e bases ----------
+      const groupOptions = (sel) => GROUPS.map((g) => `<option value="${g.id}" ${g.id === sel ? "selected" : ""}>${esc(g.name)} (${esc(g.af)})</option>`).join("");
+      function renderBase(message = "") {
+        el("baseDays").innerHTML = `<div class="seg">${DAYS.map(([k, l]) => `<button type="button" data-base-day="${k}" class="${ui.baseDay === k ? "active" : ""}">${l.replace("-feira", "")}</button>`).join("")}</div>`;
+        document.querySelectorAll("[data-base-day]").forEach((b) => (b.onclick = () => { collectBase(); ui.baseDay = b.dataset.baseDay; renderBase(); }));
+        const base = data.base[ui.baseDay];
+        el("baseTable").innerHTML = `<table class="grid"><thead><tr><th>Cliente</th><th>Horário</th><th>Endereço</th><th>AF</th><th>Francês</th><th>Leite</th><th>Integral</th><th></th></tr></thead><tbody>${data.clients.map((c) => {
+          const q = base[c.id] || [0, 0, 0];
+          const t = (f, v, w = "") => `<input type="text" data-c="${c.id}" data-f="${f}" value="${esc(v)}" ${w}>`;
+          return `<tr><td class="left">${t("name", c.name, 'style="min-width:220px"')}</td><td>${t("time", c.time, 'style="width:90px"')}</td><td class="left">${t("address", c.address, 'style="min-width:220px"')}</td><td><select data-c="${c.id}" data-f="group">${groupOptions(c.group)}</select></td>${[0, 1, 2].map((i) => `<td><input class="qty" type="number" min="0" step="1" data-c="${c.id}" data-q="${i}" value="${Number(q[i]) || 0}"></td>`).join("")}<td><button class="btn small danger" type="button" data-del="${c.id}">Remover</button></td></tr>`;
+        }).join("")}</tbody></table>`;
+        el("newClientGroup").innerHTML = groupOptions("paco");
+        el("maxFrances").value = maxOf("frances");
+        el("maxLeite").value = maxOf("leite");
+        el("maxIntegral").value = maxOf("integral");
+        el("baseMsg").textContent = message;
+        document.querySelectorAll("[data-del]").forEach((b) => (b.onclick = () => {
+          const c = data.clients.find((x) => x.id === b.dataset.del);
+          if (!c || !confirm(`Remover ${c.name} (todos os dias da semana)? Dias já salvos não mudam.`)) return;
+          collectBase();
+          data.clients = data.clients.filter((x) => x.id !== c.id);
+          DAYS.forEach(([k]) => delete data.base[k][c.id]);
+          save(); renderBase("Cliente removido.");
+        }));
+      }
+      function collectBase() {
+        if (ui.view !== "base" && !document.querySelector("#baseTable [data-c]")) return;
+        const base = data.base[ui.baseDay];
+        document.querySelectorAll("#baseTable [data-f]").forEach((i) => {
+          const c = data.clients.find((x) => x.id === i.dataset.c);
+          if (c) c[i.dataset.f] = i.dataset.f === "name" ? i.value.trim() || c.name : i.value.trim();
+        });
+        document.querySelectorAll("#baseTable [data-q]").forEach((i) => {
+          if (!base[i.dataset.c]) base[i.dataset.c] = [0, 0, 0];
+          base[i.dataset.c][Number(i.dataset.q)] = Math.max(0, Math.floor(Number(i.value) || 0));
+        });
+        const maxes = { frances: el("maxFrances").value, leite: el("maxLeite").value, integral: el("maxIntegral").value };
+        Object.entries(maxes).forEach(([t, v]) => { if (Number(v) >= 1) data.rules.packMax[t] = Math.floor(Number(v)); });
+      }
+
+      // ---------- Render geral ----------
+      function render() {
+        renderTabs();
+        if (ui.view === "day") renderDay();
+        if (ui.view === "month") renderMonth();
+        if (ui.view === "base") renderBase();
+      }
+
+      el("dayDate").onchange = (e) => { ui.date = e.target.value; ui.month = ui.date.slice(0, 7) || ui.month; renderDay(); };
+      el("reloadBase").onclick = () => {
+        if (savedDay(ui.date) && !confirm(`Substituir as quantidades de ${formatDate(ui.date)} pela base de ${weekday(ui.date)}?`)) return;
+        data.days[ui.date] = baseDay(ui.date);
+        save(); renderDay();
+      };
+      el("addExtra").onclick = () => {
+        materialize(ui.date).extras.push({ name: "", address: "", time: "", qty: [0, 0, 0] });
+        save(); renderDay();
+        const inputs = document.querySelectorAll('#dayTable [data-extra-field="name"]');
+        inputs[inputs.length - 1]?.focus();
+      };
+      el("printDay").onclick = () => printDays([ui.date]);
+      el("printWeek").onclick = () => {
+        const week = weekOf(ui.date);
+        if (!confirm(`Imprimir os romaneios de ${formatDate(week[0])} a ${formatDate(week[4])} (${week.length * 2} folhas)? Os dias sem ajuste usam a base de cada dia e passam a contar no financeiro.`)) return;
+        printDays(week);
+      };
+      el("monthInput").onchange = (e) => { ui.month = e.target.value; renderMonth(); };
+      el("kgInput").onchange = (e) => { const v = Number(e.target.value); if (v > 0) { data.rules.kgPerUnit = v; save(); } renderMonth(); };
+      el("printMonth").onclick = printMonth;
+      el("csvMonth").onclick = csvMonth;
+      el("saveBase").onclick = () => { collectBase(); save(); renderBase(`Clientes e base de ${DAYS.find(([k]) => k === ui.baseDay)[1].toLocaleLowerCase("pt-BR")} salvos.`); };
+      el("addClient").onclick = () => {
+        const name = el("newClientName").value.trim().replace(/\s+/g, " ");
+        if (!name) return renderBase("Informe o nome do novo cliente.");
+        if (data.clients.some((c) => c.name.toLocaleLowerCase("pt-BR") === name.toLocaleLowerCase("pt-BR"))) return renderBase("Esse cliente já existe.");
+        collectBase();
+        const id = `c-${Date.now()}`;
+        data.clients.push({ id, name, time: "", address: "", group: el("newClientGroup").value });
+        DAYS.forEach(([k]) => (data.base[k][id] = [0, 0, 0]));
+        el("newClientName").value = "";
+        save(); renderBase(`${name} adicionado. Preencha as quantidades de cada dia.`);
+      };
+      el("resetBase").onclick = () => {
+        if (!confirm("Restaurar clientes e bases para os valores das planilhas? Dias já salvos não mudam.")) return;
+        Object.assign(data, defaultBase());
+        data.rules.packMax = { frances: 20, leite: 30, integral: 20 };
+        save(); renderBase("Base restaurada.");
+      };
+
+      ui.date = today();
+      ui.month = ui.date.slice(0, 7);
+      render();
+      load().finally(render);
+    </script>
+  </body>
+</html>
