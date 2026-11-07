@@ -884,6 +884,19 @@
           page-break-after: always;
           break-after: page;
           overflow: hidden;
+          position: relative;
+        }
+        /* Cabeçalho na margem superior (fora da grade das etiquetas) */
+        .print-sheet-header {
+          position: absolute;
+          top: 4mm;
+          left: 14.5mm;
+          right: 14.5mm;
+          font-size: 9pt;
+          font-weight: 800;
+          line-height: 1;
+          color: #000;
+          text-align: center;
         }
         .label-sheet:last-child {
           page-break-after: auto;
@@ -3272,10 +3285,20 @@
         const chunks = [];
         for (let i = 0; i < labs.length; i += 80)
           chunks.push(labs.slice(i, i + 80));
+        const headerTitle =
+          (DELIVERY_META[state.delivery]?.title || "") +
+          (state.delivery === "paraibuna"
+            ? ` • ${state.route === "cidade" ? "Cidade" : "Roça"}`
+            : "");
+        const headerText = [headerTitle, state.date ? formatDate(state.date) : ""]
+          .filter(Boolean)
+          .join(" — ");
         el("printArea").innerHTML = chunks
           .map(
-            (page) =>
-              `<div class="label-sheet">${page
+            (page, pageIndex) =>
+              `<div class="label-sheet"><div class="print-sheet-header">${headerText}${
+                chunks.length > 1 ? ` (folha ${pageIndex + 1}/${chunks.length})` : ""
+              }</div>${page
                 .map((l) =>
                   l.kind === "blank"
                     ? '<div class="label"></div>'
