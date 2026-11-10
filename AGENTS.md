@@ -62,7 +62,7 @@ wsl -e bash -lc 'cd /mnt/c/Users/Marcelo/Projetos/Sistema-MIPs && git status --s
 wsl -e bash -lc 'cd /mnt/c/Users/Marcelo/Projetos/Sistema-MIPs && git add -A && git commit -m "Assunto: resumo" && git push origin main'
 ```
 
-`gh` já está autenticado no WSL (`serverlatinhaseca-lgtm`, escopo `repo`) e serve de credential helper — push funciona sem senha. `node`/`npm` também não existem no Windows: teste/build rodam em container (`docker run --rm -v "<repo>/backend:/app" -w /app node:22-alpine npm test`).
+`gh` já está autenticado no WSL e serve de credential helper — push funciona sem senha. Conta ativa: `eumobkk` (colaborador do repositório desde 10/11/2026); `serverlatinhaseca-lgtm` é a dona do repositório e segue logada, inativa. `node`/`npm` também não existem no Windows: teste/build rodam em container (`docker run --rm -v "<repo>/backend:/app" -w /app node:22-alpine npm test`).
 
 ## Sessões
 
