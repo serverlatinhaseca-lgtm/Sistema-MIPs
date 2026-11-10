@@ -308,7 +308,7 @@
 
       // ---------- Estado ----------
       let data = defaultData();
-      const ui = { view: "day", date: "", month: "", baseDay: "seg", loaded: false, loadFailed: false };
+      const ui = { view: "day", date: "", month: "", baseDay: "seg", loaded: false };
 
       const el = (id) => document.getElementById(id);
       const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -344,22 +344,99 @@
         b.textContent = text;
         b.classList.toggle("error", error);
       }
+      // Sincronização: cada envio lê o banco antes e mescla, para uma aba/computador
+      // desatualizado não apagar o que outro salvou. "synced" é a última versão
+      // combinada com o banco (guardada no navegador junto com os dados): o que
+      // difere dela é alteração local que ainda precisa subir.
+      const SYNC_KEY = `${CACHE_KEY}-sincronizado`;
+      const RETRY_MS = 20000;
+      let retryTimer;
+      let synced = null;
+      let inFlight = null;
+      let sendAgain = false;
+      const clone = (v) => JSON.parse(JSON.stringify(v));
+      // JSON com chaves ordenadas: o jsonb do Postgres devolve as chaves em outra ordem.
+      const canon = (v) => JSON.stringify(v, (_, x) => (x && typeof x === "object" && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) : x));
+      const equal = (a, b) => canon(a) === canon(b);
+      function writeCache() {
+        try {
+          localStorage.setItem(CACHE_KEY, JSON.stringify(data));
+          if (synced) localStorage.setItem(SYNC_KEY, JSON.stringify(synced));
+        } catch {}
+      }
+      // Sem "base" (navegador de antes desta versão) não dá para saber o que mudou:
+      // vale o banco, recuperando só o que claramente nunca chegou lá.
+      function mergeData(local, server, base) {
+        if (!server) return clone(local);
+        const result = clone(server);
+        const defaults = defaultData();
+        ["clients", "base", "rules"].forEach((k) => {
+          const changed = base ? !equal(local[k], base[k]) : equal(server[k], defaults[k]) && !equal(local[k], defaults[k]);
+          if (changed) result[k] = clone(local[k]);
+        });
+        Object.keys(local.days).forEach((d) => {
+          const changed = base ? !equal(local.days[d], base.days[d]) : !server.days[d];
+          if (changed) result.days[d] = clone(local.days[d]);
+        });
+        return result;
+      }
+      // O token é lido a cada envio: ao entrar de novo no portal, o salvamento volta sozinho.
+      const authHeader = () => ({ Authorization: `Bearer ${localStorage.getItem("token")}` });
+      const httpError = (status) => Object.assign(new Error(`HTTP ${status}`), { status });
+      async function readServer() {
+        const r = await fetch(api, { headers: authHeader(), cache: "no-store" });
+        if (r.status === 404) return null;
+        if (!r.ok) throw httpError(r.status);
+        const { dados } = await r.json();
+        return normalize(dados);
+      }
+      function syncFailed(e) {
+        ui.loaded = true;
+        const expired = e?.status === 401 || e?.status === 403;
+        setBadge(expired ? "Sessão expirada — entre no portal de novo. Nada foi perdido: as alterações sobem sozinhas depois disso." : "Sem conexão com o banco — as alterações ficam guardadas aqui e sobem sozinhas.", true);
+        clearTimeout(retryTimer);
+        retryTimer = setTimeout(syncNow, RETRY_MS);
+      }
+      async function doSync() {
+        try {
+          const before = clone(data);
+          const server = await readServer();
+          const merged = mergeData(before, server, synced);
+          if (!server || !equal(merged, server)) {
+            setBadge("Salvando no banco...");
+            const r = await fetch(api, { method: "PUT", headers: { "Content-Type": "application/json", ...authHeader() }, body: JSON.stringify({ dados: merged }) });
+            if (!r.ok) throw httpError(r.status);
+          }
+          // Digitou enquanto enviava? Mantém o novo por cima e envia de novo.
+          const changedMeanwhile = !equal(data, before);
+          const cameFromServer = !equal(before, merged);
+          synced = clone(merged);
+          data = changedMeanwhile ? mergeData(data, merged, before) : merged;
+          if (changedMeanwhile) sendAgain = true;
+          writeCache();
+          ui.loaded = true;
+          setBadge(changedMeanwhile ? "Salvando no banco..." : "Salvo no banco");
+          const typing = /^(INPUT|SELECT)$/.test(document.activeElement?.tagName || "");
+          if (cameFromServer && !typing) render();
+        } catch (e) {
+          syncFailed(e);
+        }
+      }
+      function syncNow() {
+        clearTimeout(saveTimer);
+        clearTimeout(retryTimer);
+        if (inFlight) { sendAgain = true; return inFlight; }
+        inFlight = doSync().finally(() => {
+          inFlight = null;
+          if (sendAgain) { sendAgain = false; syncNow(); }
+        });
+        return inFlight;
+      }
       function save() {
-        try { localStorage.setItem(CACHE_KEY, JSON.stringify(data)); } catch {}
-        if (!ui.loaded || ui.loadFailed) return; // nunca sobrescrever o banco sem ter lido antes
+        writeCache();
         clearTimeout(saveTimer);
         setBadge("Salvando no banco...");
-        saveTimer = setTimeout(() => send(), 300);
-      }
-      async function send(attempt = 1) {
-        try {
-          const r = await fetch(api, { method: "PUT", headers: { "Content-Type": "application/json", Authorization: `Bearer ${portalToken}` }, body: JSON.stringify({ dados: data }) });
-          if (!r.ok) throw new Error(`HTTP ${r.status}`);
-          setBadge("Salvo no banco");
-        } catch (e) {
-          if (attempt < 2) { await new Promise((res) => setTimeout(res, 1500)); return send(attempt + 1); }
-          setBadge("Falha ao salvar no banco", true);
-        }
+        saveTimer = setTimeout(syncNow, 300);
       }
       function normalize(d) {
         const def = defaultData();
@@ -373,21 +450,13 @@
         };
       }
       async function load() {
-        try { data = normalize(JSON.parse(localStorage.getItem(CACHE_KEY) || "null")); } catch {}
-        try {
-          const r = await fetch(api, { headers: { Authorization: `Bearer ${portalToken}` } });
-          if (r.status === 404) { ui.loaded = true; save(); return; }
-          if (!r.ok) throw new Error();
-          const { dados } = await r.json();
-          data = normalize(dados);
-          try { localStorage.setItem(CACHE_KEY, JSON.stringify(data)); } catch {}
-          ui.loaded = true;
-          setBadge("Salvo no banco");
-        } catch {
-          ui.loaded = true;
-          ui.loadFailed = true;
-          setBadge("Não foi possível ler o banco — alterações ficam só neste navegador", true);
-        }
+        let cached = null;
+        try { cached = JSON.parse(localStorage.getItem(CACHE_KEY) || "null"); } catch {}
+        if (cached) data = normalize(cached);
+        let snapshot = null;
+        try { snapshot = JSON.parse(localStorage.getItem(SYNC_KEY) || "null"); } catch {}
+        synced = snapshot ? normalize(snapshot) : cached ? null : defaultData();
+        await syncNow();
       }
 
       // ---------- Dia: quantidades salvas ou base do dia da semana ----------
@@ -503,11 +572,13 @@
         window.addEventListener("afterprint", () => (el("printArea").innerHTML = ""), { once: true });
         window.print();
       }
-      function printDays(dates) {
+      async function printDays(dates) {
         if (!dates.length) return;
         dates.forEach(materialize); // imprimiu = entregou: o dia passa a contar no financeiro
         save();
         render();
+        // Grava antes de abrir a impressão (a janela de impressão trava a página); sem esperar demais se a rede cair.
+        await Promise.race([syncNow(), new Promise((res) => setTimeout(res, 3000))]);
         printHtml(dates.map(romaneioPages).join(""));
       }
       function weekOf(date) {
@@ -673,6 +744,11 @@
       el("kgInput").onchange = (e) => { const v = Number(e.target.value); if (v > 0) { data.rules.kgPerUnit = v; save(); } renderMonth(); };
       el("printMonth").onclick = printMonth;
       el("csvMonth").onclick = csvMonth;
+      // Clientes e bases: salva a cada campo alterado, como o resto da ferramenta.
+      ["baseTable", "maxFrances", "maxLeite", "maxIntegral"].forEach((id) => el(id).addEventListener("change", () => { collectBase(); save(); }));
+      // Ao voltar para a aba ou a rede voltar: busca o que mudou e envia o que ficou pendente.
+      document.addEventListener("visibilitychange", () => { if (!document.hidden && ui.loaded) syncNow(); });
+      window.addEventListener("online", () => { if (ui.loaded) syncNow(); });
       el("saveBase").onclick = () => { collectBase(); save(); renderBase(`Clientes e base de ${DAYS.find(([k]) => k === ui.baseDay)[1].toLocaleLowerCase("pt-BR")} salvos.`); };
       el("addClient").onclick = () => {
         const name = el("newClientName").value.trim().replace(/\s+/g, " ");
