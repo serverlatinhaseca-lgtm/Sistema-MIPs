@@ -953,16 +953,27 @@
           color: #000;
           page-break-after: always;
           break-after: page;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
         }
         .romaneio-sheet h1 {
           font-size: 17pt;
-          margin: 0 0 1mm;
+          margin: 0;
+          padding: 3mm 0;
           text-align: center;
+          background: #1e3a8a;
+          color: #fff;
+          border-radius: 2mm 2mm 0 0;
         }
         .romaneio-sheet .romaneio-sub {
           text-align: center;
           font-size: 12pt;
+          font-weight: bold;
           margin: 0 0 6mm;
+          padding: 2mm 0;
+          background: #dbeafe;
+          color: #1e3a8a;
+          border-radius: 0 0 2mm 2mm;
         }
         .romaneio-sheet table {
           width: 100%;
@@ -980,14 +991,23 @@
           text-align: left;
         }
         .romaneio-sheet th {
-          background: #e6e6e6;
+          background: #1e3a8a;
+          color: #fff;
         }
+        .romaneio-sheet tbody tr:nth-child(even) td {
+          background: #f1f5f9;
+        }
+        .romaneio-sheet th.rom-frances { background: #d95d20; }
+        .romaneio-sheet td.rom-frances { background: #fdebe1 !important; color: #9a3412; font-weight: bold; }
+        .romaneio-sheet th.rom-leite { background: #16803c; }
+        .romaneio-sheet td.rom-leite { background: #e3f4e8 !important; color: #14532d; font-weight: bold; }
         .romaneio-sheet td.romaneio-sign {
           width: 52mm;
         }
         .romaneio-sheet tr.romaneio-total td {
           font-weight: bold;
-          background: #f2f2f2;
+          background: #fde68a !important;
+          color: #000;
         }
         .romaneio-sheet .romaneio-footer {
           display: grid;
@@ -3581,12 +3601,12 @@
         return `<div class="romaneio-sheet"><h1>ROMANEIO DE ENTREGA — PARAIBUNA</h1><p class="romaneio-sub">Rota ${routeName} • ${esc(
           weekday(state.date)
         )}, ${formatDate(state.date)}</p><table><thead><tr><th>Nº</th><th class="romaneio-local">Local de entrega</th>${products
-          .map((p) => `<th>${esc(p.shortName || p.name)}</th>`)
+          .map((p) => `<th class="rom-${esc(p.id)}">${esc(p.shortName || p.name)}</th>`)
           .join("")}<th>Pacotes</th><th>Recebido por (nome / assinatura)</th></tr></thead><tbody>${list
           .map(
             (r, i) =>
               `<tr><td>${i + 1}</td><td class="romaneio-local">${esc(r.destination)}</td>${products
-                .map((p) => `<td>${r.qty[p.id] ? r.qty[p.id] : "—"}</td>`)
+                .map((p) => `<td class="rom-${esc(p.id)}">${r.qty[p.id] ? r.qty[p.id] : "—"}</td>`)
                 .join("")}<td>${r.packages}</td><td class="romaneio-sign"></td></tr>`
           )
           .join("")}<tr class="romaneio-total"><td></td><td class="romaneio-local">TOTAL</td>${products
