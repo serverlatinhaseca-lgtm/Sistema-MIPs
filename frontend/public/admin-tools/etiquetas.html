@@ -943,6 +943,64 @@
         .print-area {
           display: block;
         }
+        /* Romaneio de entrega (Paraibuna): folha Carta comum, não usa a grade Pimaco. */
+        .romaneio-sheet {
+          width: 215.9mm;
+          min-height: 279.4mm;
+          box-sizing: border-box;
+          padding: 15mm 14mm;
+          font-family: Arial, sans-serif;
+          color: #000;
+          page-break-after: always;
+          break-after: page;
+        }
+        .romaneio-sheet h1 {
+          font-size: 17pt;
+          margin: 0 0 1mm;
+          text-align: center;
+        }
+        .romaneio-sheet .romaneio-sub {
+          text-align: center;
+          font-size: 12pt;
+          margin: 0 0 6mm;
+        }
+        .romaneio-sheet table {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 11pt;
+        }
+        .romaneio-sheet th,
+        .romaneio-sheet td {
+          border: 1px solid #000;
+          padding: 2.5mm 2mm;
+          text-align: center;
+        }
+        .romaneio-sheet td.romaneio-local,
+        .romaneio-sheet th.romaneio-local {
+          text-align: left;
+        }
+        .romaneio-sheet th {
+          background: #e6e6e6;
+        }
+        .romaneio-sheet td.romaneio-sign {
+          width: 52mm;
+        }
+        .romaneio-sheet tr.romaneio-total td {
+          font-weight: bold;
+          background: #f2f2f2;
+        }
+        .romaneio-sheet .romaneio-footer {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 12mm;
+          margin-top: 18mm;
+          font-size: 11pt;
+        }
+        .romaneio-sheet .romaneio-footer div {
+          border-top: 1px solid #000;
+          padding-top: 1.5mm;
+          text-align: center;
+        }
         .label-sheet {
           display: grid;
           width: 215.9mm;
@@ -1258,6 +1316,9 @@
               </button>
               <button class="print-button" id="printButton" type="button">
                 Imprimir etiquetas
+              </button>
+              <button class="print-button" id="romaneioButton" type="button" hidden>
+                Imprimir romaneio
               </button>
             </div>
             <p class="download-file-name" id="fileName"></p>
@@ -2584,6 +2645,7 @@
           : "Digite ou selecione";
         el("destinationField").hidden = state.delivery === "margarina";
         el("afternoonField").hidden = state.delivery !== "igarata";
+        el("romaneioButton").hidden = state.delivery !== "paraibuna";
         el("dateLabelsField").hidden = true;
         el("saveGenericField").hidden = !generic;
         el("johnsonRule").hidden = !["johnson", "margarina"].includes(state.delivery);
@@ -3489,6 +3551,59 @@
           .join("");
       }
 
+      // Romaneio de entrega de Paraibuna (dia + rota abertos): uma linha por local,
+      // quantidade por produto, pacotes e campo de assinatura do recebedor.
+      function romaneioParaibunaHtml() {
+        const esc = (s) =>
+          String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+        const orders = activeOrders();
+        const products = [];
+        orders.forEach((o) => {
+          if (!products.some((p) => p.id === o.product.id)) products.push(o.product);
+        });
+        const order = state.destinations[state.route] || [];
+        const pos = (name) => {
+          const i = order.indexOf(String(name).replace(/\s*\(FIXO\)$/i, ""));
+          return i < 0 ? order.length : i;
+        };
+        const rows = {};
+        orders.forEach((o) => {
+          const r = (rows[o.destination] ||= { destination: o.destination, qty: {}, packages: 0 });
+          r.qty[o.product.id] = (r.qty[o.product.id] || 0) + Number(o.total || 0);
+          r.packages += (o.parts || []).length;
+        });
+        const list = Object.values(rows).sort(
+          (a, b) => pos(a.destination) - pos(b.destination) || a.destination.localeCompare(b.destination, "pt-BR")
+        );
+        const total = (id) => list.reduce((s, r) => s + (r.qty[id] || 0), 0);
+        const totalPackages = list.reduce((s, r) => s + r.packages, 0);
+        const routeName = state.route === "cidade" ? "Cidade" : "Roça";
+        return `<div class="romaneio-sheet"><h1>ROMANEIO DE ENTREGA — PARAIBUNA</h1><p class="romaneio-sub">Rota ${routeName} • ${esc(
+          weekday(state.date)
+        )}, ${formatDate(state.date)}</p><table><thead><tr><th>Nº</th><th class="romaneio-local">Local de entrega</th>${products
+          .map((p) => `<th>${esc(p.shortName || p.name)}</th>`)
+          .join("")}<th>Pacotes</th><th>Recebido por (nome / assinatura)</th></tr></thead><tbody>${list
+          .map(
+            (r, i) =>
+              `<tr><td>${i + 1}</td><td class="romaneio-local">${esc(r.destination)}</td>${products
+                .map((p) => `<td>${r.qty[p.id] ? r.qty[p.id] : "—"}</td>`)
+                .join("")}<td>${r.packages}</td><td class="romaneio-sign"></td></tr>`
+          )
+          .join("")}<tr class="romaneio-total"><td></td><td class="romaneio-local">TOTAL</td>${products
+          .map((p) => `<td>${total(p.id)}</td>`)
+          .join("")}<td>${totalPackages}</td><td></td></tr></tbody></table><div class="romaneio-footer"><div>Motorista</div><div>Conferido por</div></div></div>`;
+      }
+
+      function printRomaneioParaibuna() {
+        if (state.delivery !== "paraibuna") return;
+        if (!state.date) return alert("Selecione a data da entrega para imprimir o romaneio.");
+        if (!activeOrders().length) return alert("Nenhum pedido nesta data e rota para o romaneio.");
+        el("printArea").innerHTML = romaneioParaibunaHtml();
+        // Volta a área de impressão para as etiquetas do dia depois de imprimir.
+        window.addEventListener("afterprint", () => renderPreviewAndPrint(), { once: true });
+        window.print();
+      }
+
       // Impressão em massa: cada dia marcado sai em folhas próprias, na ordem das datas.
       function printBulkDates() {
         const available = allDates();
@@ -4074,6 +4189,7 @@ doc.save(pdfName());
       el("copyDateOverlay").onclick = event => { if(event.target===el("copyDateOverlay")) closeCopyDateDialog(); };
       el("pdfButton").onclick = downloadPdf;
       el("printButton").onclick = () => window.print();
+      el("romaneioButton").onclick = printRomaneioParaibuna;
       loadLocal();
       carregarEtiquetasDoBanco().finally(render);
     </script>
