@@ -116,7 +116,7 @@ export default function Sidebar({ emDrawer = false, aoNavegar = () => {} }) {
     {ehGerente && <IconBtn titulo="Comunicados" ativo={isActive('/comunicados')} abrir={() => ir('/comunicados')}><Megaphone size={20} /></IconBtn>}
     {['editor','gerente'].includes(perfil) && <IconBtn titulo="Meu desempenho" ativo={isActive('/meu-desempenho')} abrir={() => ir('/meu-desempenho')}><ClipboardCheck size={20} /></IconBtn>}
     {ehAdministrador && <>
-      <IconePasta chave="ferramentas" titulo="Ferramentas" rotas={['/ferramentas/etiquetas','/ferramentas/caixas','/ferramentas/romaneio']} />
+      <IconePasta chave="ferramentas" titulo="Ferramentas" rotas={['/ferramentas/etiquetas','/ferramentas/caixas','/ferramentas/romaneio','/ferramentas/conversao']} />
       <IconePasta chave="configuracao" titulo="Configuração" rotas={['/usuarios','/configuracoes']} />
     </>}
     <div className="flex-1" />
@@ -227,6 +227,7 @@ export default function Sidebar({ emDrawer = false, aoNavegar = () => {} }) {
               <Item icon={<Tag size={18}/>} titulo="Etiquetas" ativo={isActive('/ferramentas/etiquetas')} abrir={()=>navigate('/ferramentas/etiquetas')}/>
               <Item icon={<Calculator size={18}/>} titulo="Pacotes e Caixas" ativo={isActive('/ferramentas/caixas')} abrir={()=>navigate('/ferramentas/caixas')}/>
               <Item icon={<ClipboardList size={18}/>} titulo="Romaneio Santa Branca" ativo={isActive('/ferramentas/romaneio')} abrir={()=>navigate('/ferramentas/romaneio')}/>
+              <Item icon={<FileText size={18}/>} titulo="Conversão em pão" ativo={isActive('/ferramentas/conversao')} abrir={()=>navigate('/ferramentas/conversao')}/>
             </Pasta>
             <Pasta titulo="Configuração" aberta={pastas.configuracao} alternar={()=>setPastas(v=>({...v,configuracao:!v.configuracao}))}>
               <Item icon={<Users size={18}/>} titulo="Usuários" ativo={isActive('/usuarios')} abrir={()=>navigate('/usuarios')}/>

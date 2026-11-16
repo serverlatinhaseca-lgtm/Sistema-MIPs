@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Conversão em pão</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <style>
+      :root {
+        --ink: #231d18;
+        --muted: #6e655d;
+        --line: #e5ddd3;
+        --paper: #fffdf9;
+        --cream: #faf7f2;
+        --orange: #e87523;
+        --orange-dark: #a65526;
+        --green: #2f6b4f;
+        --soft: #fff3e8;
+        --warn-bg: #fff6db;
+        --warn: #8a5a00;
+      }
+      * { box-sizing: border-box; }
+      [hidden] { display: none !important; }
+      body { margin: 0; background: transparent; color: var(--ink); font-family: Inter, "Segoe UI", Arial, sans-serif; font-size: 14px; }
+      button, input, select { font: inherit; }
+      .app { display: flex; flex-direction: column; gap: 14px; padding: 2px 2px 40px; }
+      .tabs { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+      .tab { min-height: 40px; padding: 0 16px; border: 1px solid var(--line); border-radius: 10px; background: #fff; color: var(--ink); font-weight: 700; cursor: pointer; }
+      .tab.active { border-color: var(--orange); background: var(--soft); color: var(--orange-dark); }
+      .badge { margin-left: auto; padding: 6px 12px; border-radius: 999px; border: 1px solid #ffd0aa; background: var(--soft); color: #8f461f; font-size: 12px; font-weight: 700; }
+      .badge:empty { display: none; }
+      .badge.error { border-color: #f3b4a8; background: #fdecea; color: #a32a17; }
+      .panel { padding: 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); }
+      .panel h2 { margin: 0 0 4px; font-size: 18px; }
+      .panel h3 { margin: 18px 0 8px; font-size: 15px; }
+      .panel p.sub { margin: 0 0 14px; color: var(--muted); font-size: 13px; }
+      .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-bottom: 12px; }
+      .field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: var(--muted); }
+      .field input, .field select { min-height: 38px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); font-weight: 400; }
+      .btn { min-height: 38px; padding: 0 14px; border: 1px solid #cfc4b8; border-radius: 9px; background: #fff; color: var(--ink); font-weight: 700; cursor: pointer; }
+      .btn.primary { border: 0; background: linear-gradient(135deg, #ff9b48, #e87523); color: #fff; }
+      .btn:disabled { opacity: 0.5; cursor: default; }
+      .btn.small { min-height: 30px; padding: 0 10px; font-size: 12px; }
+      .btn.danger { border-color: #e7b3a9; color: #a32a17; }
+      .btn.link { min-height: 0; padding: 0; border: 0; background: none; color: var(--orange-dark); text-decoration: underline; font-weight: 700; }
+      .drop { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 110px; padding: 16px; border: 2px dashed #e8c9ad; border-radius: 12px; background: var(--cream); cursor: pointer; text-align: center; }
+      .drop.over { border-color: var(--orange); background: var(--soft); }
+      .drop strong { color: var(--orange-dark); font-size: 15px; }
+      .info { padding: 9px 12px; border-radius: 9px; background: var(--cream); color: var(--muted); font-size: 13px; }
+      .info strong { color: var(--ink); }
+      .warn { padding: 9px 12px; border-radius: 9px; background: var(--warn-bg); color: var(--warn); font-size: 13px; font-weight: 600; margin-bottom: 10px; }
+      .scroll { overflow-x: auto; }
+      table.grid { width: 100%; border-collapse: collapse; font-size: 13px; }
+      .grid th, .grid td { padding: 5px 7px; border: 1px solid var(--line); text-align: center; white-space: nowrap; }
+      .grid th { background: var(--cream); font-weight: 800; }
+      .grid td.left { text-align: left; white-space: normal; }
+      .grid td.right { text-align: right; }
+      .grid tr.total td { background: var(--soft); font-weight: 800; }
+      .grid tr.missing td { background: var(--warn-bg); }
+      .grid tr.ignored td { color: var(--muted); }
+      .grid input, .grid select { width: 100%; min-width: 60px; padding: 5px 6px; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--ink); }
+      .grid input.n { width: 90px; text-align: right; }
+      .grid select { min-width: 200px; }
+      .tag { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 6px; background: var(--cream); color: var(--muted); font-size: 10px; font-weight: 800; text-transform: uppercase; }
+      .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; margin: 14px 0; }
+      .card { padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--cream); }
+      .card span { display: block; color: var(--muted); font-size: 11px; font-weight: 800; text-transform: uppercase; }
+      .card strong { display: block; font-size: 24px; margin: 2px 0; }
+      .card small { color: var(--muted); font-size: 12px; }
+      .card.main { border-left: 5px solid var(--orange); background: var(--soft); }
+      .card.main strong { color: var(--orange-dark); }
+      .card.money { border-left: 5px solid var(--green); }
+      .card.money strong { color: var(--green); }
+      .hint { color: var(--muted); font-size: 12px; }
+      .msg { min-height: 18px; color: var(--green); font-size: 13px; font-weight: 700; }
+      .msg.error { color: #a32a17; }
+      .print-area { display: none; }
+
+      html[data-theme="dark"] body { color: #f7efe9; }
+      html[data-theme="dark"] .panel { background: #201713; border-color: #4a342a; }
+      html[data-theme="dark"] .tab, html[data-theme="dark"] .btn { background: #2a1f1a; border-color: #62483b; color: #f7efe9; }
+      html[data-theme="dark"] .btn.link { background: none; color: #ffb477; }
+      html[data-theme="dark"] .tab.active { background: #4a2b1d; border-color: #ff8d2f; color: #ffb477; }
+      html[data-theme="dark"] .btn.primary { background: linear-gradient(135deg, #ff9b48, #e87523); color: #fff; }
+      html[data-theme="dark"] .grid th, html[data-theme="dark"] .card, html[data-theme="dark"] .info, html[data-theme="dark"] .drop, html[data-theme="dark"] .tag { background: #2a1f1a; color: #f7efe9; }
+      html[data-theme="dark"] .grid th, html[data-theme="dark"] .grid td, html[data-theme="dark"] .card, html[data-theme="dark"] .drop { border-color: #4a342a; }
+      html[data-theme="dark"] .grid tr.total td, html[data-theme="dark"] .card.main { background: #3a2619; }
+      html[data-theme="dark"] .card.main strong, html[data-theme="dark"] .drop strong { color: #ffb477; }
+      html[data-theme="dark"] .card.money strong { color: #6fd3a0; }
+      html[data-theme="dark"] .grid tr.missing td, html[data-theme="dark"] .warn { background: #3a3018; color: #f3d48a; }
+      html[data-theme="dark"] input, html[data-theme="dark"] select { background: #17100d !important; color: #f7efe9 !important; border-color: #5a4034 !important; }
+      html[data-theme="dark"] .card span, html[data-theme="dark"] .card small, html[data-theme="dark"] .hint, html[data-theme="dark"] .panel p.sub, html[data-theme="dark"] .field, html[data-theme="dark"] .info, html[data-theme="dark"] .tag { color: #c8b8ae; }
+      html[data-theme="dark"] .info strong { color: #f7efe9; }
+
+      @page { size: A4; margin: 12mm; }
+      @media print {
+        body { background: #fff; color: #000; font-family: Arial, Helvetica, sans-serif; }
+        .app { display: none !important; }
+        .print-area { display: block; }
+        .print-area h1 { margin: 0 0 2mm; font-size: 15pt; color: #a65526; border-bottom: 0.8mm solid #e87523; padding-bottom: 1mm; }
+        .print-area p { margin: 0 0 3mm; font-size: 9.5pt; }
+        .print-area h2 { margin: 5mm 0 2mm; font-size: 11pt; }
+        .doc { width: 100%; border-collapse: collapse; font-size: 9pt; }
+        .doc th, .doc td { border: 0.3mm solid #000; padding: 1mm 1.5mm; text-align: center; }
+        .doc td.left { text-align: left; }
+        .doc td.right { text-align: right; }
+        .doc th, .doc tr.total td { background: #e5e5e5; font-weight: 800; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .big { font-size: 13pt; font-weight: 800; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <div class="tabs" id="tabs"></div>
+
+      <!-- CONVERTER -->
+      <section class="panel" id="viewConv">
+        <h2>Converter relatório em pão</h2>
+        <p class="sub">Solte o PDF do "Relatório de Clientes": os itens são lidos sozinhos, a tabela de preços do cliente é aplicada e o total vira quantidade de pão para faturar.</p>
+        <label class="drop" id="drop">
+          <input type="file" id="pdfInput" accept="application/pdf,.pdf" hidden />
+          <strong>Clique aqui ou arraste o PDF do relatório</strong>
+          <span class="hint" id="dropName">O arquivo é lido só neste navegador — não é enviado ao servidor.</span>
+        </label>
+        <div class="msg error" id="convMsg"></div>
+        <div id="convBody" hidden>
+          <div class="toolbar">
+            <label class="field">Cliente (tabela de preços)<select id="convClient"></select></label>
+            <div class="info" id="convInfo" style="flex:1"></div>
+          </div>
+          <div id="convWarn"></div>
+          <div class="scroll" id="itemsTable"></div>
+          <div class="toolbar" style="margin-top:10px">
+            <button class="btn small" type="button" id="addManual">+ Adicionar item à mão</button>
+            <span class="hint">Escolher o produto de um item fica guardado: no próximo relatório desse cliente ele já vem certo.</span>
+          </div>
+          <h3>Faturar em pão</h3>
+          <div class="cards" id="resultCards"></div>
+          <h3>Se fosse tudo em um pão só</h3>
+          <div class="scroll" id="altTable"></div>
+          <div class="toolbar" style="margin-top:14px">
+            <button class="btn primary" type="button" id="saveHist">Salvar no histórico</button>
+            <button class="btn" type="button" id="printConv">Imprimir</button>
+          </div>
+          <div class="msg" id="histMsg"></div>
+        </div>
+      </section>
+
+      <!-- CLIENTES E PREÇOS -->
+      <section class="panel" id="viewClients" hidden>
+        <h2>Clientes, preços e conversão</h2>
+        <p class="sub">Preços da planilha "Calculadora" por cliente. A conversão divide o total entre os pães pela porcentagem (ex.: 50% francês + 50% leite) e arredonda para cima, como na planilha.</p>
+        <div class="toolbar">
+          <label class="field">Cliente<select id="cliSelect"></select></label>
+          <button class="btn small" type="button" id="cliAdd">+ Novo cliente</button>
+          <button class="btn small danger" type="button" id="cliDel">Excluir cliente</button>
+        </div>
+        <div id="cliBody"></div>
+      </section>
+
+      <!-- HISTÓRICO -->
+      <section class="panel" id="viewHist" hidden>
+        <h2>Histórico de conversões</h2>
+        <p class="sub">Conversões salvas, com o total e a quantidade de pão faturada.</p>
+        <div class="scroll" id="histTable"></div>
+      </section>
+    </div>
+
+    <section class="print-area" id="printArea"></section>
+
+    <script>
+      // ---------- Acesso e banco (mesmo padrão das outras ferramentas) ----------
+      const portalUser = JSON.parse(localStorage.getItem("user") || "{}");
+      const portalToken = localStorage.getItem("token");
+      if (!portalToken || String(portalUser.perfil || "").toLowerCase() !== "administrador") {
+        window.top.location.href = "/mips";
+      }
+      const apiBase = window.location.protocol === "https:" ? "" : `http://${window.location.hostname}:7001`;
+      const api = `${apiBase}/api/ferramentas-admin/conversao`;
+      const CACHE_KEY = "conversao-pao";
+      if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+      // ---------- Dados padrão (planilha "Calculadora Hospital Santos Dumont.xlsx") ----------
+      const T_FRANCES = ["Pão francês", 0.79, 50, "und"];
+      const T_LEITE = ["Pão de leite", 0.95, 50, "und"];
+      const T_EXTRA = [["Pão francês (kg)", 13, 0, "kg"], ["Mini pão francês", 0.58, 0, "und"], ["Mini pão de leite", 0.68, 0, "und"]];
+      const SEED = [
+        { name: "Hospital Santos Dumont", match: "santos dumont", targets: [T_FRANCES, T_LEITE, ...T_EXTRA], products: [
+          ["Pão francês embalado", 0.79], ["Pão francês com margarina", 1.26], ["Mini Pão Francês Embalado", 0.58], ["Pão Francês Integral Embalado", 1.1],
+          ["Pão de leite embalado", 0.95], ["Mini pão de leite", 0.68], ["Pão de forma Integral", 16], ["Pão de Forma Sem Gluten", 40], ["Pão de forma", 12],
+          ["Mini brioche embalado", 0.9], ["Petit Four", 130], ["Hot Dog 50g", 0.6], ["Mussarela", 60], ["Presunto", 35], ["Queijo Branco", 38],
+          ["Hamburguer 50g", 1], ["Hamburguer 80g", 1.5], ["Farinha de Trigo", 6], ["Panetone", 13], ["Ricota", 17], ["Leite Saquinho", 13],
+          ["Leite Especial", 13], ["Leite de Soja", 19.98], ["Iogurte Zero", 26], ["Pão de Queijo (1KG)", 32], ["Pão francês Cortado", 0.8],
+          ["Lata de Milho", 18], ["Bandeja de Ovo", 37.5], ["Tapioca 500g", 7.98], ["Pão francês (KG)", 0.65],
+        ] },
+        { name: "Unimed Jaca", match: "", targets: [T_FRANCES, T_LEITE, ...T_EXTRA], products: [
+          ["Pão francês embalado", 0.79], ["Mini Pão Francês Embalado", 0.58], ["Pão Francês Integral Embalado", 1.1], ["Pão de leite embalado", 0.95],
+          ["Mini pão de leite", 0.68], ["Pão de forma Integral", 16], ["Mini brioche embalado", 0.9], ["Petit Four", 130], ["Hot Dog 50g", 0.6],
+          ["Mussarela", 60], ["Presunto", 35], ["Hamburguer 50g", 1], ["Farinha de Trigo", 6], ["Bolo 1,5kg - cobertura", 49], ["Panetone", 13],
+          ["Ricota", 17], ["Leite Saquinho", 13], ["Pão de Queijo (1KG)", 32], ["Pão francês Cortado", 0.8], ["Lata de Milho", 18],
+          ["Bandeja de Ovo", 37.5], ["Pão francês (KG)", 0.65],
+        ] },
+        { name: "Unimed Sanja", match: "", targets: [T_FRANCES, T_LEITE, ...T_EXTRA], products: [
+          ["Pão francês embalado", 0.79], ["Mini Pão Francês Embalado", 0.58], ["Pão Francês Integral Embalado", 1.1], ["Pão de leite embalado", 0.95],
+          ["Mini pão de leite", 0.68], ["Pão de forma Integral", 16], ["Mini brioche embalado", 0.9], ["Petit Four", 130], ["Hot Dog 50g", 0.6],
+          ["Mussarela", 60], ["Presunto", 35], ["Hamburguer 50g", 1], ["Farinha de Trigo", 6], ["Panetone", 13], ["Ricota", 17],
+          ["Leite Saquinho", 13], ["Pão de Queijo (1KG)", 32], ["Pão francês Cortado", 0.8], ["Lata de Milho", 18], ["Bandeja de Ovo", 37.5],
+          ["Pão francês (KG)", 0.65],
+        ] },
+        { name: "São José", match: "", targets: [T_FRANCES, T_LEITE], products: [
+          ["Pão francês embalado", 0.79], ["Pão francês com margarina", 1.26], ["Mini Pão Francês Embalado", 0.58], ["Pão Francês Integral Embalado", 1.1],
+          ["Pão de leite embalado", 0.95], ["Mini pão de leite", 0.68], ["Pão de Leite Integral Embalado", 1.05], ["Mini Pão de Leite integral Embalado", 0.65],
+          ["Pão de coco Embalado", 1.2], ["Pão de Creme Embalado", 1.15], ["Mini pão cenoura embalado", 0.95], ["Pão de forma Integral", 15],
+          ["Pão de forma", 12], ["Mini brioche embalado", 0.9], ["Petit Four", 130], ["Hot Dog 50g", 0.6], ["Mussarela", 60], ["Presunto", 30],
+          ["Hamburguer 50g", 1], ["Farinha de Trigo", 6], ["Panetone", 13], ["Ricota", 17], ["Leite Saquinho", 13], ["Leite Especial", 13],
+          ["Pão de Queijo (1KG)", 32], ["Pão francês Cortado", 0.8], ["Lata de Milho", 18], ["Bandeja de Ovo", 37.5], ["Pão francês (KG)", 0.65],
+        ] },
+        { name: "Ambev", match: "ambev", targets: [["Pão francês", 0.6, 50, "und"], ["Pão de leite", 0.7, 50, "und"]], products: [
+          ["Pão francês", 0.6], ["Pão francês cortado", 0.7], ["Pão de leite", 0.7], ["Pão de leite cortado", 0.8], ["Pão de forma Integral", 15],
+          ["Pão de forma", 12], ["Mini brioche embalado", 0.9], ["Petit Four", 130], ["Hot Dog 50g", 0.6], ["Mussarela", 60], ["Presunto", 30],
+          ["Bolo 500g - cobertura", 20], ["Bolo 1,5kg - cobertura", 49], ["Hamburguer 50g", 1], ["Farinha de Trigo", 6], ["Panetone", 13],
+          ["Ricota", 17], ["Leite Saquinho", 13], ["Leite Especial", 13], ["Pão de Queijo (1KG)", 32], ["Açúcar (kg)", 5.5], ["Lata de Milho", 56],
+          ["Bandeja de Ovo", 37.5], ["Pão francês (KG)", 0.65], ["Sonho", 2], ["Carolina", 1.2], ["Catarina Presunto", 20],
+          ["Catarina Peito de Peru", 25], ["Lanchinho Presunto e Queijo", 2.25], ["Farinha de Rosca", 8], ["Arroz Integral", 3.99],
+        ] },
+      ];
+      const fold = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+      const slug = (s) => fold(s).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "x";
+      const newId = (p) => `${p}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+      function defaultData() {
+        return {
+          clients: SEED.map((c) => ({
+            id: slug(c.name),
+            name: c.name,
+            match: c.match,
+            products: c.products.map(([name, price]) => ({ id: slug(name), name, price })),
+            targets: c.targets.map(([name, price, pct, unit]) => ({ id: slug(name), name, price, pct, unit })),
+            aliases: {},
+          })),
+          history: [],
+        };
+      }
+
+      // ---------- Estado ----------
+      let data = defaultData();
+      const ui = { view: "conv", loaded: false, badge: "", badgeError: false, report: null, clientId: "", manual: [], cliId: "" };
+
+      const el = (id) => document.getElementById(id);
+      const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+      const money = (n) => Number(n || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+      const fmt = (n, d = 2) => Number(n || 0).toLocaleString("pt-BR", { maximumFractionDigits: d });
+      const toNum = (v) => { const n = Number(String(v ?? "").replace(",", ".")); return Number.isFinite(n) ? n : 0; };
+      // Arredonda para cima como o ARREDONDAR.PARA.CIMA da planilha (sem errar por 0,0000001).
+      const ceil = (x) => Math.ceil(Math.round(x * 1e6) / 1e6);
+      const clientById = (id) => data.clients.find((c) => c.id === id);
+
+      // ---------- Banco: lê o banco antes de cada envio e mescla (igual ao Romaneio) ----------
+      let saveTimer, retryTimer, synced = null, inFlight = null, sendAgain = false;
+      const SYNC_KEY = `${CACHE_KEY}-sincronizado`;
+      const clone = (v) => JSON.parse(JSON.stringify(v));
+      const canon = (v) => JSON.stringify(v, (_, x) => (x && typeof x === "object" && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) : x));
+      const equal = (a, b) => canon(a) === canon(b);
+      function setBadge(text, error = false) {
+        ui.badge = text;
+        ui.badgeError = error;
+        const b = document.querySelector(".badge");
+        if (!b) return;
+        b.textContent = text;
+        b.classList.toggle("error", error);
+      }
+      function writeCache() {
+        try {
+          localStorage.setItem(CACHE_KEY, JSON.stringify(data));
+          if (synced) localStorage.setItem(SYNC_KEY, JSON.stringify(synced));
+        } catch {}
+      }
+      // Mescla lista por id: o que mudou aqui desde a última sincronização sobe; o resto vem do banco.
+      function mergeList(local, server, base) {
+        const byId = (arr) => new Map((arr || []).map((x) => [x.id, x]));
+        const L = byId(local), B = base ? byId(base) : null;
+        const result = (server || []).filter((s) => {
+          if (!B || !B.has(s.id) || L.has(s.id)) return true;
+          return !equal(s, B.get(s.id)); // apagado aqui e não mexido no banco → some
+        }).map((s) => {
+          const l = L.get(s.id);
+          if (!l) return s;
+          const changed = B ? !equal(l, B.get(s.id)) : false;
+          return changed ? clone(l) : s;
+        });
+        const S = byId(server);
+        (local || []).forEach((l) => { if (!S.has(l.id) && (!B || !B.has(l.id))) result.push(clone(l)); });
+        return result;
+      }
+      function mergeData(local, server, base) {
+        if (!server) return clone(local);
+        return {
+          clients: mergeList(local.clients, server.clients, base?.clients),
+          history: mergeList(local.history, server.history, base?.history).sort((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, 300),
+        };
+      }
+      const authHeader = () => ({ Authorization: `Bearer ${localStorage.getItem("token")}` });
+      const httpError = (status) => Object.assign(new Error(`HTTP ${status}`), { status });
+      function normalize(d) {
+        if (!d || typeof d !== "object" || !Array.isArray(d.clients)) return defaultData();
+        return {
+          clients: d.clients.map((c) => ({ products: [], targets: [], aliases: {}, match: "", ...c })),
+          history: Array.isArray(d.history) ? d.history : [],
+        };
+      }
+      async function readServer() {
+        const r = await fetch(api, { headers: authHeader(), cache: "no-store" });
+        if (r.status === 404) return null;
+        if (!r.ok) throw httpError(r.status);
+        const { dados } = await r.json();
+        return normalize(dados);
+      }
+      function syncFailed(e) {
+        ui.loaded = true;
+        const expired = e?.status === 401 || e?.status === 403;
+        setBadge(expired ? "Sessão expirada — entre no portal de novo. Nada foi perdido: as alterações sobem sozinhas depois disso." : "Sem conexão com o banco — as alterações ficam guardadas aqui e sobem sozinhas.", true);
+        clearTimeout(retryTimer);
+        retryTimer = setTimeout(syncNow, 20000);
+      }
+      async function doSync() {
+        try {
+          const before = clone(data);
+          const server = await readServer();
+          const merged = mergeData(before, server, synced);
+          if (!server || !equal(merged, server)) {
+            setBadge("Salvando no banco...");
+            const r = await fetch(api, { method: "PUT", headers: { "Content-Type": "application/json", ...authHeader() }, body: JSON.stringify({ dados: merged }) });
+            if (!r.ok) throw httpError(r.status);
+          }
+          const changedMeanwhile = !equal(data, before);
+          const cameFromServer = !equal(before, merged);
+          synced = clone(merged);
+          data = changedMeanwhile ? mergeData(data, merged, before) : merged;
+          if (changedMeanwhile) sendAgain = true;
+          writeCache();
+          ui.loaded = true;
+          setBadge(changedMeanwhile ? "Salvando no banco..." : "Salvo no banco");
+          const typing = /^(INPUT|SELECT)$/.test(document.activeElement?.tagName || "");
+          if (cameFromServer && !typing) render();
+        } catch (e) {
+          syncFailed(e);
+        }
+      }
+      function syncNow() {
+        clearTimeout(saveTimer);
+        clearTimeout(retryTimer);
+        if (inFlight) { sendAgain = true; return inFlight; }
+        inFlight = doSync().finally(() => {
+          inFlight = null;
+          if (sendAgain) { sendAgain = false; syncNow(); }
+        });
+        return inFlight;
+      }
+      function save() {
+        writeCache();
+        clearTimeout(saveTimer);
+        setBadge("Salvando no banco...");
+        saveTimer = setTimeout(syncNow, 400);
+      }
+      async function load() {
+        let cached = null;
+        try { cached = JSON.parse(localStorage.getItem(CACHE_KEY) || "null"); } catch {}
+        if (cached) data = normalize(cached);
+        let snapshot = null;
+        try { snapshot = JSON.parse(localStorage.getItem(SYNC_KEY) || "null"); } catch {}
+        synced = snapshot ? normalize(snapshot) : cached ? null : defaultData();
+        render();
+        await syncNow();
+        render();
+      }
+
+      // ---------- Leitura do PDF ----------
+      const parseNum = (s) => {
+        s = String(s || "").trim();
+        if (s.includes(",")) return Number(s.replace(/\./g, "").replace(",", ".")) || 0;
+        return Number(s.replace(/\.(?=\d{3}(\D|$))/g, "")) || 0;
+      };
+      const keyOf = (s) => fold(s).replace(/\s+/g, " ").trim();
+
+      // Junta os pedaços de texto do PDF em linhas (mesma altura), da esquerda para a direita.
+      async function pdfLines(file) {
+        if (!window.pdfjsLib) throw new Error("Não foi possível carregar o leitor de PDF (sem internet?). Recarregue a página.");
+        const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
+        const lines = [];
+        for (let p = 1; p <= pdf.numPages; p++) {
+          const page = await pdf.getPage(p);
+          const { items } = await page.getTextContent();
+          const rows = [];
+          items.forEach((it) => {
+            if (!it.str || !it.str.trim()) return;
+            const x = it.transform[4], y = it.transform[5];
+            let row = rows.find((r) => Math.abs(r.y - y) < 3);
+            if (!row) rows.push((row = { y, parts: [] }));
+            row.parts.push({ x, w: it.width || 0, s: it.str });
+          });
+          rows.sort((a, b) => b.y - a.y).forEach((r) => {
+            let text = "", end = null;
+            r.parts.sort((a, b) => a.x - b.x).forEach((pt) => {
+              text += end !== null && pt.x - end > 1.5 ? ` ${pt.s}` : pt.s;
+              end = pt.x + pt.w;
+            });
+            lines.push(text.replace(/\s+/g, " ").trim());
+          });
+        }
+        return lines;
+      }
+
+      // "Relatório de Clientes": cliente, intervalo, itens dos pedidos (com unidade) e "Produtos Totais".
+      function parseReport(lines) {
+        const text = lines.join("\n");
+        const per = text.match(/Intervalo:\s*(\d{2}\/\d{2}\/\d{4})[^\n]*?-\s*(\d{2}\/\d{2}\/\d{4})/);
+        let clientName = "";
+        const iNome = lines.findIndex((l) => /^Nome\b.*CNPJ/i.test(l));
+        if (iNome >= 0) {
+          for (let i = iNome + 1; i < Math.min(lines.length, iNome + 4); i++) {
+            const m = lines[i].match(/^(.*?)\s*\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}/);
+            if (m) { clientName = m[1].trim(); break; }
+          }
+          if (!clientName) clientName = lines[iNome + 1] || "";
+        }
+        // Itens dos pedidos: "Nome do item(Unid) - 57 - R$ 0,00"
+        const fromOrders = new Map();
+        const re = /(.+?)\(([^()]*)\)\s*-\s*([\d.,]+)\s*-\s*R\$\s*[\d.,]+/g;
+        lines.forEach((l) => {
+          for (const m of l.matchAll(re)) {
+            const label = m[1].replace(/^.*?\d{2}\/\d{2}\/\d{4}\s+/, "").replace(/^\s*-?\s*/, "").trim();
+            const key = keyOf(label);
+            const cur = fromOrders.get(key) || { key, label, unit: m[2].trim(), qty: 0 };
+            cur.qty += parseNum(m[3]);
+            fromOrders.set(key, cur);
+          }
+        });
+        // Tabela "Produtos Totais" (ou "Produtos"): quantidade consolidada do próprio relatório.
+        let start = -1;
+        lines.forEach((l, i) => { if (/^Produtos( Totais)?$/i.test(l)) start = i; });
+        const totals = new Map();
+        if (start >= 0) {
+          for (let i = start + 1; i < lines.length; i++) {
+            const l = lines[i];
+            if (/^TOTAL\b/i.test(l)) break;
+            if (/^Item\b.*Quantidade/i.test(l)) continue;
+            const m = l.match(/^(.*\S)\s+([\d.]*\d(?:,\d+)?)\s+(-?[\d.]*\d,\d{2})$/);
+            if (!m) continue;
+            const key = keyOf(m[1]);
+            totals.set(key, { key, label: m[1].trim(), unit: fromOrders.get(key)?.unit || "", qty: parseNum(m[2]) });
+          }
+        }
+        // Vale a tabela consolidada; item que só aparece nos pedidos entra pela soma deles.
+        const items = totals.size ? [...totals.values()] : [];
+        fromOrders.forEach((o, key) => { if (!totals.has(key)) items.push(o); });
+        return { clientName, period: per ? `${per[1]} a ${per[2]}` : "", items: items.filter((i) => i.qty > 0) };
+      }
+
+      // ---------- Vínculo item do relatório → produto da tabela ----------
+      const STOP = new Set(["de", "da", "do", "das", "dos", "em", "e", "com", "individual", "embalado", "embalada", "embalados", "caixa", "peca", "gramas", "gr", "g", "und", "un", "unidade", "pct", "lt", "litro", "kilo", "fatiado", "fatiada"]);
+      const KEY = ["mini", "integral", "leite", "frances", "forma", "kg", "cortado", "margarina", "coco", "creme", "cenoura", "gluten", "brioche", "hamburguer", "bolo", "catarina"];
+      const tokens = (s) => fold(s).replace(/[^a-z0-9]+/g, " ").split(" ").filter((t) => t && !STOP.has(t) && !/^\d+([.,]\d+)?(kg|g|ml|lt|l)?$/.test(t));
+      function autoMatch(client, label) {
+        const pt = new Set(tokens(label));
+        let best = null, bestN = 0;
+        client.products.forEach((p) => {
+          const tk = tokens(p.name);
+          if (!tk.length || !tk.every((t) => pt.has(t))) return;
+          if (KEY.some((k) => pt.has(k) !== tk.includes(k))) return;
+          if (tk.length > bestN) { best = p; bestN = tk.length; }
+        });
+        return best;
+      }
+      const defaultFactor = (unit) => (["g", "gramas", "gr", "grama"].includes(fold(unit).trim()) ? 0.001 : 1);
+      function mappingFor(client, item) {
+        const a = client.aliases?.[item.key];
+        if (a) return { productId: a.product || "", factor: toNum(a.factor) || 1, how: "saved" };
+        const p = autoMatch(client, item.label);
+        return { productId: p ? p.id : "", factor: defaultFactor(item.unit), how: p ? "auto" : "none" };
+      }
+      function detectClient(report) {
+        const hay = fold(report.clientName);
+        const all = fold(report.clientName + " " + report.items.map((i) => i.label).join(" "));
+        const hit = (c, h) => [c.name, ...String(c.match || "").split(/[;,]/)].map((s) => fold(s).trim()).filter(Boolean).some((s) => h.includes(s));
+        return data.clients.find((c) => hit(c, hay)) || (hay ? null : data.clients.find((c) => hit(c, all))) || null;
+      }
+
+      // ---------- Cálculo ----------
+      function compute(client) {
+        const rows = (ui.report?.items || []).map((it) => {
+          const m = mappingFor(client, it);
+          const p = client.products.find((x) => x.id === m.productId);
+          const qty = it.qty * m.factor;
+          return { kind: "pdf", item: it, ...m, product: p, qty, value: p ? qty * toNum(p.price) : 0 };
+        });
+        ui.manual.forEach((mm, i) => {
+          const p = client.products.find((x) => x.id === mm.productId);
+          rows.push({ kind: "manual", index: i, product: p, productId: mm.productId, qty: toNum(mm.qty), value: p ? toNum(mm.qty) * toNum(p.price) : 0 });
+        });
+        const total = rows.reduce((t, r) => t + r.value, 0);
+        const targets = client.targets.filter((t) => toNum(t.price) > 0);
+        const split = targets.filter((t) => toNum(t.pct) > 0).map((t) => {
+          const part = (total * toNum(t.pct)) / 100;
+          return { ...t, part, qty: ceil(part / toNum(t.price)) };
+        });
+        const pctSum = client.targets.reduce((s, t) => s + toNum(t.pct), 0);
+        const alt = targets.map((t) => ({ ...t, qty: ceil(total / toNum(t.price)) }));
+        return { rows, total, split, alt, pctSum };
+      }
+
+      // ---------- Abas ----------
+      function renderTabs() {
+        el("tabs").innerHTML = [["conv", "Converter relatório"], ["clients", "Clientes e preços"], ["hist", "Histórico"]]
+          .map(([id, label]) => `<button type="button" class="tab ${ui.view === id ? "active" : ""}" data-view="${id}">${label}</button>`)
+          .join("") + `<span class="badge ${ui.badgeError ? "error" : ""}">${esc(ui.loaded ? ui.badge || "" : "Carregando...")}</span>`;
+        document.querySelectorAll("[data-view]").forEach((b) => (b.onclick = () => { ui.view = b.dataset.view; render(); }));
+        el("viewConv").hidden = ui.view !== "conv";
+        el("viewClients").hidden = ui.view !== "clients";
+        el("viewHist").hidden = ui.view !== "hist";
+      }
+
+      // ---------- Converter (tela) ----------
+      const productOptions = (client, selected, ignoreLabel) =>
+        `<option value="">${esc(ignoreLabel)}</option>` +
+        client.products.map((p) => `<option value="${esc(p.id)}" ${p.id === selected ? "selected" : ""}>${esc(p.name)} — ${money(p.price)}</option>`).join("");
+
+      function renderConv() {
+        const rep = ui.report;
+        el("convBody").hidden = !rep;
+        if (!rep) return;
+        if (!clientById(ui.clientId)) ui.clientId = data.clients[0]?.id || "";
+        const client = clientById(ui.clientId);
+        el("convClient").innerHTML = data.clients.map((c) => `<option value="${esc(c.id)}" ${c.id === ui.clientId ? "selected" : ""}>${esc(c.name)}</option>`).join("");
+        if (!client) { el("itemsTable").innerHTML = ""; return; }
+        const detected = detectClient(rep);
+        el("convInfo").innerHTML = `<strong>${esc(rep.clientName || "Cliente não identificado no PDF")}</strong>${rep.period ? ` · período ${esc(rep.period)}` : ""} · ${rep.items.length} item(ns) lido(s)` +
+          (rep.clientName && detected?.id !== client.id ? ` · <button type="button" class="btn link" id="rememberClient">Sempre usar "${esc(client.name)}" para este PDF</button>` : "");
+        const r = compute(client);
+        const missing = r.rows.filter((x) => x.kind === "pdf" && x.how === "none");
+        let warn = "";
+        if (!detected) warn += `<div class="warn">O cliente "${esc(rep.clientName)}" não está cadastrado — confira se a tabela escolhida acima é a certa${rep.clientName ? ` ou <button type="button" class="btn link" id="newFromPdf">cadastre "${esc(rep.clientName)}" copiando os preços de ${esc(client.name)}</button>` : ""}.</div>`;
+        if (missing.length) warn += `<div class="warn">${missing.length} item(ns) sem produto na tabela (em amarelo). Escolha o produto ou deixe "não cobrar" — a escolha fica guardada.</div>`;
+        if (Math.round(r.pctSum) !== 100) warn += `<div class="warn">A divisão da conversão soma ${fmt(r.pctSum)}% (deveria ser 100%). Ajuste em "Clientes e preços".</div>`;
+        el("convWarn").innerHTML = warn;
+
+        const body = r.rows.map((x, i) => {
+          if (x.kind === "manual") {
+            return `<tr><td class="left"><em>Adicionado à mão</em></td><td>—</td>
+              <td><input class="n" data-man-qty="${x.index}" value="${esc(ui.manual[x.index].qty)}" inputmode="decimal" /></td>
+              <td><select data-man-prod="${x.index}">${productOptions(client, x.productId, "— escolha o produto —")}</select></td>
+              <td>—</td><td class="right">${x.product ? money(x.product.price) : "—"}</td><td class="right">${money(x.value)}</td>
+              <td><button type="button" class="btn small danger" data-man-del="${x.index}">×</button></td></tr>`;
+          }
+          const cls = x.how === "none" ? "missing" : !x.product ? "ignored" : "";
+          const tag = x.how === "saved" ? `<span class="tag">guardado</span>` : x.how === "auto" ? `<span class="tag">automático</span>` : "";
+          return `<tr class="${cls}"><td class="left">${esc(x.item.label)}</td><td>${esc(x.item.unit || "—")}</td><td class="right">${fmt(x.item.qty, 3)}</td>
+            <td><select data-map="${esc(x.item.key)}">${productOptions(client, x.productId, x.how === "none" ? "— escolha o produto —" : "— não cobrar —")}</select>${tag}</td>
+            <td><input class="n" data-factor="${esc(x.item.key)}" value="${esc(String(x.factor).replace(".", ","))}" inputmode="decimal" title="Multiplica a quantidade do relatório (ex.: gramas → kg = 0,001)" /></td>
+            <td class="right">${x.product ? money(x.product.price) : "—"}</td><td class="right">${money(x.value)}</td><td></td></tr>`;
+        }).join("");
+        el("itemsTable").innerHTML = `<table class="grid"><thead><tr><th>Item do relatório</th><th>Unid.</th><th>Qtd.</th><th>Produto da tabela</th><th>Fator</th><th>Preço un.</th><th>Total</th><th></th></tr></thead>
+          <tbody>${body}<tr class="total"><td class="left" colspan="6">TOTAL (tabela do cliente)</td><td class="right">${money(r.total)}</td><td></td></tr></tbody></table>`;
+
+        el("resultCards").innerHTML = `<div class="card money"><span>Total em produtos</span><strong>${money(r.total)}</strong><small>pela tabela de ${esc(client.name)}</small></div>` +
+          r.split.map((t) => `<div class="card main"><span>${esc(t.name)} · ${fmt(t.pct)}%</span><strong>${fmt(t.qty, 0)} ${esc(t.unit || "und")}</strong><small>${money(t.part)} ÷ ${money(t.price)}</small></div>`).join("");
+        el("altTable").innerHTML = r.alt.length
+          ? `<table class="grid"><thead><tr><th>Pão</th><th>Preço</th><th>Quantidade</th></tr></thead><tbody>${r.alt.map((t) => `<tr><td class="left">Tudo em ${esc(t.name)}</td><td class="right">${money(t.price)}</td><td><strong>${fmt(t.qty, 0)} ${esc(t.unit || "und")}</strong></td></tr>`).join("")}</tbody></table>`
+          : `<p class="hint">Cadastre os pães de conversão em "Clientes e preços".</p>`;
+
+        el("itemsTable").querySelectorAll("[data-map]").forEach((s) => (s.onchange = () => setAlias(client, s.dataset.map, { product: s.value })));
+        el("itemsTable").querySelectorAll("[data-factor]").forEach((inp) => (inp.onchange = () => setAlias(client, inp.dataset.factor, { factor: toNum(inp.value) || 1 })));
+        el("itemsTable").querySelectorAll("[data-man-qty]").forEach((inp) => (inp.onchange = () => { ui.manual[inp.dataset.manQty].qty = inp.value; renderConv(); }));
+        el("itemsTable").querySelectorAll("[data-man-prod]").forEach((s) => (s.onchange = () => { ui.manual[s.dataset.manProd].productId = s.value; renderConv(); }));
+        el("itemsTable").querySelectorAll("[data-man-del]").forEach((b) => (b.onclick = () => { ui.manual.splice(Number(b.dataset.manDel), 1); renderConv(); }));
+        const rem = el("rememberClient");
+        if (rem) rem.onclick = () => {
+          client.match = [client.match, rep.clientName].filter((s) => String(s || "").trim()).join(", ");
+          save();
+          renderConv();
+        };
+        const nf = el("newFromPdf");
+        if (nf) nf.onclick = () => {
+          const c = { ...clone(client), id: newId("cli"), name: rep.clientName, match: rep.clientName, aliases: {} };
+          data.clients.push(c);
+          ui.clientId = c.id;
+          save();
+          renderConv();
+        };
+      }
+      function setAlias(client, key, patch) {
+        const item = ui.report.items.find((i) => i.key === key);
+        const cur = mappingFor(client, item);
+        client.aliases = client.aliases || {};
+        client.aliases[key] = { product: cur.productId, factor: cur.factor, ...patch };
+        save();
+        renderConv();
+      }
+
+      async function openPdf(file) {
+        if (!file) return;
+        el("convMsg").textContent = "";
+        el("histMsg").textContent = "";
+        el("dropName").textContent = `Lendo ${file.name}...`;
+        try {
+          const rep = parseReport(await pdfLines(file));
+          if (!rep.items.length) throw new Error("Não encontrei itens neste PDF. Ele é um \"Relatório de Clientes\"?");
+          rep.fileName = file.name;
+          ui.report = rep;
+          ui.manual = [];
+          const c = detectClient(rep);
+          if (c) ui.clientId = c.id;
+          el("dropName").textContent = `${file.name} — clique ou arraste outro PDF para trocar.`;
+          renderConv();
+        } catch (e) {
+          el("dropName").textContent = "O arquivo é lido só neste navegador — não é enviado ao servidor.";
+          el("convMsg").textContent = e.message || "Não foi possível ler o PDF.";
+        }
+      }
+
+      function saveHistory() {
+        const client = clientById(ui.clientId);
+        if (!client || !ui.report) return;
+        const r = compute(client);
+        data.history.unshift({
+          id: newId("h"),
+          at: new Date().toISOString(),
+          by: portalUser.nome || "",
+          clientId: client.id,
+          client: client.name,
+          period: ui.report.period,
+          file: ui.report.fileName || "",
+          total: Math.round(r.total * 100) / 100,
+          lines: r.rows.filter((x) => x.product).map((x) => ({ label: x.item?.label || "Adicionado à mão", product: x.product.name, qty: x.qty, price: toNum(x.product.price), value: Math.round(x.value * 100) / 100 })),
+          results: r.split.map((t) => ({ name: t.name, pct: toNum(t.pct), price: toNum(t.price), unit: t.unit || "und", qty: t.qty })),
+        });
+        data.history = data.history.slice(0, 300);
+        save();
+        el("histMsg").textContent = "Conversão salva no histórico.";
+      }
+
+      function printConv() {
+        const client = clientById(ui.clientId);
+        if (!client || !ui.report) return;
+        const r = compute(client);
+        el("printArea").innerHTML = `<h1>Conversão em pão — ${esc(client.name)}</h1>
+          <p>${ui.report.period ? `Período: <strong>${esc(ui.report.period)}</strong> · ` : ""}Relatório: ${esc(ui.report.fileName || "")} · Impresso em ${new Date().toLocaleString("pt-BR")}</p>
+          <table class="doc"><thead><tr><th>Item do relatório</th><th>Produto da tabela</th><th>Qtd.</th><th>Preço un.</th><th>Total</th></tr></thead><tbody>
+          ${r.rows.filter((x) => x.product).map((x) => `<tr><td class="left">${esc(x.item?.label || "Adicionado à mão")}</td><td class="left">${esc(x.product.name)}</td><td>${fmt(x.qty, 3)}</td><td class="right">${money(x.product.price)}</td><td class="right">${money(x.value)}</td></tr>`).join("")}
+          <tr class="total"><td class="left" colspan="4">TOTAL</td><td class="right">${money(r.total)}</td></tr></tbody></table>
+          <h2>Faturar em pão</h2>
+          <table class="doc"><thead><tr><th>Pão</th><th>%</th><th>Valor</th><th>Preço un.</th><th>Quantidade</th></tr></thead><tbody>
+          ${r.split.map((t) => `<tr><td class="left">${esc(t.name)}</td><td>${fmt(t.pct)}%</td><td class="right">${money(t.part)}</td><td class="right">${money(t.price)}</td><td class="big">${fmt(t.qty, 0)} ${esc(t.unit || "und")}</td></tr>`).join("")}
+          </tbody></table>`;
+        window.print();
+      }
+
+      // ---------- Clientes e preços ----------
+      function renderClients() {
+        if (!clientById(ui.cliId)) ui.cliId = ui.clientId && clientById(ui.clientId) ? ui.clientId : data.clients[0]?.id || "";
+        el("cliSelect").innerHTML = data.clients.map((c) => `<option value="${esc(c.id)}" ${c.id === ui.cliId ? "selected" : ""}>${esc(c.name)}</option>`).join("");
+        el("cliDel").disabled = !ui.cliId;
+        const c = clientById(ui.cliId);
+        if (!c) { el("cliBody").innerHTML = `<p class="hint">Nenhum cliente cadastrado.</p>`; return; }
+        const pctSum = c.targets.reduce((s, t) => s + toNum(t.pct), 0);
+        const aliases = Object.entries(c.aliases || {});
+        el("cliBody").innerHTML = `
+          <div class="toolbar">
+            <label class="field">Nome<input data-cli="name" value="${esc(c.name)}" style="min-width:260px" /></label>
+            <label class="field">Reconhecer no PDF quando o nome tiver (separe por vírgula)<input data-cli="match" value="${esc(c.match)}" style="min-width:320px" placeholder="ex.: santos dumont" /></label>
+          </div>
+          <h3>Converter o total em</h3>
+          <div class="scroll"><table class="grid"><thead><tr><th>Pão</th><th>Preço un.</th><th>Unid.</th><th>% do total</th><th></th></tr></thead><tbody>
+            ${c.targets.map((t, i) => `<tr><td><input data-tg="${i}" data-f="name" value="${esc(t.name)}" /></td><td><input class="n" data-tg="${i}" data-f="price" value="${esc(String(t.price).replace(".", ","))}" inputmode="decimal" /></td>
+              <td><input data-tg="${i}" data-f="unit" value="${esc(t.unit || "und")}" style="width:70px" /></td><td><input class="n" data-tg="${i}" data-f="pct" value="${esc(String(t.pct).replace(".", ","))}" inputmode="decimal" /></td>
+              <td><button type="button" class="btn small danger" data-tg-del="${i}">×</button></td></tr>`).join("")}
+            <tr class="total"><td class="left" colspan="3">Soma das porcentagens</td><td id="pctSum">${fmt(pctSum)}%</td><td></td></tr>
+          </tbody></table></div>
+          <div class="toolbar" style="margin-top:8px"><button type="button" class="btn small" id="tgAdd">+ Pão de conversão</button><span class="hint">Pão com 0% não entra na divisão, mas aparece em "Se fosse tudo em um pão só".</span></div>
+          <h3>Tabela de preços (${c.products.length})</h3>
+          <div class="scroll"><table class="grid"><thead><tr><th>Produto</th><th>Preço un.</th><th></th></tr></thead><tbody>
+            ${c.products.map((p, i) => `<tr><td><input data-pr="${i}" data-f="name" value="${esc(p.name)}" style="min-width:280px" /></td><td><input class="n" data-pr="${i}" data-f="price" value="${esc(String(p.price).replace(".", ","))}" inputmode="decimal" /></td>
+              <td><button type="button" class="btn small danger" data-pr-del="${i}">×</button></td></tr>`).join("")}
+          </tbody></table></div>
+          <div class="toolbar" style="margin-top:8px"><button type="button" class="btn small" id="prAdd">+ Produto</button></div>
+          <h3>Itens do relatório já vinculados (${aliases.length})</h3>
+          ${aliases.length ? `<div class="scroll"><table class="grid"><thead><tr><th>Item do relatório</th><th>Produto</th><th>Fator</th><th></th></tr></thead><tbody>
+            ${aliases.map(([k, a]) => `<tr><td class="left">${esc(k)}</td><td class="left">${esc(c.products.find((p) => p.id === a.product)?.name || "não cobrar")}</td><td>${fmt(a.factor, 4)}</td><td><button type="button" class="btn small" data-al-del="${esc(k)}">Esquecer</button></td></tr>`).join("")}
+          </tbody></table></div>` : `<p class="hint">Nenhum ainda — os itens são reconhecidos pelo nome. Ao escolher um produto na conversão, o vínculo aparece aqui.</p>`}`;
+
+        const body = el("cliBody");
+        body.querySelectorAll("[data-cli]").forEach((inp) => (inp.oninput = () => { c[inp.dataset.cli] = inp.value; save(); }));
+        body.querySelectorAll("[data-cli=name]").forEach((inp) => (inp.onchange = () => renderClients()));
+        const upd = (list, attr) => body.querySelectorAll(`[data-${attr}]`).forEach((inp) => (inp.oninput = () => {
+          const row = list[Number(inp.dataset[attr])];
+          row[inp.dataset.f] = ["price", "pct"].includes(inp.dataset.f) ? toNum(inp.value) : inp.value;
+          if (attr === "tg") el("pctSum").textContent = `${fmt(c.targets.reduce((s, t) => s + toNum(t.pct), 0))}%`;
+          save();
+        }));
+        upd(c.targets, "tg");
+        upd(c.products, "pr");
+        body.querySelectorAll("[data-tg-del]").forEach((b) => (b.onclick = () => { c.targets.splice(Number(b.dataset.tgDel), 1); save(); renderClients(); }));
+        body.querySelectorAll("[data-pr-del]").forEach((b) => (b.onclick = () => {
+          const p = c.products[Number(b.dataset.prDel)];
+          if (!confirm(`Remover "${p.name}" da tabela de ${c.name}?`)) return;
+          c.products.splice(Number(b.dataset.prDel), 1); save(); renderClients();
+        }));
+        body.querySelectorAll("[data-al-del]").forEach((b) => (b.onclick = () => { delete c.aliases[b.dataset.alDel]; save(); renderClients(); }));
+        el("tgAdd").onclick = () => { c.targets.push({ id: newId("t"), name: "Novo pão", price: 1, pct: 0, unit: "und" }); save(); renderClients(); };
+        el("prAdd").onclick = () => { c.products.push({ id: newId("p"), name: "Novo produto", price: 0 }); save(); renderClients(); };
+      }
+
+      // ---------- Histórico ----------
+      function renderHist() {
+        const h = data.history;
+        el("histTable").innerHTML = h.length
+          ? `<table class="grid"><thead><tr><th>Salvo em</th><th>Cliente</th><th>Período</th><th>Total</th><th>Faturar em pão</th><th></th></tr></thead><tbody>
+            ${h.map((x) => `<tr><td>${esc(new Date(x.at).toLocaleString("pt-BR"))}${x.by ? `<br><span class="hint">${esc(x.by)}</span>` : ""}</td><td class="left">${esc(x.client)}</td><td>${esc(x.period || "—")}</td>
+              <td class="right">${money(x.total)}</td><td class="left">${(x.results || []).map((t) => `<strong>${fmt(t.qty, 0)} ${esc(t.unit)}</strong> ${esc(t.name)} (${fmt(t.pct)}%)`).join("<br>")}</td>
+              <td><button type="button" class="btn small danger" data-h-del="${esc(x.id)}">×</button></td></tr>`).join("")}
+          </tbody></table>`
+          : `<p class="hint">Nenhuma conversão salva ainda.</p>`;
+        el("histTable").querySelectorAll("[data-h-del]").forEach((b) => (b.onclick = () => {
+          if (!confirm("Apagar esta conversão do histórico?")) return;
+          data.history = data.history.filter((x) => x.id !== b.dataset.hDel);
+          save();
+          renderHist();
+        }));
+      }
+
+      function render() {
+        renderTabs();
+        if (ui.view === "conv") renderConv();
+        if (ui.view === "clients") renderClients();
+        if (ui.view === "hist") renderHist();
+      }
+
+      // ---------- Eventos ----------
+      el("pdfInput").onchange = (e) => { openPdf(e.target.files[0]); e.target.value = ""; };
+      const drop = el("drop");
+      ["dragenter", "dragover"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("over"); }));
+      ["dragleave", "drop"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("over"); }));
+      drop.addEventListener("drop", (e) => openPdf(e.dataTransfer.files[0]));
+      el("convClient").onchange = (e) => { ui.clientId = e.target.value; ui.manual.forEach((m) => (m.productId = "")); renderConv(); };
+      el("addManual").onclick = () => { ui.manual.push({ productId: "", qty: 1 }); renderConv(); };
+      el("saveHist").onclick = saveHistory;
+      el("printConv").onclick = printConv;
+      el("cliSelect").onchange = (e) => { ui.cliId = e.target.value; renderClients(); };
+      el("cliAdd").onclick = () => {
+        const name = prompt("Nome do novo cliente (como aparece no PDF):");
+        if (!name || !name.trim()) return;
+        const base = clientById(ui.cliId);
+        const c = { id: newId("cli"), name: name.trim(), match: name.trim(), products: base ? clone(base.products) : [], targets: base ? clone(base.targets) : [], aliases: {} };
+        data.clients.push(c);
+        ui.cliId = c.id;
+        save();
+        renderClients();
+      };
+      el("cliDel").onclick = () => {
+        const c = clientById(ui.cliId);
+        if (!c || !confirm(`Excluir o cliente "${c.name}" e a tabela de preços dele?`)) return;
+        data.clients = data.clients.filter((x) => x.id !== c.id);
+        ui.cliId = "";
+        save();
+        renderClients();
+      };
+
+      load();
+    </script>
+  </body>
+</html>

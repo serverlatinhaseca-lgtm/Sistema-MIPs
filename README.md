@@ -2,7 +2,7 @@
 
 > Portal interno para padronização operacional, gestão de receitas, avaliações de desempenho, reclamações e ferramentas de produção.
 
-![Versão](https://img.shields.io/badge/versão-2.14.3-ff8d2f)
+![Versão](https://img.shields.io/badge/versão-2.15.0-ff8d2f)
 ![React](https://img.shields.io/badge/React-18-61dafb)
 ![Node.js](https://img.shields.io/badge/Node.js-22-339933)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-4169e1)
@@ -11,6 +11,10 @@
 ## Sobre o sistema
 
 O Sistema Central reúne em um único portal os processos internos da Nova Esperança. A aplicação funciona em computadores e celulares, possui modo claro e escuro e separa os acessos conforme a função de cada usuário.
+
+### Novidades da versão 2.15.0
+
+- **Conversão em pão** (Ferramentas → `/ferramentas/conversao`, só Administrador): solte o PDF do "Relatório de Clientes" e a ferramenta lê cliente, período e itens, aplica a tabela de preços do cliente (preços da planilha "Calculadora") e converte o total em pão para faturar (ex.: 50% francês + 50% leite, arredondado para cima). Mostra também "tudo em um pão só", salva no histórico e imprime. Item novo no relatório? Escolha o produto uma vez e ele fica guardado para os próximos.
 
 ### Novidades da versão 2.14.3
 

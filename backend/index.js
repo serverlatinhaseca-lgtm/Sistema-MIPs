@@ -34,6 +34,19 @@ if (!JWT_SECRET || !ADMIN_INITIAL_PASSWORD) {
 app.use(helmet({ crossOriginResourcePolicy: false }));
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
+// Fallback: capture raw body for Docker Desktop on Windows (strips Content-Type)
+app.use((req, res, next) => {
+  if (!req.body && req.method !== 'GET' && req.method !== 'HEAD' && req.headers['content-length']) {
+    let data = '';
+    req.on('data', chunk => { data += chunk; });
+    req.on('end', () => {
+      try { req.body = data ? JSON.parse(data) : {}; } catch { req.body = {}; }
+      next();
+    });
+  } else {
+    next();
+  }
+});
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 const uploadDir = path.join(__dirname, 'uploads');
@@ -435,7 +448,7 @@ const normalizarStatusUsuario = (status) => String(status || '').trim().toLowerC
 const BLOQUEIO_MUDAR_SITUACAO = 'Acesso bloqueado para usuários com a situação alterada.';
 const restringirAoProprioTime = (perfil) => normalizarPerfil(perfil) === 'editor';
 
-const CHAVES_FERRAMENTAS_ADMIN = new Set(['etiquetas', 'caixas', 'romaneio']);
+const CHAVES_FERRAMENTAS_ADMIN = new Set(['etiquetas', 'caixas', 'romaneio', 'conversao']);
 
 app.get('/api/ferramentas-admin/:chave', verificarToken, somenteAdministrador, async (req, res) => {
   if (!CHAVES_FERRAMENTAS_ADMIN.has(req.params.chave)) return res.status(404).json({ error: 'Ferramenta não encontrada' });
@@ -514,9 +527,10 @@ function alteracoesReceita(anterior, posterior) {
 
 // AUTH
 app.post('/api/auth/login', async (req, res) => {
-  const { usuario, senha } = req.body;
+  // Fallback: Docker Desktop on Windows strips POST body; allow query params
+  const { usuario, senha } = (req.body && Object.keys(req.body).length ? req.body : req.query);
   try {
-    const result = await pool.query('SELECT * FROM usuarios WHERE email = $1', [usuario]);
+    const result = await pool.query('SELECT * FROM usuarios WHERE LOWER(email) = LOWER($1)', [usuario]);
     if (result.rows.length === 0) return res.status(401).json({ error: 'Usuário não encontrado' });
     const user = result.rows[0];
     const isValid = await bcrypt.compare(senha, user.senha);
