@@ -227,18 +227,27 @@
       const fold = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
       const slug = (s) => fold(s).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "x";
       const newId = (p) => `${p}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+      // Todos os produtos de todas as abas (sem repetir; preço da 1ª aba em que aparece).
+      const ALL_PRODUCTS = [];
+      SEED.forEach((c) => c.products.forEach(([name, price]) => {
+        if (!ALL_PRODUCTS.some((p) => p.id === slug(name))) ALL_PRODUCTS.push({ id: slug(name), name, price });
+      }));
+      // Cada cliente: a própria tabela primeiro (preço da aba dele) + o que só existe nas outras abas.
+      function addAllProducts(client) {
+        const have = new Set(client.products.map((p) => p.id));
+        ALL_PRODUCTS.forEach((p) => { if (!have.has(p.id)) client.products.push({ ...p }); });
+      }
       function defaultData() {
-        return {
-          clients: SEED.map((c) => ({
-            id: slug(c.name),
-            name: c.name,
-            match: c.match,
-            products: c.products.map(([name, price]) => ({ id: slug(name), name, price })),
-            targets: c.targets.map(([name, price, pct, unit]) => ({ id: slug(name), name, price, pct, unit })),
-            aliases: {},
-          })),
-          history: [],
-        };
+        const clients = SEED.map((c) => ({
+          id: slug(c.name),
+          name: c.name,
+          match: c.match,
+          products: c.products.map(([name, price]) => ({ id: slug(name), name, price })),
+          targets: c.targets.map(([name, price, pct, unit]) => ({ id: slug(name), name, price, pct, unit })),
+          aliases: {},
+        }));
+        clients.forEach(addAllProducts);
+        return { clients, history: [], allProducts: true };
       }
 
       // ---------- Estado ----------
@@ -294,6 +303,7 @@
       function mergeData(local, server, base) {
         if (!server) return clone(local);
         return {
+          allProducts: true,
           clients: mergeList(local.clients, server.clients, base?.clients),
           history: mergeList(local.history, server.history, base?.history).sort((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, 300),
         };
@@ -302,10 +312,10 @@
       const httpError = (status) => Object.assign(new Error(`HTTP ${status}`), { status });
       function normalize(d) {
         if (!d || typeof d !== "object" || !Array.isArray(d.clients)) return defaultData();
-        return {
-          clients: d.clients.map((c) => ({ products: [], targets: [], aliases: {}, match: "", ...c })),
-          history: Array.isArray(d.history) ? d.history : [],
-        };
+        const clients = d.clients.map((c) => ({ products: [], targets: [], aliases: {}, match: "", ...c }));
+        // Dados salvos antes de juntar as abas: completa uma vez (produto apagado depois não volta).
+        if (!d.allProducts) clients.forEach(addAllProducts);
+        return { clients, history: Array.isArray(d.history) ? d.history : [], allProducts: true };
       }
       async function readServer() {
         const r = await fetch(api, { headers: authHeader(), cache: "no-store" });

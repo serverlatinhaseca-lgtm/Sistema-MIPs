@@ -18,6 +18,11 @@ Unimed Sanja, São José, Ambev). Agora: soltar o PDF do "Relatório de Clientes
 - "Unimed Jaca", "Unimed Sanja" e "São José" sem texto de reconhecimento: no 1º PDF, escolher a
   tabela e clicar "Sempre usar … para este PDF".
 
+- A pedido, cada cliente tem **todos os produtos de todas as abas** (48): a própria aba primeiro,
+  com o preço dela; o que só existe em outra aba entra com o preço da 1ª aba onde aparece
+  (ordem Sants, Unimed Jaca, Unimed Sanja, São José, Ambev). Flag `allProducts` completa dados
+  salvos antigos uma única vez.
+
 ## Teste
 Relatório (23).pdf (Santos Dumont, 08 a 14/11/2026): 10 itens lidos, quantidades iguais ao
 "Produtos Totais"; 9 casados automaticamente, "Leite em caixinha Zero Lactose" fica para escolher.
