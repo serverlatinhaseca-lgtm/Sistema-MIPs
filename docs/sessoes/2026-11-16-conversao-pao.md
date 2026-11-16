@@ -15,8 +15,10 @@ Unimed Sanja, São José, Ambev). Agora: soltar o PDF do "Relatório de Clientes
 - Divisão por % configurável por cliente; todas as abas vieram com 50/50 — as outras abas da
   planilha usavam fórmulas diferentes (Unimed/São José: total inteiro em cada pão; Ambev: itens de
   francês viram francês e o resto vira leite). Ajustar em "Clientes e preços" se necessário.
-- "Unimed Jaca", "Unimed Sanja" e "São José" sem texto de reconhecimento: no 1º PDF, escolher a
-  tabela e clicar "Sempre usar … para este PDF".
+- Nomes dos clientes como no sistema de pedidos: abas Unimed Jaca → "Unimed - Jacarei",
+  Unimed Sanja → "Unimed Pronto Atendimento SJC", Ambev → "Ambev Jacareí" (reconhecidos no PDF).
+  "São José" ficou sem texto de reconhecimento: no 1º PDF, escolher a tabela e clicar
+  "Sempre usar … para este PDF".
 
 - A pedido, cada cliente tem **todos os produtos de todas as abas** (48): a própria aba primeiro,
   com o preço dela; o que só existe em outra aba entra com o preço da 1ª aba onde aparece
