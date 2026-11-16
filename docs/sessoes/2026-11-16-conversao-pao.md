@@ -25,6 +25,13 @@ Unimed Sanja, São José, Ambev). Agora: soltar o PDF do "Relatório de Clientes
   (ordem Sants, Unimed Jaca, Unimed Sanja, São José, Ambev). Flag `allProducts` completa dados
   salvos antigos uma única vez.
 
+- Depois (pedido): **tabela única** de produtos e preços para todos — "são todos o mesmo preço".
+  Valem os preços do Santos Dumont; São José passou a usar Presunto R$ 35 e Pão de forma integral
+  R$ 16 (antes 30 e 15 na aba dela). **Ambev tem preço diferente**: exceções em "Regras dos
+  clientes" → Pão francês cortado 0,70, Pão de forma integral 15, Presunto 30, Lata de milho 56.
+  Cada cliente guarda só as regras (reconhecer no PDF, pães/%) e os preços próprios. Vínculos
+  item do PDF → produto valem para todos. Migração automática dos dados já salvos (v1 → v2).
+
 ## Teste
 Relatório (23).pdf (Santos Dumont, 08 a 14/11/2026): 10 itens lidos, quantidades iguais ao
 "Produtos Totais"; 9 casados automaticamente, "Leite em caixinha Zero Lactose" fica para escolher.

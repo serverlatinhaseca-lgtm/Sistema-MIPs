@@ -148,10 +148,17 @@
         </div>
       </section>
 
-      <!-- CLIENTES E PREÇOS -->
+      <!-- PRODUTOS E PREÇOS (tabela única) -->
+      <section class="panel" id="viewProducts" hidden>
+        <h2>Produtos e preços</h2>
+        <p class="sub">Tabela única, vale para todos os clientes. Cliente com preço próprio (ex.: Ambev) tem as exceções em "Regras dos clientes".</p>
+        <div id="prodBody"></div>
+      </section>
+
+      <!-- REGRAS DOS CLIENTES -->
       <section class="panel" id="viewClients" hidden>
-        <h2>Clientes, preços e conversão</h2>
-        <p class="sub">Preços da planilha "Calculadora" por cliente. A conversão divide o total entre os pães pela porcentagem (ex.: 50% francês + 50% leite) e arredonda para cima, como na planilha.</p>
+        <h2>Regras dos clientes</h2>
+        <p class="sub">Como reconhecer o cliente no PDF e em que pães converter o total: a divisão é pela porcentagem (ex.: 50% francês + 50% leite), arredondando para cima como na planilha.</p>
         <div class="toolbar">
           <label class="field">Cliente<select id="cliSelect"></select></label>
           <button class="btn small" type="button" id="cliAdd">+ Novo cliente</button>
@@ -217,7 +224,7 @@
           ["Hamburguer 50g", 1], ["Farinha de Trigo", 6], ["Panetone", 13], ["Ricota", 17], ["Leite Saquinho", 13], ["Leite Especial", 13],
           ["Pão de Queijo (1KG)", 32], ["Pão francês Cortado", 0.8], ["Lata de Milho", 18], ["Bandeja de Ovo", 37.5], ["Pão francês (KG)", 0.65],
         ] },
-        { id: "ambev", oldName: "Ambev", name: "Ambev Jacareí", match: "ambev", targets: [["Pão francês", 0.6, 50, "und"], ["Pão de leite", 0.7, 50, "und"]], products: [
+        { id: "ambev", oldName: "Ambev", ownPrices: true, name: "Ambev Jacareí", match: "ambev", targets: [["Pão francês", 0.6, 50, "und"], ["Pão de leite", 0.7, 50, "und"]], products: [
           ["Pão francês", 0.6], ["Pão francês cortado", 0.7], ["Pão de leite", 0.7], ["Pão de leite cortado", 0.8], ["Pão de forma Integral", 15],
           ["Pão de forma", 12], ["Mini brioche embalado", 0.9], ["Petit Four", 130], ["Hot Dog 50g", 0.6], ["Mussarela", 60], ["Presunto", 30],
           ["Bolo 500g - cobertura", 20], ["Bolo 1,5kg - cobertura", 49], ["Hamburguer 50g", 1], ["Farinha de Trigo", 6], ["Panetone", 13],
@@ -229,28 +236,43 @@
       const fold = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
       const slug = (s) => fold(s).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "x";
       const newId = (p) => `${p}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-      // Todos os produtos de todas as abas (sem repetir; preço da 1ª aba em que aparece).
+      // Tabela única: todos os produtos das abas, preço da 1ª aba em que aparece (Ambev por último).
+      // A Ambev tem preço próprio: onde o preço dela difere da tabela única, vira "preço do cliente".
       const ALL_PRODUCTS = [];
-      SEED.forEach((c) => c.products.forEach(([name, price]) => {
+      const ownPricesOf = (c) => !!c.ownPrices;
+      [...SEED.filter((c) => !ownPricesOf(c)), ...SEED.filter(ownPricesOf)].forEach((c) => c.products.forEach(([name, price]) => {
         if (!ALL_PRODUCTS.some((p) => p.id === slug(name))) ALL_PRODUCTS.push({ id: slug(name), name, price });
       }));
-      // Cada cliente: a própria tabela primeiro (preço da aba dele) + o que só existe nas outras abas.
-      function addAllProducts(client) {
-        const have = new Set(client.products.map((p) => p.id));
-        ALL_PRODUCTS.forEach((p) => { if (!have.has(p.id)) client.products.push({ ...p }); });
+      // Preços do cliente diferentes da tabela única (só para quem tem preço próprio).
+      function seedPrices(seed, products) {
+        const prices = {};
+        if (!seed || !ownPricesOf(seed)) return prices;
+        seed.products.forEach(([name, price]) => {
+          const p = products.find((x) => x.id === slug(name));
+          if (p && Number(p.price) !== price) prices[p.id] = price;
+        });
+        return prices;
       }
+      const seedOf = (id) => SEED.find((s) => (s.id || slug(s.name)) === id);
       function defaultData() {
+        const products = ALL_PRODUCTS.map((p) => ({ ...p }));
         const clients = SEED.map((c) => ({
           id: c.id || slug(c.name),
           name: c.name,
           match: c.match,
-          products: c.products.map(([name, price]) => ({ id: slug(name), name, price })),
           targets: c.targets.map(([name, price, pct, unit]) => ({ id: slug(name), name, price, pct, unit })),
-          aliases: {},
+          prices: seedPrices(c, products),
         }));
-        clients.forEach(addAllProducts);
-        return { clients, history: [], allProducts: true };
+        return { v: 2, products, aliases: {}, clients, history: [] };
       }
+      // Preço do produto para o cliente: o próprio dele, se tiver; senão o da tabela única.
+      function priceFor(client, product) {
+        if (!product) return 0;
+        const own = client?.prices?.[product.id];
+        return own !== undefined && own !== "" && own !== null ? toNum(own) : toNum(product.price);
+      }
+      const hasOwnPrice = (client, product) => !!product && client?.prices?.[product.id] !== undefined;
+      const productById = (id) => data.products.find((p) => p.id === id);
 
       // ---------- Estado ----------
       let data = defaultData();
@@ -302,10 +324,22 @@
         (local || []).forEach((l) => { if (!S.has(l.id) && (!B || !B.has(l.id))) result.push(clone(l)); });
         return result;
       }
+      // Mesmo princípio para objetos chave → valor (vínculos item do PDF → produto).
+      function mergeMap(local = {}, server = {}, base) {
+        const result = clone(server || {});
+        Object.keys(local).forEach((k) => {
+          const changed = base ? !equal(local[k], base[k]) : !(k in result);
+          if (changed) result[k] = clone(local[k]);
+        });
+        if (base) Object.keys(base).forEach((k) => { if (!(k in local) && equal(result[k], base[k])) delete result[k]; });
+        return result;
+      }
       function mergeData(local, server, base) {
         if (!server) return clone(local);
         return {
-          allProducts: true,
+          v: 2,
+          products: mergeList(local.products, server.products, base?.products),
+          aliases: mergeMap(local.aliases, server.aliases, base?.aliases),
           clients: mergeList(local.clients, server.clients, base?.clients),
           history: mergeList(local.history, server.history, base?.history).sort((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, 300),
         };
@@ -314,17 +348,37 @@
       const httpError = (status) => Object.assign(new Error(`HTTP ${status}`), { status });
       function normalize(d) {
         if (!d || typeof d !== "object" || !Array.isArray(d.clients)) return defaultData();
-        const clients = d.clients.map((c) => ({ products: [], targets: [], aliases: {}, match: "", ...c }));
-        // Dados salvos antes de juntar as abas: completa uma vez (produto apagado depois não volta).
-        if (!d.allProducts) clients.forEach(addAllProducts);
+        const history = Array.isArray(d.history) ? d.history : [];
         // Nomes das abas da planilha → nomes do sistema de pedidos (só se ainda estiver com o nome antigo).
-        clients.forEach((c) => {
+        const rename = (c) => {
           const s = SEED.find((x) => x.id === c.id && x.oldName === c.name);
-          if (!s) return;
-          c.name = s.name;
-          if (!String(c.match || "").trim()) c.match = s.match;
+          if (s) { c.name = s.name; if (!String(c.match || "").trim()) c.match = s.match; }
+          return c;
+        };
+        if (d.v === 2) {
+          return {
+            v: 2,
+            products: Array.isArray(d.products) ? d.products : [],
+            aliases: d.aliases && typeof d.aliases === "object" ? d.aliases : {},
+            clients: d.clients.map((c) => rename({ targets: [], prices: {}, match: "", ...c })),
+            history,
+          };
+        }
+        // Versão antiga (tabela por cliente) → tabela única. Base = tabela do Santos Dumont
+        // (ou do 1º cliente sem preço próprio); o que só existir em outro cliente entra junto.
+        const old = d.clients.map((c) => rename({ products: [], targets: [], aliases: {}, match: "", ...c }));
+        const own = (c) => ownPricesOf(seedOf(c.id) || {});
+        const order = [...old.filter((c) => c.id === "hospital-santos-dumont"), ...old.filter((c) => c.id !== "hospital-santos-dumont" && !own(c)), ...old.filter(own)];
+        const products = [];
+        order.forEach((c) => c.products.forEach((p) => { if (!products.some((x) => x.id === p.id)) products.push({ id: p.id, name: p.name, price: p.price }); }));
+        const aliases = {};
+        order.forEach((c) => Object.entries(c.aliases || {}).forEach(([k, a]) => { if (!(k in aliases)) aliases[k] = a; }));
+        const clients = old.map((c) => {
+          const prices = {};
+          if (own(c)) c.products.forEach((p) => { const g = products.find((x) => x.id === p.id); if (g && toNum(g.price) !== toNum(p.price)) prices[p.id] = toNum(p.price); });
+          return { id: c.id, name: c.name, match: c.match, targets: c.targets, prices };
         });
-        return { clients, history: Array.isArray(d.history) ? d.history : [], allProducts: true };
+        return { v: 2, products, aliases, clients, history };
       }
       async function readServer() {
         const r = await fetch(api, { headers: authHeader(), cache: "no-store" });
@@ -478,10 +532,10 @@
       const STOP = new Set(["de", "da", "do", "das", "dos", "em", "e", "com", "individual", "embalado", "embalada", "embalados", "caixa", "peca", "gramas", "gr", "g", "und", "un", "unidade", "pct", "lt", "litro", "kilo", "fatiado", "fatiada"]);
       const KEY = ["mini", "integral", "leite", "frances", "forma", "kg", "cortado", "margarina", "coco", "creme", "cenoura", "gluten", "brioche", "hamburguer", "bolo", "catarina"];
       const tokens = (s) => fold(s).replace(/[^a-z0-9]+/g, " ").split(" ").filter((t) => t && !STOP.has(t) && !/^\d+([.,]\d+)?(kg|g|ml|lt|l)?$/.test(t));
-      function autoMatch(client, label) {
+      function autoMatch(label) {
         const pt = new Set(tokens(label));
         let best = null, bestN = 0;
-        client.products.forEach((p) => {
+        data.products.forEach((p) => {
           const tk = tokens(p.name);
           if (!tk.length || !tk.every((t) => pt.has(t))) return;
           if (KEY.some((k) => pt.has(k) !== tk.includes(k))) return;
@@ -490,10 +544,10 @@
         return best;
       }
       const defaultFactor = (unit) => (["g", "gramas", "gr", "grama"].includes(fold(unit).trim()) ? 0.001 : 1);
-      function mappingFor(client, item) {
-        const a = client.aliases?.[item.key];
+      function mappingFor(item) {
+        const a = data.aliases?.[item.key];
         if (a) return { productId: a.product || "", factor: toNum(a.factor) || 1, how: "saved" };
-        const p = autoMatch(client, item.label);
+        const p = autoMatch(item.label);
         return { productId: p ? p.id : "", factor: defaultFactor(item.unit), how: p ? "auto" : "none" };
       }
       function detectClient(report) {
@@ -506,14 +560,16 @@
       // ---------- Cálculo ----------
       function compute(client) {
         const rows = (ui.report?.items || []).map((it) => {
-          const m = mappingFor(client, it);
-          const p = client.products.find((x) => x.id === m.productId);
+          const m = mappingFor(it);
+          const p = productById(m.productId);
           const qty = it.qty * m.factor;
-          return { kind: "pdf", item: it, ...m, product: p, qty, value: p ? qty * toNum(p.price) : 0 };
+          const price = priceFor(client, p);
+          return { kind: "pdf", item: it, ...m, product: p, qty, price, own: hasOwnPrice(client, p), value: p ? qty * price : 0 };
         });
         ui.manual.forEach((mm, i) => {
-          const p = client.products.find((x) => x.id === mm.productId);
-          rows.push({ kind: "manual", index: i, product: p, productId: mm.productId, qty: toNum(mm.qty), value: p ? toNum(mm.qty) * toNum(p.price) : 0 });
+          const p = productById(mm.productId);
+          const price = priceFor(client, p);
+          rows.push({ kind: "manual", index: i, product: p, productId: mm.productId, qty: toNum(mm.qty), price, own: hasOwnPrice(client, p), value: p ? toNum(mm.qty) * price : 0 });
         });
         const total = rows.reduce((t, r) => t + r.value, 0);
         const targets = client.targets.filter((t) => toNum(t.price) > 0);
@@ -528,19 +584,20 @@
 
       // ---------- Abas ----------
       function renderTabs() {
-        el("tabs").innerHTML = [["conv", "Converter relatório"], ["clients", "Clientes e preços"], ["hist", "Histórico"]]
+        el("tabs").innerHTML = [["conv", "Converter relatório"], ["products", "Produtos e preços"], ["clients", "Regras dos clientes"], ["hist", "Histórico"]]
           .map(([id, label]) => `<button type="button" class="tab ${ui.view === id ? "active" : ""}" data-view="${id}">${label}</button>`)
           .join("") + `<span class="badge ${ui.badgeError ? "error" : ""}">${esc(ui.loaded ? ui.badge || "" : "Carregando...")}</span>`;
         document.querySelectorAll("[data-view]").forEach((b) => (b.onclick = () => { ui.view = b.dataset.view; render(); }));
         el("viewConv").hidden = ui.view !== "conv";
         el("viewClients").hidden = ui.view !== "clients";
+        el("viewProducts").hidden = ui.view !== "products";
         el("viewHist").hidden = ui.view !== "hist";
       }
 
       // ---------- Converter (tela) ----------
       const productOptions = (client, selected, ignoreLabel) =>
         `<option value="">${esc(ignoreLabel)}</option>` +
-        client.products.map((p) => `<option value="${esc(p.id)}" ${p.id === selected ? "selected" : ""}>${esc(p.name)} — ${money(p.price)}</option>`).join("");
+        data.products.map((p) => `<option value="${esc(p.id)}" ${p.id === selected ? "selected" : ""}>${esc(p.name)} — ${money(priceFor(client, p))}</option>`).join("");
 
       function renderConv() {
         const rep = ui.report;
@@ -556,9 +613,9 @@
         const r = compute(client);
         const missing = r.rows.filter((x) => x.kind === "pdf" && x.how === "none");
         let warn = "";
-        if (!detected) warn += `<div class="warn">O cliente "${esc(rep.clientName)}" não está cadastrado — confira se a tabela escolhida acima é a certa${rep.clientName ? ` ou <button type="button" class="btn link" id="newFromPdf">cadastre "${esc(rep.clientName)}" copiando os preços de ${esc(client.name)}</button>` : ""}.</div>`;
+        if (!detected) warn += `<div class="warn">O cliente "${esc(rep.clientName)}" não está cadastrado — confira se o cliente escolhido acima é o certo${rep.clientName ? ` ou <button type="button" class="btn link" id="newFromPdf">cadastre "${esc(rep.clientName)}" com as mesmas regras de ${esc(client.name)}</button>` : ""}.</div>`;
         if (missing.length) warn += `<div class="warn">${missing.length} item(ns) sem produto na tabela (em amarelo). Escolha o produto ou deixe "não cobrar" — a escolha fica guardada.</div>`;
-        if (Math.round(r.pctSum) !== 100) warn += `<div class="warn">A divisão da conversão soma ${fmt(r.pctSum)}% (deveria ser 100%). Ajuste em "Clientes e preços".</div>`;
+        if (Math.round(r.pctSum) !== 100) warn += `<div class="warn">A divisão da conversão soma ${fmt(r.pctSum)}% (deveria ser 100%). Ajuste em "Regras dos clientes".</div>`;
         el("convWarn").innerHTML = warn;
 
         const body = r.rows.map((x, i) => {
@@ -566,7 +623,7 @@
             return `<tr><td class="left"><em>Adicionado à mão</em></td><td>—</td>
               <td><input class="n" data-man-qty="${x.index}" value="${esc(ui.manual[x.index].qty)}" inputmode="decimal" /></td>
               <td><select data-man-prod="${x.index}">${productOptions(client, x.productId, "— escolha o produto —")}</select></td>
-              <td>—</td><td class="right">${x.product ? money(x.product.price) : "—"}</td><td class="right">${money(x.value)}</td>
+              <td>—</td><td class="right">${x.product ? money(x.price) + (x.own ? `<br><span class="tag">preço ${esc(client.name)}</span>` : "") : "—"}</td><td class="right">${money(x.value)}</td>
               <td><button type="button" class="btn small danger" data-man-del="${x.index}">×</button></td></tr>`;
           }
           const cls = x.how === "none" ? "missing" : !x.product ? "ignored" : "";
@@ -574,19 +631,19 @@
           return `<tr class="${cls}"><td class="left">${esc(x.item.label)}</td><td>${esc(x.item.unit || "—")}</td><td class="right">${fmt(x.item.qty, 3)}</td>
             <td><div class="pick"><select data-map="${esc(x.item.key)}">${productOptions(client, x.productId, x.how === "none" ? "— escolha o produto —" : "— não cobrar —")}</select>${tag}</div></td>
             <td><input class="n" data-factor="${esc(x.item.key)}" value="${esc(String(x.factor).replace(".", ","))}" inputmode="decimal" title="Multiplica a quantidade do relatório (ex.: gramas → kg = 0,001)" /></td>
-            <td class="right">${x.product ? money(x.product.price) : "—"}</td><td class="right">${money(x.value)}</td><td></td></tr>`;
+            <td class="right">${x.product ? money(x.price) + (x.own ? `<br><span class="tag">preço ${esc(client.name)}</span>` : "") : "—"}</td><td class="right">${money(x.value)}</td><td></td></tr>`;
         }).join("");
         el("itemsTable").innerHTML = `<table class="grid"><thead><tr><th>Item do relatório</th><th>Unid.</th><th>Qtd.</th><th>Produto da tabela</th><th>Fator</th><th>Preço un.</th><th>Total</th><th></th></tr></thead>
-          <tbody>${body}<tr class="total"><td class="left" colspan="6">TOTAL (tabela do cliente)</td><td class="right">${money(r.total)}</td><td></td></tr></tbody></table>`;
+          <tbody>${body}<tr class="total"><td class="left" colspan="6">TOTAL</td><td class="right">${money(r.total)}</td><td></td></tr></tbody></table>`;
 
-        el("resultCards").innerHTML = `<div class="card money"><span>Total em produtos</span><strong>${money(r.total)}</strong><small>pela tabela de ${esc(client.name)}</small></div>` +
+        el("resultCards").innerHTML = `<div class="card money"><span>Total em produtos</span><strong>${money(r.total)}</strong><small>${Object.keys(client.prices || {}).length ? `com os preços próprios de ${esc(client.name)}` : "pela tabela única de preços"}</small></div>` +
           r.split.map((t) => `<div class="card main"><span>${esc(t.name)} · ${fmt(t.pct)}%</span><strong>${fmt(t.qty, 0)} ${esc(t.unit || "und")}</strong><small>${money(t.part)} ÷ ${money(t.price)}</small></div>`).join("");
         el("altTable").innerHTML = r.alt.length
           ? `<table class="grid"><thead><tr><th>Pão</th><th>Preço</th><th>Quantidade</th></tr></thead><tbody>${r.alt.map((t) => `<tr><td class="left">Tudo em ${esc(t.name)}</td><td class="right">${money(t.price)}</td><td><strong>${fmt(t.qty, 0)} ${esc(t.unit || "und")}</strong></td></tr>`).join("")}</tbody></table>`
-          : `<p class="hint">Cadastre os pães de conversão em "Clientes e preços".</p>`;
+          : `<p class="hint">Cadastre os pães de conversão em "Regras dos clientes".</p>`;
 
-        el("itemsTable").querySelectorAll("[data-map]").forEach((s) => (s.onchange = () => setAlias(client, s.dataset.map, { product: s.value })));
-        el("itemsTable").querySelectorAll("[data-factor]").forEach((inp) => (inp.onchange = () => setAlias(client, inp.dataset.factor, { factor: toNum(inp.value) || 1 })));
+        el("itemsTable").querySelectorAll("[data-map]").forEach((s) => (s.onchange = () => setAlias(s.dataset.map, { product: s.value })));
+        el("itemsTable").querySelectorAll("[data-factor]").forEach((inp) => (inp.onchange = () => setAlias(inp.dataset.factor, { factor: toNum(inp.value) || 1 })));
         el("itemsTable").querySelectorAll("[data-man-qty]").forEach((inp) => (inp.onchange = () => { ui.manual[inp.dataset.manQty].qty = inp.value; renderConv(); }));
         el("itemsTable").querySelectorAll("[data-man-prod]").forEach((s) => (s.onchange = () => { ui.manual[s.dataset.manProd].productId = s.value; renderConv(); }));
         el("itemsTable").querySelectorAll("[data-man-del]").forEach((b) => (b.onclick = () => { ui.manual.splice(Number(b.dataset.manDel), 1); renderConv(); }));
@@ -598,18 +655,19 @@
         };
         const nf = el("newFromPdf");
         if (nf) nf.onclick = () => {
-          const c = { ...clone(client), id: newId("cli"), name: rep.clientName, match: rep.clientName, aliases: {} };
+          const c = { ...clone(client), id: newId("cli"), name: rep.clientName, match: rep.clientName };
           data.clients.push(c);
           ui.clientId = c.id;
           save();
           renderConv();
         };
       }
-      function setAlias(client, key, patch) {
+      // Vínculo vale para todos os clientes (a tabela de produtos é uma só).
+      function setAlias(key, patch) {
         const item = ui.report.items.find((i) => i.key === key);
-        const cur = mappingFor(client, item);
-        client.aliases = client.aliases || {};
-        client.aliases[key] = { product: cur.productId, factor: cur.factor, ...patch };
+        const cur = mappingFor(item);
+        data.aliases = data.aliases || {};
+        data.aliases[key] = { product: cur.productId, factor: cur.factor, ...patch };
         save();
         renderConv();
       }
@@ -648,7 +706,7 @@
           period: ui.report.period,
           file: ui.report.fileName || "",
           total: Math.round(r.total * 100) / 100,
-          lines: r.rows.filter((x) => x.product).map((x) => ({ label: x.item?.label || "Adicionado à mão", product: x.product.name, qty: x.qty, price: toNum(x.product.price), value: Math.round(x.value * 100) / 100 })),
+          lines: r.rows.filter((x) => x.product).map((x) => ({ label: x.item?.label || "Adicionado à mão", product: x.product.name, qty: x.qty, price: x.price, value: Math.round(x.value * 100) / 100 })),
           results: r.split.map((t) => ({ name: t.name, pct: toNum(t.pct), price: toNum(t.price), unit: t.unit || "und", qty: t.qty })),
         });
         data.history = data.history.slice(0, 300);
@@ -663,7 +721,7 @@
         el("printArea").innerHTML = `<h1>Conversão em pão — ${esc(client.name)}</h1>
           <p>${ui.report.period ? `Período: <strong>${esc(ui.report.period)}</strong> · ` : ""}Relatório: ${esc(ui.report.fileName || "")} · Impresso em ${new Date().toLocaleString("pt-BR")}</p>
           <table class="doc"><thead><tr><th>Item do relatório</th><th>Produto da tabela</th><th>Qtd.</th><th>Preço un.</th><th>Total</th></tr></thead><tbody>
-          ${r.rows.filter((x) => x.product).map((x) => `<tr><td class="left">${esc(x.item?.label || "Adicionado à mão")}</td><td class="left">${esc(x.product.name)}</td><td>${fmt(x.qty, 3)}</td><td class="right">${money(x.product.price)}</td><td class="right">${money(x.value)}</td></tr>`).join("")}
+          ${r.rows.filter((x) => x.product).map((x) => `<tr><td class="left">${esc(x.item?.label || "Adicionado à mão")}</td><td class="left">${esc(x.product.name)}</td><td>${fmt(x.qty, 3)}</td><td class="right">${money(x.price)}</td><td class="right">${money(x.value)}</td></tr>`).join("")}
           <tr class="total"><td class="left" colspan="4">TOTAL</td><td class="right">${money(r.total)}</td></tr></tbody></table>
           <h2>Faturar em pão</h2>
           <table class="doc"><thead><tr><th>Pão</th><th>%</th><th>Valor</th><th>Preço un.</th><th>Quantidade</th></tr></thead><tbody>
@@ -680,7 +738,9 @@
         const c = clientById(ui.cliId);
         if (!c) { el("cliBody").innerHTML = `<p class="hint">Nenhum cliente cadastrado.</p>`; return; }
         const pctSum = c.targets.reduce((s, t) => s + toNum(t.pct), 0);
-        const aliases = Object.entries(c.aliases || {});
+        c.prices = c.prices || {};
+        const own = Object.entries(c.prices).map(([id, price]) => ({ id, price, p: productById(id) })).filter((x) => x.p);
+        const free = data.products.filter((p) => !(p.id in c.prices));
         el("cliBody").innerHTML = `
           <div class="toolbar">
             <label class="field">Nome<input data-cli="name" value="${esc(c.name)}" style="min-width:260px" /></label>
@@ -694,37 +754,62 @@
             <tr class="total"><td class="left" colspan="3">Soma das porcentagens</td><td id="pctSum">${fmt(pctSum)}%</td><td></td></tr>
           </tbody></table></div>
           <div class="toolbar" style="margin-top:8px"><button type="button" class="btn small" id="tgAdd">+ Pão de conversão</button><span class="hint">Pão com 0% não entra na divisão, mas aparece em "Se fosse tudo em um pão só".</span></div>
-          <h3>Tabela de preços (${c.products.length})</h3>
-          <div class="scroll"><table class="grid"><thead><tr><th>Produto</th><th>Preço un.</th><th></th></tr></thead><tbody>
-            ${c.products.map((p, i) => `<tr><td><input data-pr="${i}" data-f="name" value="${esc(p.name)}" style="min-width:280px" /></td><td><input class="n" data-pr="${i}" data-f="price" value="${esc(String(p.price).replace(".", ","))}" inputmode="decimal" /></td>
-              <td><button type="button" class="btn small danger" data-pr-del="${i}">×</button></td></tr>`).join("")}
-          </tbody></table></div>
-          <div class="toolbar" style="margin-top:8px"><button type="button" class="btn small" id="prAdd">+ Produto</button></div>
-          <h3>Itens do relatório já vinculados (${aliases.length})</h3>
-          ${aliases.length ? `<div class="scroll"><table class="grid"><thead><tr><th>Item do relatório</th><th>Produto</th><th>Fator</th><th></th></tr></thead><tbody>
-            ${aliases.map(([k, a]) => `<tr><td class="left">${esc(k)}</td><td class="left">${esc(c.products.find((p) => p.id === a.product)?.name || "não cobrar")}</td><td>${fmt(a.factor, 4)}</td><td><button type="button" class="btn small" data-al-del="${esc(k)}">Esquecer</button></td></tr>`).join("")}
-          </tbody></table></div>` : `<p class="hint">Nenhum ainda — os itens são reconhecidos pelo nome. Ao escolher um produto na conversão, o vínculo aparece aqui.</p>`}`;
+          <h3>Preços diferentes deste cliente (${own.length})</h3>
+          <p class="hint" style="margin-top:-4px">Só para cliente com preço próprio (ex.: Ambev). O que não estiver aqui usa a tabela única de "Produtos e preços".</p>
+          ${own.length ? `<div class="scroll"><table class="grid"><thead><tr><th>Produto</th><th>Tabela única</th><th>Preço deste cliente</th><th></th></tr></thead><tbody>
+            ${own.map((x) => `<tr><td class="left">${esc(x.p.name)}</td><td class="right">${money(x.p.price)}</td><td><input class="n" data-own="${esc(x.id)}" value="${esc(String(x.price).replace(".", ","))}" inputmode="decimal" /></td>
+              <td><button type="button" class="btn small" data-own-del="${esc(x.id)}">Usar tabela única</button></td></tr>`).join("")}
+          </tbody></table></div>` : ""}
+          <div class="toolbar" style="margin-top:8px">
+            <label class="field">Produto<select id="ownProd">${free.map((p) => `<option value="${esc(p.id)}">${esc(p.name)} — ${money(p.price)}</option>`).join("")}</select></label>
+            <button type="button" class="btn small" id="ownAdd" ${free.length ? "" : "disabled"}>+ Preço diferente</button>
+          </div>`;
 
         const body = el("cliBody");
         body.querySelectorAll("[data-cli]").forEach((inp) => (inp.oninput = () => { c[inp.dataset.cli] = inp.value; save(); }));
         body.querySelectorAll("[data-cli=name]").forEach((inp) => (inp.onchange = () => renderClients()));
-        const upd = (list, attr) => body.querySelectorAll(`[data-${attr}]`).forEach((inp) => (inp.oninput = () => {
-          const row = list[Number(inp.dataset[attr])];
+        body.querySelectorAll("[data-tg]").forEach((inp) => (inp.oninput = () => {
+          const row = c.targets[Number(inp.dataset.tg)];
           row[inp.dataset.f] = ["price", "pct"].includes(inp.dataset.f) ? toNum(inp.value) : inp.value;
-          if (attr === "tg") el("pctSum").textContent = `${fmt(c.targets.reduce((s, t) => s + toNum(t.pct), 0))}%`;
+          el("pctSum").textContent = `${fmt(c.targets.reduce((s, t) => s + toNum(t.pct), 0))}%`;
           save();
         }));
-        upd(c.targets, "tg");
-        upd(c.products, "pr");
+        body.querySelectorAll("[data-own]").forEach((inp) => (inp.oninput = () => { c.prices[inp.dataset.own] = toNum(inp.value); save(); }));
+        body.querySelectorAll("[data-own-del]").forEach((b) => (b.onclick = () => { delete c.prices[b.dataset.ownDel]; save(); renderClients(); }));
         body.querySelectorAll("[data-tg-del]").forEach((b) => (b.onclick = () => { c.targets.splice(Number(b.dataset.tgDel), 1); save(); renderClients(); }));
-        body.querySelectorAll("[data-pr-del]").forEach((b) => (b.onclick = () => {
-          const p = c.products[Number(b.dataset.prDel)];
-          if (!confirm(`Remover "${p.name}" da tabela de ${c.name}?`)) return;
-          c.products.splice(Number(b.dataset.prDel), 1); save(); renderClients();
-        }));
-        body.querySelectorAll("[data-al-del]").forEach((b) => (b.onclick = () => { delete c.aliases[b.dataset.alDel]; save(); renderClients(); }));
         el("tgAdd").onclick = () => { c.targets.push({ id: newId("t"), name: "Novo pão", price: 1, pct: 0, unit: "und" }); save(); renderClients(); };
-        el("prAdd").onclick = () => { c.products.push({ id: newId("p"), name: "Novo produto", price: 0 }); save(); renderClients(); };
+        el("ownAdd").onclick = () => { const p = productById(el("ownProd").value); if (!p) return; c.prices[p.id] = toNum(p.price); save(); renderClients(); };
+      }
+
+      // ---------- Produtos e preços (tabela única) ----------
+      function renderProducts() {
+        const owners = (id) => data.clients.filter((c) => c.prices && id in c.prices).map((c) => c.name);
+        const aliases = Object.entries(data.aliases || {});
+        el("prodBody").innerHTML = `
+          <div class="scroll"><table class="grid"><thead><tr><th>Produto</th><th>Preço un.</th><th>Preço diferente em</th><th></th></tr></thead><tbody>
+            ${data.products.map((p, i) => `<tr><td><input data-pr="${i}" data-f="name" value="${esc(p.name)}" style="min-width:280px" /></td><td><input class="n" data-pr="${i}" data-f="price" value="${esc(String(p.price).replace(".", ","))}" inputmode="decimal" /></td>
+              <td class="left hint">${esc(owners(p.id).join(", "))}</td><td><button type="button" class="btn small danger" data-pr-del="${i}">×</button></td></tr>`).join("")}
+          </tbody></table></div>
+          <div class="toolbar" style="margin-top:8px"><button type="button" class="btn small" id="prAdd">+ Produto</button></div>
+          <h3>Itens do relatório já vinculados (${aliases.length})</h3>
+          ${aliases.length ? `<div class="scroll"><table class="grid"><thead><tr><th>Item do relatório</th><th>Produto</th><th>Fator</th><th></th></tr></thead><tbody>
+            ${aliases.map(([k, a]) => `<tr><td class="left">${esc(k)}</td><td class="left">${esc(productById(a.product)?.name || "não cobrar")}</td><td>${fmt(a.factor, 4)}</td><td><button type="button" class="btn small" data-al-del="${esc(k)}">Esquecer</button></td></tr>`).join("")}
+          </tbody></table></div>` : `<p class="hint">Nenhum ainda — os itens são reconhecidos pelo nome. Ao escolher um produto na conversão, o vínculo aparece aqui.</p>`}`;
+        const body = el("prodBody");
+        body.querySelectorAll("[data-pr]").forEach((inp) => (inp.oninput = () => {
+          const row = data.products[Number(inp.dataset.pr)];
+          row[inp.dataset.f] = inp.dataset.f === "price" ? toNum(inp.value) : inp.value;
+          save();
+        }));
+        body.querySelectorAll("[data-pr-del]").forEach((b) => (b.onclick = () => {
+          const p = data.products[Number(b.dataset.prDel)];
+          if (!confirm(`Remover "${p.name}" da tabela de preços?`)) return;
+          data.products.splice(Number(b.dataset.prDel), 1);
+          data.clients.forEach((c) => { if (c.prices) delete c.prices[p.id]; });
+          save(); renderProducts();
+        }));
+        body.querySelectorAll("[data-al-del]").forEach((b) => (b.onclick = () => { delete data.aliases[b.dataset.alDel]; save(); renderProducts(); }));
+        el("prAdd").onclick = () => { data.products.push({ id: newId("p"), name: "Novo produto", price: 0 }); save(); renderProducts(); };
       }
 
       // ---------- Histórico ----------
@@ -749,6 +834,7 @@
         renderTabs();
         if (ui.view === "conv") renderConv();
         if (ui.view === "clients") renderClients();
+        if (ui.view === "products") renderProducts();
         if (ui.view === "hist") renderHist();
       }
 
@@ -767,7 +853,8 @@
         const name = prompt("Nome do novo cliente (como aparece no PDF):");
         if (!name || !name.trim()) return;
         const base = clientById(ui.cliId);
-        const c = { id: newId("cli"), name: name.trim(), match: name.trim(), products: base ? clone(base.products) : [], targets: base ? clone(base.targets) : [], aliases: {} };
+        // Novo cliente começa com as regras de conversão do cliente aberto e sem preço próprio.
+        const c = { id: newId("cli"), name: name.trim(), match: name.trim(), targets: base ? clone(base.targets) : [], prices: {} };
         data.clients.push(c);
         ui.cliId = c.id;
         save();
@@ -775,7 +862,7 @@
       };
       el("cliDel").onclick = () => {
         const c = clientById(ui.cliId);
-        if (!c || !confirm(`Excluir o cliente "${c.name}" e a tabela de preços dele?`)) return;
+        if (!c || !confirm(`Excluir o cliente "${c.name}" e as regras dele?`)) return;
         data.clients = data.clients.filter((x) => x.id !== c.id);
         ui.cliId = "";
         save();
