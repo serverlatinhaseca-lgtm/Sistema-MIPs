@@ -193,14 +193,14 @@
           ["Leite Especial", 13], ["Leite de Soja", 19.98], ["Iogurte Zero", 26], ["Pão de Queijo (1KG)", 32], ["Pão francês Cortado", 0.8],
           ["Lata de Milho", 18], ["Bandeja de Ovo", 37.5], ["Tapioca 500g", 7.98], ["Pão francês (KG)", 0.65],
         ] },
-        { name: "Unimed - Jacarei", match: "unimed - jacarei, unimed jacarei", targets: [T_FRANCES, T_LEITE, ...T_EXTRA], products: [
+        { id: "unimed-jaca", oldName: "Unimed Jaca", name: "Unimed - Jacarei", match: "unimed - jacarei, unimed jacarei", targets: [T_FRANCES, T_LEITE, ...T_EXTRA], products: [
           ["Pão francês embalado", 0.79], ["Mini Pão Francês Embalado", 0.58], ["Pão Francês Integral Embalado", 1.1], ["Pão de leite embalado", 0.95],
           ["Mini pão de leite", 0.68], ["Pão de forma Integral", 16], ["Mini brioche embalado", 0.9], ["Petit Four", 130], ["Hot Dog 50g", 0.6],
           ["Mussarela", 60], ["Presunto", 35], ["Hamburguer 50g", 1], ["Farinha de Trigo", 6], ["Bolo 1,5kg - cobertura", 49], ["Panetone", 13],
           ["Ricota", 17], ["Leite Saquinho", 13], ["Pão de Queijo (1KG)", 32], ["Pão francês Cortado", 0.8], ["Lata de Milho", 18],
           ["Bandeja de Ovo", 37.5], ["Pão francês (KG)", 0.65],
         ] },
-        { name: "Unimed Pronto Atendimento SJC", match: "unimed pronto atendimento sjc", targets: [T_FRANCES, T_LEITE, ...T_EXTRA], products: [
+        { id: "unimed-sanja", oldName: "Unimed Sanja", name: "Unimed Pronto Atendimento SJC", match: "unimed pronto atendimento sjc", targets: [T_FRANCES, T_LEITE, ...T_EXTRA], products: [
           ["Pão francês embalado", 0.79], ["Mini Pão Francês Embalado", 0.58], ["Pão Francês Integral Embalado", 1.1], ["Pão de leite embalado", 0.95],
           ["Mini pão de leite", 0.68], ["Pão de forma Integral", 16], ["Mini brioche embalado", 0.9], ["Petit Four", 130], ["Hot Dog 50g", 0.6],
           ["Mussarela", 60], ["Presunto", 35], ["Hamburguer 50g", 1], ["Farinha de Trigo", 6], ["Panetone", 13], ["Ricota", 17],
@@ -215,7 +215,7 @@
           ["Hamburguer 50g", 1], ["Farinha de Trigo", 6], ["Panetone", 13], ["Ricota", 17], ["Leite Saquinho", 13], ["Leite Especial", 13],
           ["Pão de Queijo (1KG)", 32], ["Pão francês Cortado", 0.8], ["Lata de Milho", 18], ["Bandeja de Ovo", 37.5], ["Pão francês (KG)", 0.65],
         ] },
-        { name: "Ambev Jacareí", match: "ambev", targets: [["Pão francês", 0.6, 50, "und"], ["Pão de leite", 0.7, 50, "und"]], products: [
+        { id: "ambev", oldName: "Ambev", name: "Ambev Jacareí", match: "ambev", targets: [["Pão francês", 0.6, 50, "und"], ["Pão de leite", 0.7, 50, "und"]], products: [
           ["Pão francês", 0.6], ["Pão francês cortado", 0.7], ["Pão de leite", 0.7], ["Pão de leite cortado", 0.8], ["Pão de forma Integral", 15],
           ["Pão de forma", 12], ["Mini brioche embalado", 0.9], ["Petit Four", 130], ["Hot Dog 50g", 0.6], ["Mussarela", 60], ["Presunto", 30],
           ["Bolo 500g - cobertura", 20], ["Bolo 1,5kg - cobertura", 49], ["Hamburguer 50g", 1], ["Farinha de Trigo", 6], ["Panetone", 13],
@@ -239,7 +239,7 @@
       }
       function defaultData() {
         const clients = SEED.map((c) => ({
-          id: slug(c.name),
+          id: c.id || slug(c.name),
           name: c.name,
           match: c.match,
           products: c.products.map(([name, price]) => ({ id: slug(name), name, price })),
@@ -315,6 +315,13 @@
         const clients = d.clients.map((c) => ({ products: [], targets: [], aliases: {}, match: "", ...c }));
         // Dados salvos antes de juntar as abas: completa uma vez (produto apagado depois não volta).
         if (!d.allProducts) clients.forEach(addAllProducts);
+        // Nomes das abas da planilha → nomes do sistema de pedidos (só se ainda estiver com o nome antigo).
+        clients.forEach((c) => {
+          const s = SEED.find((x) => x.id === c.id && x.oldName === c.name);
+          if (!s) return;
+          c.name = s.name;
+          if (!String(c.match || "").trim()) c.match = s.match;
+        });
         return { clients, history: Array.isArray(d.history) ? d.history : [], allProducts: true };
       }
       async function readServer() {
