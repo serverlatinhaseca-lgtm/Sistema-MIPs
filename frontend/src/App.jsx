@@ -26,6 +26,7 @@ import Desabafo from './pages/Desabafo';
 import Desabafos from './pages/Desabafos';
 import InstallPrompt from './components/InstallPrompt';
 import MobileNav from './components/MobileNav';
+import CalculadoraFermento from './pages/CalculadoraFermento';
 
 import { obterSessao } from './auth';
 
@@ -58,6 +59,7 @@ export default function App() {
         <Route path="/mips/:id" element={<RotaPrivada><DetalheMIP /></RotaPrivada>} />
         <Route path="/usuarios" element={<RotaPrivada perfisPermitidos={['administrador']}><Usuarios /></RotaPrivada>} />
         <Route path="/receitas" element={<RotaPrivada perfisPermitidos={['leitor','editor','gerente','administrador']}><Receitas /></RotaPrivada>} />
+        <Route path="/fermento" element={<RotaPrivada><CalculadoraFermento /></RotaPrivada>} />
         <Route path="/avaliacoes" element={<RotaPrivada perfisPermitidos={['leitor','editor','gerente','administrador']}><Avaliacoes /></RotaPrivada>} />
         <Route path="/alterar-senha" element={<RotaPrivada><AlterarSenha /></RotaPrivada>} />
         <Route path="/configuracoes" element={<RotaPrivada perfisPermitidos={['administrador']}><Configuracoes /></RotaPrivada>} />

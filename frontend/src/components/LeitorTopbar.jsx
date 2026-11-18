@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { AlertTriangle, BookOpen, Calculator, ClipboardCheck, Home, KeyRound, LogOut, MessageCircle, Moon, Sun } from "lucide-react";
+import { AlertTriangle, BookOpen, Calculator, ClipboardCheck, Home, KeyRound, LogOut, MessageCircle, Moon, Sun, Wheat } from "lucide-react";
 import useBranding from "../useBranding";
 import NotificationBell from "./NotificationBell";
 
@@ -33,6 +33,7 @@ export default function LeitorTopbar({ titulo }) {
       {item("/dashboard", Home, "Início")}
       {item("/mips", BookOpen, "MIPs")}
       {item("/receitas", Calculator, "Receitas")}
+      {item("/fermento", Wheat, "Fermento")}
       {item("/avaliacoes", ClipboardCheck, "Avaliações")}
       {item("/reclamacoes", AlertTriangle, "Reclamações")}
       {item("/atendimento", MessageCircle, "Atendimento")}

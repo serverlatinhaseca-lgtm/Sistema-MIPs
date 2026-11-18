@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { AlertTriangle, LayoutDashboard, BookOpen, Calculator, Users, ClipboardCheck, ClipboardList, Sun, Moon, LogOut, KeyRound, Settings, Tag, Folder, ChevronDown, ChevronRight, Pin, PinOff, HeartPulse, MessageCircle, Megaphone, Building2, FileText, CalendarDays, Ghost } from 'lucide-react';
+import { AlertTriangle, LayoutDashboard, BookOpen, Calculator, Users, ClipboardCheck, ClipboardList, Sun, Moon, LogOut, KeyRound, Settings, Tag, Folder, ChevronDown, ChevronRight, Pin, PinOff, HeartPulse, MessageCircle, Megaphone, Building2, FileText, CalendarDays, Ghost, Wheat } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import useBranding from '../useBranding';
@@ -99,6 +99,7 @@ export default function Sidebar({ emDrawer = false, aoNavegar = () => {} }) {
     <IconBtn titulo="Receitas" ativo={isActive('/receitas')} abrir={() => ir('/receitas')}><Calculator size={20} /></IconBtn>
     <IconBtn titulo={user.perfil?.toLowerCase() === 'leitor' ? 'Meu desempenho' : 'Avaliações'} ativo={isActive('/avaliacoes')} abrir={() => ir('/avaliacoes')}><ClipboardCheck size={20} /></IconBtn>
     </>}
+    <IconBtn titulo="Calculadora de fermento" ativo={isActive('/fermento')} abrir={() => ir('/fermento')}><Wheat size={20} /></IconBtn>
     <IconBtn titulo="Reclamações" ativo={isActive('/reclamacoes')} abrir={() => ir('/reclamacoes')}><AlertTriangle size={20} /></IconBtn>
     {/* Mesma estrutura da barra aberta: o que está dentro de pasta aparece só como o ícone da pasta. */}
     {ehAdministrador || ehGerente ? (
@@ -156,6 +157,7 @@ export default function Sidebar({ emDrawer = false, aoNavegar = () => {} }) {
             <ClipboardCheck size={20} className="mr-3" /> {user.perfil?.toLowerCase() === 'leitor' ? 'Meu desempenho' : 'Avaliações'}
           </div>
           </>}
+          <div onClick={() => ir('/fermento')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/fermento') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}><Wheat size={20} className="mr-3" /> Fermento</div>
           <div onClick={() => ir('/reclamacoes')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/reclamacoes') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}><AlertTriangle size={20} className="mr-3" /> Reclamações</div>
           {ehPerfilRH ? (
             // Perfil RH: itens diretos (sem pasta)

@@ -18,6 +18,7 @@ const { CATEGORIAS_TICKET, STATUS_TICKET, PRIORIDADES_TICKET, SLA_HORAS, numeroT
 const AdmZip = (() => { try { return require('adm-zip'); } catch { return null; } })();
 const { MODELOS, TIPOS_FOLGA, TIMES, gerarFolgasCiclo } = require('./folgas');
 const { NIVEIS: NIVEIS_AJUDA, filtrarPorNivel } = require('./ajuda');
+const fermento = require('./fermento');
 const MODELOS_AVALIACAO = require('./modelos-avaliacao.json');
 const CLIENTES_INICIAIS = require('./clientes-iniciais.json');
 const executarArquivo = promisify(execFile);
@@ -481,6 +482,57 @@ app.put('/api/ferramentas-admin/:chave', verificarToken, somenteAdministrador, a
   } catch (err) {
     res.status(500).json({ error: 'Erro ao salvar os dados da ferramenta' });
   }
+});
+
+// ── Calculadora de fermento (todos os perfis usam; só o Administrador muda a base) ──
+// Base guardada em ferramentas_admin_estado (chave "fermento"); regra em fermento.js.
+async function carregarConfigFermento() {
+  const r = await pool.query(`SELECT dados, atualizado_em FROM ferramentas_admin_estado WHERE chave='fermento'`);
+  return { config: fermento.normalizarConfig(r.rows[0]?.dados || {}), atualizado_em: r.rows[0]?.atualizado_em || null };
+}
+
+app.get('/api/fermento/config', verificarToken, async (_req, res) => {
+  try {
+    const { config, atualizado_em } = await carregarConfigFermento();
+    res.json({ config, padrao: fermento.PADRAO, limites: fermento.LIMITES_CONFIG, atualizado_em });
+  } catch (err) { res.status(500).json({ error: 'Erro ao carregar a base do fermento' }); }
+});
+
+app.put('/api/fermento/config', verificarToken, somenteAdministrador, async (req, res) => {
+  let config;
+  try { config = fermento.validarConfig(req.body?.config || {}); } catch (err) { return res.status(400).json({ error: err.message }); }
+  try {
+    const r = await pool.query(
+      `INSERT INTO ferramentas_admin_estado (chave,dados,atualizado_por,atualizado_em)
+       VALUES ('fermento',$1,$2,CURRENT_TIMESTAMP)
+       ON CONFLICT (chave) DO UPDATE SET dados=EXCLUDED.dados, atualizado_por=EXCLUDED.atualizado_por, atualizado_em=CURRENT_TIMESTAMP
+       RETURNING atualizado_em`,
+      [JSON.stringify(config), req.usuarioId]
+    );
+    res.json({ config, atualizado_em: r.rows[0].atualizado_em });
+  } catch (err) { res.status(500).json({ error: 'Erro ao salvar a base do fermento' }); }
+});
+
+app.post('/api/fermento/calcular', verificarToken, async (req, res) => {
+  try {
+    const { config } = await carregarConfigFermento();
+    const corpo = req.body || {};
+    const resposta = { fermento: fermento.calcularFermento(corpo, config) };
+    if (corpo.agua) {
+      try { resposta.agua = fermento.calcularAgua({ ...corpo.agua, farinhaKg: corpo.farinhaKg, tempMassaC: corpo.tempMassaC, tempAmbienteC: corpo.tempAmbienteC }, config); }
+      catch (err) { resposta.agua = { erro: err.message }; }
+    }
+    if (corpo.tabela) resposta.tabela = fermento.tabelaReferencia(corpo, config);
+    res.json(resposta);
+  } catch (err) { res.status(400).json({ error: err.message }); }
+});
+
+app.post('/api/fermento/atrito', verificarToken, (req, res) => {
+  const b = req.body || {};
+  const v = ['tempMassaC', 'tempFarinhaC', 'tempAmbienteC', 'tempAguaC'].map((k) => Number(String(b[k] ?? '').replace(',', '.')));
+  if (v.some((x) => !Number.isFinite(x))) return res.status(400).json({ error: 'Informe as quatro temperaturas medidas.' });
+  const atrito = fermento.descobrirAtrito({ tempMassaC: v[0], tempFarinhaC: v[1], tempAmbienteC: v[2], tempAguaC: v[3] });
+  res.json({ atritoC: Math.round(atrito * 10) / 10 });
 });
 
 function prepararAvaliacaoDinamica(perguntas, respostas = []) {
