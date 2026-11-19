@@ -60,7 +60,12 @@ const APELIDOS = {
   'DIVFORT CAPISTRANO': 'DIVIFORT',
   'DIVFORT': 'DIVIFORT',
   'PLW ENGENHARIA': 'PLW',
+  'TIME MANSERV': 'CMP - MANSERV',
+  'MANSERV': 'CMP - MANSERV',
+  'COPA ACABAMENTO DE SUTURAS TIME MANSERV': 'CMP - MANSERV',
 };
+// Locais novos aceitos com --aceitar-novos: cadastrados na lista da entrega ao gravar.
+const locaisNovos = [];
 const TURNOS = { 1: '1º TURNO', 2: '2º TURNO', 3: '3º TURNO' };
 function lerTurno(valor) {
   const m = String(valor ?? '').match(/[123]/);
@@ -172,7 +177,8 @@ function montar(dados, entrada) {
         if (achado.como !== 'igual') avisos.push(`local "${local}" → "${achado.nome}" (${achado.como})`);
         local = achado.nome;
       } else if (ACEITAR_NOVOS) {
-        avisos.push(`${onde}: local NOVO "${local}" (não cadastrado) — aceito por --aceitar-novos.`);
+        avisos.push(`${onde}: local NOVO "${local}" (não cadastrado) — aceito por --aceitar-novos; será cadastrado em ${entrega === 'paraibuna' ? rota : entrega}.`);
+        locaisNovos.push({ lista: entrega === 'paraibuna' ? rota : entrega, nome: local });
       } else {
         return erros.push(`${onde}: local "${local}" não está cadastrado em ${entrega}${rota ? '/' + rota : ''}. Cadastrados: ${[...new Set(locaisDe(entrega, rota))].join('; ')}. Se for local novo mesmo, rode com --aceitar-novos.`);
       }
@@ -327,6 +333,17 @@ async function main() {
     novos.forEach(o => { o.id = id++; });
     const ordenar = o => ({ id: o.id, ...o });
     dados.orders = [...(dados.orders || []), ...novos.map(ordenar)];
+    if (locaisNovos.length) {
+      dados.settings = dados.settings || {};
+      dados.settings.destinations = dados.settings.destinations || {};
+      locaisNovos.forEach(({ lista, nome }) => {
+        const atual = dados.settings.destinations[lista] || (dados.settings.destinations[lista] = []);
+        if (!atual.some(n => chave(n) === chave(nome))) {
+          atual.push(nome);
+          console.log(`Local novo cadastrado em ${lista}: ${nome}`);
+        }
+      });
+    }
     await cliente.query(
       `UPDATE ferramentas_admin_estado SET dados=$1, atualizado_em=CURRENT_TIMESTAMP WHERE chave='etiquetas'`,
       [JSON.stringify(dados)]

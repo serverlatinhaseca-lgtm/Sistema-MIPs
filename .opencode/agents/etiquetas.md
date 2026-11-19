@@ -109,7 +109,8 @@ Não use `docker compose down`, `psql` direto, `git`, nem edite arquivos fora de
   Innovative Medicine (IM) → INOVATIVE MEDICINE · Manutenção Medical → MANUTENÇÃO MEDICAL ·
   Divfort /Capistrano → DIVIFORT · CGC → CGC · Plw engenharia → PLW · DWS → DWS.
 - Duas linhas da mesma área no mesmo turno (ex.: Suturas 200 e Suturas 28) = **dois pedidos separados**, não some.
-- Linha "COPA ACABAMENTO DE SUTURAS / TIME MANSERV": pergunte ao usuário onde lançar (não tem cadastro próprio).
+- Linha "COPA ACABAMENTO DE SUTURAS / TIME MANSERV" → local **`CMP - MANSERV`** (decisão do usuário 19/11/2026; cadastrado nos setores da Johnson).
+- Local novo de verdade: com OK do usuário, rode com `-AceitarNovos` — ao gravar, o script cadastra o nome na lista da entrega.
 - Bloco "Terceiros": só uma coluna de quantidade = **1º turno**. Linhas sem quantidade não entram.
 - Confira: soma de cada turno no "total manuais" da prévia = "TOTAL JOHNSON" + terceiros daquele turno.
 

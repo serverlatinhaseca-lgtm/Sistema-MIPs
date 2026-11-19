@@ -20,6 +20,13 @@ no OpenCode com `opencode/deepseek-v4.1-flash-free`, sem depender do modelo acer
 - `.opencode/agents/etiquetas.md`: agente primário com o passo a passo e as pegadinhas dos arquivos;
   permissão de bash libera extrair/prévia e pede confirmação em `-Aplicar`.
 
+## Johnson lanche com frios 20–22/11 (gravado)
+- PDFs "SEXTA 20-11", "SABADO 21-11", "DOMINGO 22-11": 44 pedidos `frios` por turno, local = "Área Solicitante".
+- "COPA ACABAMENTO DE SUTURAS / TIME MANSERV" → novo setor `CMP - MANSERV` (pedido do usuário), cadastrado em
+  `settings.destinations.johnson`. Terceiros (CGC, Divfort) no 1º turno.
+- Turnos = TOTAL JOHNSON + terceiros: sex 446/300/175, sáb 377/226/95, dom 95/70/165.
+- Backup: `backups/etiquetas-pre-johnson-20a22nov-20261119-1545.json` (não commitar).
+
 ## Teste (prévia, nada gravado)
 Arquivos `PED 35.2026.pdf` (CI 269/2026) + planilhas 4ª semana nov CIDADE/RURAL →
 `backups/pedidos-igarata-paraibuna-23a27nov.json`: 162 pedidos (78 manuais + 84 fixos).
