@@ -41,7 +41,7 @@ const PERMITIR_DUP = args.includes('--permitir-duplicado');
 const BACKUP = '/tmp/etiquetas-backup.json';
 
 const DIAS = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
-const ENTREGAS = ['igarata', 'paraibuna', 'genericas'];
+const ENTREGAS = ['igarata', 'paraibuna', 'johnson', 'genericas'];
 
 // Nomes que os PDFs/planilhas escrevem diferente do cadastro (chave já normalizada).
 const APELIDOS = {
@@ -49,7 +49,23 @@ const APELIDOS = {
   'EMEF LEONINA': 'EMEIF LEONINA VIEIRA DE BARROS',
   'EMEF LEONINA VIEIRA DE BARROS': 'EMEIF LEONINA VIEIRA DE BARROS',
   CAPS: 'CAPS (FIXO)',
+  // Johnson (coluna "Área Solicitante" do PDF de lanche com frios)
+  'SUTURAS FABRICA II': 'FAB II - ACAB. SUTURAS',
+  'SUTURAS': 'FAB II - ACAB. SUTURAS',
+  'COPA ACABAMENTO DE SUTURAS': 'FAB II - ACAB. SUTURAS',
+  'COPA FABRICA DE AGULHAS': 'AGULHAS',
+  'INNOVATIVE MEDICINE IM': 'INOVATIVE MEDICINE',
+  'INNOVATIVE MEDICINE': 'INOVATIVE MEDICINE',
+  'CMP MEDICAL': 'MANUTENÇÃO MEDICAL',
+  'DIVFORT CAPISTRANO': 'DIVIFORT',
+  'DIVFORT': 'DIVIFORT',
+  'PLW ENGENHARIA': 'PLW',
 };
+const TURNOS = { 1: '1º TURNO', 2: '2º TURNO', 3: '3º TURNO' };
+function lerTurno(valor) {
+  const m = String(valor ?? '').match(/[123]/);
+  return m ? TURNOS[m[0]] : null;
+}
 const PALAVRAS_VAZIAS = new Set([
   'EMEIF', 'EMEIEF', 'EMEI', 'EMEF', 'NEI', 'ESCOLA', 'MUNICIPAL', 'DE', 'DO', 'DA', 'DOS', 'DAS', 'E',
   'D', 'NA', 'NO', 'ENTREGAR', 'HORAS', 'HS', 'H',
@@ -62,7 +78,7 @@ function chave(texto) {
   return String(texto || '')
     .normalize('NFD').replace(/[̀-ͯ]/g, '')
     .toUpperCase()
-    .replace(/["'“”*().,;:]/g, ' ')
+    .replace(/["'“”*().,;:/]/g, ' ')
     .replace(/\s*-\s*/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -125,6 +141,7 @@ function montar(dados, entrada) {
     const d = settings.destinations || {};
     if (entrega === 'igarata') return [...(d.igarata || []), ...Object.values(settings.fixed?.igarata || {}).flat().map(f => f.destination)];
     if (entrega === 'paraibuna') return [...(d[rota] || []), ...(rota === 'cidade' ? (settings.fixed?.paraibunaCidade || []).map(f => f.destination) : [])];
+    if (entrega === 'johnson') return d.johnson || [];
     return d.genericas || [];
   };
 
@@ -135,9 +152,12 @@ function montar(dados, entrada) {
   pedidos.forEach((p, i) => {
     const onde = `pedido #${i + 1} (${p.local || '?'})`;
     const entrega = String(p.entrega || '').toLowerCase();
-    if (!ENTREGAS.includes(entrega)) return erros.push(`${onde}: entrega "${p.entrega}" inválida (use igarata, paraibuna ou genericas).`);
+    if (!ENTREGAS.includes(entrega)) return erros.push(`${onde}: entrega "${p.entrega}" inválida (use igarata, paraibuna, johnson ou genericas).`);
     const rota = entrega === 'paraibuna' ? String(p.rota || '').toLowerCase() : null;
     if (entrega === 'paraibuna' && !['cidade', 'roca'].includes(rota)) return erros.push(`${onde}: Paraibuna precisa de "rota": "cidade" ou "roca".`);
+    const turno = entrega === 'johnson' ? lerTurno(p.turno) : null;
+    if (entrega === 'johnson' && !turno) return erros.push(`${onde}: Johnson precisa de "turno": 1, 2 ou 3.`);
+    if (entrega === 'johnson' && !p.produto) p.produto = 'frios';
     if (!/^\d{4}-\d{2}-\d{2}$/.test(p.data || '') || Number.isNaN(Date.parse(p.data))) return erros.push(`${onde}: data "${p.data}" inválida (use AAAA-MM-DD).`);
     const qtd = Number(p.quantidade);
     if (!Number.isInteger(qtd) || qtd <= 0) return erros.push(`${onde}: quantidade "${p.quantidade}" tem que ser inteiro > 0.`);
@@ -158,19 +178,19 @@ function montar(dados, entrada) {
       }
     }
     const d = diaSemana(p.data);
-    if (d === 0 || d === 6) avisos.push(`${onde}: ${fmt(p.data)} é ${DIAS[d]} — confira a data.`);
+    if ((d === 0 || d === 6) && entrega !== 'johnson') avisos.push(`${onde}: ${fmt(p.data)} é ${DIAS[d]} — confira a data.`);
     novos.push({
       date: p.data,
       parts: dividir(qtd, produto.packageSize),
       route: rota,
-      shift: null,
+      shift: turno,
       total: qtd,
       source: 'manual',
       product: produtoGravado(produto),
       delivery: entrega,
       afternoon: entrega === 'igarata' ? Boolean(p.tarde) : false,
       destination: local,
-      includeDateLabels: false,
+      includeDateLabels: entrega === 'johnson',
     });
   });
 
@@ -216,23 +236,26 @@ function montar(dados, entrada) {
   }
 
   // Duplicados (contra o banco e dentro do próprio arquivo)
-  const assinatura = o => [o.delivery, o.route || '', o.date, chave(o.destination), o.product.id, o.afternoon ? 'tarde' : ''].join('|');
+  // "sub" = rota (Paraibuna) ou turno (Johnson)
+  const sub = o => o.route || o.shift || '';
+  const assinatura = o => [o.delivery, sub(o), o.date, chave(o.destination), o.product.id, o.afternoon ? 'tarde' : ''].join('|');
   const noBanco = new Map(existentes.map(o => [assinatura({ ...o, product: o.product || {} }), o]));
   const noArquivo = new Set();
   novos.forEach(o => {
-    const a = assinatura(o);
-    const txt = `${o.delivery}${o.route ? '/' + o.route : ''} ${fmt(o.date)} ${o.destination} ${o.product.name} ${o.total}`;
-    if (noArquivo.has(a)) avisos.push(`REPETIDO no próprio arquivo: ${txt} (se for lanche da tarde, marque "tarde": true).`);
+    const a = assinatura(o) + '|' + o.total; // no arquivo, linhas com quantidades diferentes são pedidos distintos
+    const txt = `${o.delivery}${sub(o) ? '/' + sub(o) : ''} ${fmt(o.date)} ${o.destination} ${o.product.name} ${o.total}`;
+    if (noArquivo.has(a)) avisos.push(`REPETIDO no próprio arquivo: ${txt} (ok se o arquivo tem mesmo duas linhas iguais; se for lanche da tarde, marque "tarde": true).`);
     noArquivo.add(a);
-    if (o.source === 'manual' && noBanco.has(a)) {
-      const msg = `JÁ EXISTE no banco: ${txt} (banco tem ${noBanco.get(a).total}).`;
+    const b = assinatura(o);
+    if (o.source === 'manual' && noBanco.has(b)) {
+      const msg = `JÁ EXISTE no banco: ${txt} (banco tem ${noBanco.get(b).total}).`;
       if (PERMITIR_DUP) avisos.push(msg); else erros.push(`${msg} Use --permitir-duplicado só se for de propósito.`);
     }
   });
-  const diasNovos = new Set(novos.filter(o => o.source === 'manual').map(o => `${o.delivery}|${o.route || ''}|${o.date}`));
+  const diasNovos = new Set(novos.filter(o => o.source === 'manual').map(o => `${o.delivery}|${sub(o)}|${o.date}`));
   diasNovos.forEach(d => {
     const [entrega, rota, data] = d.split('|');
-    const n = existentes.filter(o => o.delivery === entrega && (o.route || '') === rota && o.date === data && o.source === 'manual').length;
+    const n = existentes.filter(o => o.delivery === entrega && sub(o) === rota && o.date === data && o.source === 'manual').length;
     if (n) avisos.push(`ATENÇÃO: ${entrega}${rota ? '/' + rota : ''} ${fmt(data)} já tem ${n} pedido(s) manual(is) no banco — confira se não está lançando de novo.`);
   });
   return novos;
@@ -241,7 +264,7 @@ function montar(dados, entrada) {
 function resumo(novos) {
   const grupos = new Map();
   novos.forEach(o => {
-    const k = `${o.delivery}|${o.route || ''}|${o.date}`;
+    const k = `${o.delivery}|${o.route || o.shift || ''}|${o.date}`;
     if (!grupos.has(k)) grupos.set(k, []);
     grupos.get(k).push(o);
   });

@@ -1,5 +1,5 @@
 ---
-description: Lança pedidos de etiquetas (Igaratá, Paraibuna) no banco do Sistema MIPs a partir do PDF da prefeitura e das planilhas .xls
+description: Lança pedidos de etiquetas (Igaratá, Paraibuna, Johnson lanche com frios) no banco do Sistema MIPs a partir de PDF e planilhas .xls
 mode: primary
 model: opencode/deepseek-v4.1-flash-free
 temperature: 0.1
@@ -98,6 +98,20 @@ Não use `docker compose down`, `psql` direto, `git`, nem edite arquivos fora de
   → `Creche Municipal Irmã Hilda`). ETEC e Prédio da Educação geralmente vêm vazios = não lança.
 - Cidade ganha o fixo do CAPS sozinho (`fixos: true`). Roça não tem fixo.
 - Confira a linha TOTAL de cada coluna com o "total manuais" da prévia.
+
+## Johnson — lanche com frios (PDFs "SEXTA 20-11.pdf", "SABADO 21-11.pdf"… um por dia)
+
+- `"entrega": "johnson"`, `"turno": 1 | 2 | 3`, produto pode ficar de fora (é sempre `frios`, LANCHE COM FRIOS).
+  Um pedido por **linha do PDF + turno** com quantidade > 0 (zero ou vazio = não lança).
+- Data = coluna "Data de Entrega" (vem no formato americano MM/DD/AAAA: `11/20/2026` = 20/11/2026). Fim de semana é normal.
+- **Local = coluna "Área Solicitante"** (não o "Local de Entrega"). O script já traduz:
+  Suturas (Fabrica II) → FAB II - ACAB. SUTURAS · Agulhas → AGULHAS · ETO → ETO ·
+  Innovative Medicine (IM) → INOVATIVE MEDICINE · Manutenção Medical → MANUTENÇÃO MEDICAL ·
+  Divfort /Capistrano → DIVIFORT · CGC → CGC · Plw engenharia → PLW · DWS → DWS.
+- Duas linhas da mesma área no mesmo turno (ex.: Suturas 200 e Suturas 28) = **dois pedidos separados**, não some.
+- Linha "COPA ACABAMENTO DE SUTURAS / TIME MANSERV": pergunte ao usuário onde lançar (não tem cadastro próprio).
+- Bloco "Terceiros": só uma coluna de quantidade = **1º turno**. Linhas sem quantidade não entram.
+- Confira: soma de cada turno no "total manuais" da prévia = "TOTAL JOHNSON" + terceiros daquele turno.
 
 ## Antes de terminar
 
