@@ -111,11 +111,11 @@
         <p class="sub">O valor da AF (mais o saldo que sobrou da última vez) é dividido entre os pacotes e arredondado para baixo, como na planilha. O que não fecha um pacote inteiro não se perde: vira saldo para a próxima AF.</p>
         <div class="toolbar">
           <label class="field">Valor da AF (R$)<input id="inAf" class="money" inputmode="decimal" placeholder="0,00" /></label>
-          <label class="field">Desconto (R$)<input id="inDesc" class="money" inputmode="decimal" placeholder="0,00" title="Valor a abater da AF (na planilha: 816,10 − 104)" /></label>
           <label class="field">+ Saldo anterior (R$)<input id="inSaldo" class="money" inputmode="decimal" title="Sobra da última AF — vem sozinho do banco; pode corrigir aqui" /></label>
           <button class="btn small" type="button" id="btnSaldoAuto" hidden>Usar saldo salvo</button>
           <label class="field">Nº da AF / observação<input id="inNota" class="wide" placeholder="Opcional" /></label>
         </div>
+        <div class="toolbar" id="calcExtras"></div>
         <div id="calcWarn"></div>
         <div class="cards" id="calcCards"></div>
         <div class="scroll" id="calcTable"></div>
@@ -220,7 +220,7 @@
       const newId = (p) => `${p}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
       let data = defaultData();
-      const ui = { view: "calc", loaded: false, badge: "", badgeError: false };
+      const ui = { view: "calc", loaded: false, badge: "", badgeError: false, extraQty: {}, extrasSig: "" };
 
       // ---------- Banco: lê o banco antes de cada envio e mescla (igual ao Romaneio) ----------
       let saveTimer, retryTimer, synced = null, inFlight = null, sendAgain = false;
@@ -353,10 +353,12 @@
       const lastEntry = () => data.history.slice().sort(byDateDesc)[0] || null;
       const currentSaldo = () => toNum(lastEntry()?.sobra);
 
-      // disponível = AF − desconto + saldo anterior; cada pacote recebe a sua % e
+      // disponível = AF − desconto + saldo anterior − outros produtos (ex.: pão de leite);
+      // o resto vai para os congelados (pacotes): cada pacote recebe a sua % e
       // leva só pacotes inteiros (TRUNC); o que não fecha pacote vira o novo saldo.
-      function compute(af, desconto, saldo) {
-        const disponivel = cents(af - desconto + saldo);
+      function compute(af, desconto, saldo, extras = []) {
+        const extrasTotal = cents(extras.reduce((t, e) => t + e.value, 0));
+        const disponivel = cents(af - desconto + saldo - extrasTotal);
         const items = data.items.filter((i) => toNum(i.price) > 0 && toNum(i.perPack) > 0);
         const lines = items.map((i) => {
           const packPrice = cents(toNum(i.price) * toNum(i.perPack));
@@ -366,11 +368,28 @@
         });
         const usado = cents(lines.reduce((t, l) => t + l.value, 0));
         const pctSum = data.items.reduce((t, i) => t + toNum(i.pct), 0);
-        return { af: cents(af), desconto: cents(desconto), saldoAnterior: cents(saldo), disponivel, lines, usado, sobra: cents(disponivel - usado), pctSum };
+        return { af: cents(af), desconto: cents(desconto), saldoAnterior: cents(saldo), extras, extrasTotal, disponivel, lines, usado, sobra: cents(disponivel - usado), pctSum };
       }
       // Saldo anterior: vem do banco (sobra da última AF); se a pessoa digitar outro valor, vale o digitado.
       const saldoInput = () => (ui.saldoManual ? toNum(el("inSaldo").value) : currentSaldo());
-      const current = () => compute(toNum(el("inAf").value), toNum(el("inDesc").value), saldoInput());
+      // Outros produtos da AF (cadastro "Outros produtos", ex.: pão de leite R$ 0,80): quantidade × preço sai do valor dos congelados.
+      const extrasInput = () => data.extras.map((e) => {
+        const qty = toNum(ui.extraQty[e.id]);
+        return { id: e.id, name: e.name, unit: e.unit || "und", price: toNum(e.price), qty, value: cents(qty * toNum(e.price)) };
+      }).filter((e) => e.qty > 0);
+      // O antigo campo "Desconto" (816,10 − 104 na planilha) era o pão de leite: agora vem pela quantidade dos outros produtos.
+      const current = () => compute(toNum(el("inAf").value), 0, saldoInput(), extrasInput());
+      // Campos de quantidade dos outros produtos (só redesenha quando a lista de produtos muda, para não perder o foco).
+      function renderCalcExtras() {
+        const sig = data.extras.map((e) => `${e.id}|${e.name}|${e.price}|${e.unit}`).join(";");
+        if (sig === ui.extrasSig) return;
+        ui.extrasSig = sig;
+        el("calcExtras").innerHTML = data.extras.length
+          ? data.extras.map((e) => `<label class="field">${esc(e.name)} — qtd. (${money(e.price)}/${esc(e.unit || "und")})<input class="money" data-xq="${esc(e.id)}" value="${esc(ui.extraQty[e.id] ?? "")}" inputmode="decimal" placeholder="0" /></label>`).join("") +
+            `<span class="hint" style="align-self:center">Sai do valor da AF antes de dividir nos congelados.</span>`
+          : "";
+        el("calcExtras").querySelectorAll("[data-xq]").forEach((inp) => inp.addEventListener("input", () => { ui.extraQty[inp.dataset.xq] = inp.value; el("calcMsg").textContent = ""; renderCalc(); }));
+      }
 
       // ---------- Abas ----------
       function renderTabs() {
@@ -388,20 +407,24 @@
       function renderCalc() {
         if (!ui.saldoManual && document.activeElement !== el("inSaldo")) el("inSaldo").value = currentSaldo().toFixed(2).replace(".", ",");
         el("btnSaldoAuto").hidden = !ui.saldoManual;
+        renderCalcExtras();
         const r = current();
         let warn = "";
+        if (r.disponivel < 0) warn += `<div class="warn">Os outros produtos (${money(r.extrasTotal)}) passam do valor da AF + saldo — confira as quantidades.</div>`;
         if (Math.round(r.pctSum) !== 100) warn += `<div class="warn">A divisão entre os pacotes soma ${fmt(r.pctSum)}% (deveria ser 100%). Ajuste em "Pacotes e preços".</div>`;
         if (r.sobra < 0) warn += `<div class="warn">O saldo está negativo — confira os valores.</div>`;
         el("calcWarn").innerHTML = warn;
         el("calcCards").innerHTML =
-          `<div class="card money"><span>Valor para os pacotes</span><strong>${money(r.disponivel)}</strong><small>AF ${money(r.af)}${r.desconto ? ` − desconto ${money(r.desconto)}` : ""} + saldo anterior ${money(r.saldoAnterior)}</small></div>` +
+          r.extras.map((e) => `<div class="card"><span>${esc(e.name)}</span><strong>${fmt(e.qty, 3)} ${esc(e.unit)}</strong><small>${fmt(e.qty, 3)} × ${money(e.price)} = ${money(e.value)}</small></div>`).join("") +
+          `<div class="card money"><span>Valor para os congelados</span><strong>${money(r.disponivel)}</strong><small>AF ${money(r.af)}${r.desconto ? ` − desconto ${money(r.desconto)}` : ""} + saldo anterior ${money(r.saldoAnterior)}${r.extrasTotal ? ` − outros produtos ${money(r.extrasTotal)}` : ""}</small></div>` +
           r.lines.map((l) => `<div class="card main"><span>${esc(l.name)} · ${fmt(l.pct)}%</span><strong>${fmt(l.packs, 0)} pct</strong><small>${fmt(l.units, 0)} und · ${money(l.value)}</small></div>`).join("") +
           `<div class="card"><span>Sobra → saldo da próxima</span><strong>${money(r.sobra)}</strong><small>${money(r.disponivel)} − ${money(r.usado)} em pacotes</small></div>`;
         el("calcTable").innerHTML = `<table class="grid"><thead><tr><th>Pacote</th><th>Preço und.</th><th>Und./pct</th><th>Preço pct</th><th>%</th><th>Valor da parte</th><th>Pacotes</th><th>Valor usado</th></tr></thead><tbody>
           <tr><td class="left" colspan="7">Valor da AF</td><td class="right">${money(r.af)}</td></tr>
           ${r.desconto ? `<tr><td class="left" colspan="7">− Desconto</td><td class="right">${money(r.desconto)}</td></tr>` : ""}
           <tr><td class="left" colspan="7">+ Saldo anterior (sobra da última AF)</td><td class="right">${money(r.saldoAnterior)}</td></tr>
-          <tr class="total"><td class="left" colspan="7">VALOR PARA OS PACOTES</td><td class="right">${money(r.disponivel)}</td></tr>
+          ${r.extras.map((e) => `<tr><td class="left" colspan="7">− ${esc(e.name)} (${fmt(e.qty, 3)} ${esc(e.unit)} × ${money(e.price)})</td><td class="right">${money(e.value)}</td></tr>`).join("")}
+          <tr class="total"><td class="left" colspan="7">VALOR PARA OS CONGELADOS (PACOTES)</td><td class="right">${money(r.disponivel)}</td></tr>
           ${r.lines.map((l) => `<tr><td class="left">${esc(l.name)}</td><td class="right">${money(l.price)}</td><td>${fmt(l.perPack, 0)}</td><td class="right">${money(l.packPrice)}</td><td>${fmt(l.pct)}%</td><td class="right">${money(l.part)}</td><td><strong>${fmt(l.packs, 0)}</strong></td><td class="right">${money(l.value)}</td></tr>`).join("")}
           <tr class="total"><td class="left" colspan="7">TOTAL EM PACOTES</td><td class="right">${money(r.usado)}</td></tr>
           <tr class="total"><td class="left" colspan="7">SOBRA (vira saldo)</td><td class="right">${money(r.sobra)}</td></tr></tbody></table>`;
@@ -421,6 +444,8 @@
           af: r.af,
           desconto: r.desconto,
           saldoAnterior: r.saldoAnterior,
+          extras: r.extras,
+          extrasTotal: r.extrasTotal,
           disponivel: r.disponivel,
           lines: r.lines,
           usado: r.usado,
@@ -429,9 +454,10 @@
         data.history = data.history.slice(0, 500);
         save();
         el("inAf").value = "";
-        el("inDesc").value = "";
         el("inNota").value = "";
         ui.saldoManual = false;
+        ui.extraQty = {};
+        ui.extrasSig = "";
         renderCalc();
         el("calcMsg").textContent = `AF salva. Saldo para a próxima: ${money(r.sobra)}.`;
       }
@@ -445,7 +471,8 @@
             <tr><td class="left">Valor da AF</td><td class="right">${money(r.af)}</td></tr>
             ${r.desconto ? `<tr><td class="left">Desconto</td><td class="right">− ${money(r.desconto)}</td></tr>` : ""}
             <tr><td class="left">Saldo anterior</td><td class="right">${money(r.saldoAnterior)}</td></tr>
-            <tr class="total"><td class="left">Valor para os pacotes</td><td class="right">${money(r.disponivel)}</td></tr>
+            ${r.extras.map((e) => `<tr><td class="left">${esc(e.name)}: ${fmt(e.qty, 3)} ${esc(e.unit)} × ${money(e.price)}</td><td class="right">− ${money(e.value)}</td></tr>`).join("")}
+            <tr class="total"><td class="left">Valor para os congelados</td><td class="right">${money(r.disponivel)}</td></tr>
           </tbody></table>
           <table class="doc"><thead><tr><th>Pacote</th><th>Preço pct</th><th>%</th><th>Pacotes</th><th>Unidades</th><th>Valor</th></tr></thead><tbody>
           ${r.lines.map((l) => `<tr><td class="left">${esc(l.name)}</td><td class="right">${money(l.packPrice)}</td><td>${fmt(l.pct)}%</td><td class="big">${fmt(l.packs, 0)}</td><td>${fmt(l.units, 0)}</td><td class="right">${money(l.value)}</td></tr>`).join("")}
@@ -614,13 +641,13 @@
         const h = data.history.slice().sort(byDateDesc);
         el("histSaldo").innerHTML = `Saldo atual: <strong>${money(currentSaldo())}</strong> — entra sozinho na próxima AF.`;
         el("histTable").innerHTML = h.length
-          ? `<table class="grid"><thead><tr><th>Data</th><th>AF / obs.</th><th>Valor AF</th><th>Desconto</th><th>Saldo anterior</th><th>Pacotes</th><th>Usado</th><th>Sobra (saldo)</th><th></th></tr></thead><tbody>
+          ? `<table class="grid"><thead><tr><th>Data</th><th>AF / obs.</th><th>Valor AF</th><th>Pão de leite / outros</th><th>Saldo anterior</th><th>Pacotes</th><th>Usado</th><th>Sobra (saldo)</th><th></th></tr></thead><tbody>
             ${h.map((x, i) => x.kind === "ajuste"
               ? `<tr class="adj"><td>${esc(new Date(x.at).toLocaleString("pt-BR"))}${x.by ? `<br><span class="hint">${esc(x.by)}</span>` : ""}</td><td class="left" colspan="6">Saldo corrigido à mão${x.nota ? ` — ${esc(x.nota)}` : ""} (era ${money(x.saldoAnterior)})</td><td class="right"><strong>${money(x.sobra)}</strong></td>
                 <td>${i === 0 ? `<button type="button" class="btn small danger" data-h-del="${esc(x.id)}" title="Desfazer">×</button>` : ""}</td></tr>`
               : `<tr><td>${esc(new Date(x.at).toLocaleString("pt-BR"))}${x.by ? `<br><span class="hint">${esc(x.by)}</span>` : ""}</td><td class="left">${esc(x.nota || "—")}</td>
-                <td class="right">${money(x.af)}</td><td class="right">${x.desconto ? money(x.desconto) : "—"}</td><td class="right">${money(x.saldoAnterior)}</td>
-                <td class="left">${(x.lines || []).map((l) => `<strong>${fmt(l.packs, 0)}</strong> ${esc(l.name)}`).join("<br>")}</td>
+                <td class="right">${money(x.af)}</td><td class="right">${(x.extrasTotal || x.desconto) ? `− ${money(toNum(x.extrasTotal) + toNum(x.desconto))}` : "—"}</td><td class="right">${money(x.saldoAnterior)}</td>
+                <td class="left">${(x.lines || []).map((l) => `<strong>${fmt(l.packs, 0)}</strong> ${esc(l.name)}`).join("<br>")}${(x.extras || []).map((e) => `<br><span class="hint">${fmt(e.qty, 3)} ${esc(e.unit)} ${esc(e.name)} (${money(e.value)})</span>`).join("")}</td>
                 <td class="right">${money(x.usado)}</td><td class="right"><strong>${money(x.sobra)}</strong></td>
                 <td>${i === 0 ? `<button type="button" class="btn small danger" data-h-del="${esc(x.id)}" title="Desfazer">×</button>` : ""}</td></tr>`).join("")}
           </tbody></table><p class="hint">Só o registro mais recente pode ser desfeito — assim o saldo volta para o valor de antes.</p>`
@@ -654,7 +681,7 @@
       }
 
       // ---------- Eventos ----------
-      ["inAf", "inDesc"].forEach((id) => el(id).addEventListener("input", () => { el("calcMsg").textContent = ""; renderCalc(); }));
+      ["inAf"].forEach((id) => el(id).addEventListener("input", () => { el("calcMsg").textContent = ""; renderCalc(); }));
       el("inSaldo").addEventListener("input", () => { ui.saldoManual = cents(toNum(el("inSaldo").value)) !== cents(currentSaldo()); el("calcMsg").textContent = ""; renderCalc(); });
       el("btnSaldoAuto").onclick = () => { ui.saldoManual = false; renderCalc(); };
       el("btnFechar").onclick = fechar;
