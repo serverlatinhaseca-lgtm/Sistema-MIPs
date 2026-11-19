@@ -353,6 +353,14 @@
       .bread-total-card strong { display:block; margin-top:3px; color:var(--ink); font-size:1.05rem; }
       /* Financeiro: período, produtos e saldo da AF */
       .fin-period-info { margin:4px 0 0; color:var(--muted); font-size:.78rem; font-weight:700; }
+      .fin-canc { color:#a32a17; font-weight:800; font-size:.72rem; }
+      .fin-table tr.cx td { background:#fff4f2; }
+      .fin-card-canc { border-color:#f3b4a8 !important; background:#fdecea !important; }
+      .fin-card-canc strong { color:#a32a17 !important; }
+      .fin-btn { padding:4px 10px; border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--ink); font:inherit; font-size:.74rem; font-weight:700; cursor:pointer; }
+      .fin-btn.danger { border-color:#e7b3a9; color:#a32a17; }
+      .fin-details { margin-top:10px; }
+      .fin-details summary { cursor:pointer; font-weight:800; font-size:.8rem; padding:6px 0; }
       .fin-days { margin:6px 0 4px; }
       .fin-days-list { display:flex; flex-wrap:wrap; gap:6px; margin:6px 0; }
       .fin-day { min-width:62px; padding:6px 8px; border:1px solid var(--line); border-radius:9px; background:#fff; color:var(--ink); font:inherit; font-size:.76rem; font-weight:700; cursor:pointer; text-align:center; line-height:1.2; }
@@ -1201,6 +1209,11 @@
       html[data-theme="dark"] select { color: #f7efe9 !important; background: #17100d !important; border-color: #5a4034 !important; }
       html[data-theme="dark"] input::placeholder { color: #927f74; opacity: 1; }
       html[data-theme="dark"] .fin-table { background:#201713; }
+      html[data-theme="dark"] .fin-canc, html[data-theme="dark"] .fin-card-canc strong { color:#ff9d8d !important; }
+      html[data-theme="dark"] .fin-table tr.cx td, html[data-theme="dark"] .fin-card-canc { background:#3b1e19 !important; border-color:#7c3a2e !important; }
+      html[data-theme="dark"] .fin-btn { background:#2a1f1a; border-color:#51392e; color:#f7efe9; }
+      html[data-theme="dark"] .fin-btn.danger { color:#ff9d8d; border-color:#7c3a2e; }
+      html[data-theme="dark"] .fin-details summary { color:#f7efe9; }
       html[data-theme="dark"] .fin-day, html[data-theme="dark"] .fin-days-actions button { background:#2a1f1a; border-color:#51392e; color:#f7efe9; }
       html[data-theme="dark"] .fin-day.on { background:#1f3a2b; border-color:#3f8a5f; color:#9ad7b5; }
       html[data-theme="dark"] .fin-day small, html[data-theme="dark"] .fin-days-actions { color:#c8b8ae; }
@@ -1456,6 +1469,7 @@
               <div class="bread-total-summary" id="financeSummary"></div>
               <div id="financeProducts"></div>
               <div id="financeAf"></div>
+              <div id="financeCancel"></div>
               <div class="fin-block"><h4>Por unidade</h4></div>
               <div class="settings-list" id="financeUnitList"></div>
               <button class="save-pdf-button" id="exportFinanceCsv" type="button">Baixar consulta em CSV</button>
@@ -3477,7 +3491,7 @@
                       o.parts.length === 1 ? "" : "s"
                     }</span><small>${o.parts.join(" + ")}${
                       o.source === "fixo" ? " • PEDIDO FIXO" : ""
-                    }</small></div><div class="batch-actions"><button class="edit-order" type="button" data-edit-order="${o.id}">Editar</button><button type="button" data-remove="${o.id}">Remover</button></div></article>`
+                    }${o.cancel?.qty ? ` • <strong style="color:#a32a17">CANCELADO ${o.cancel.qty >= o.total ? "(TODO)" : `${o.cancel.qty} UND`}</strong>` : ""}</small></div><div class="batch-actions"><button class="edit-order" type="button" data-edit-order="${o.id}">Editar</button><button type="button" data-remove="${o.id}">Remover</button></div></article>`
               )
               .join("")}</div>`
           : '<div class="empty-state"><span>6187</span><p>Os pedidos adicionados aparecerão aqui.</p></div>';
@@ -4037,6 +4051,11 @@ doc.save(pdfName());
         });
       }
 
+      // Cancelamento: o pedido continua no histórico com o.cancel = { qty, motivo, at, by };
+      // a parte cancelada não conta como fornecida.
+      const finCanceled = (o) => Math.min(Number(o.total) || 0, Math.max(0, Number(o.cancel?.qty) || 0));
+      const finDelivered = (o) => (Number(o.total) || 0) - finCanceled(o);
+
       function monthlyUnitRows() {
         const grouped = new Map();
         financeOrders().forEach(o => {
@@ -4045,8 +4064,8 @@ doc.save(pdfName());
           const sector = sectorForUnit(unit, o.delivery === "margarina" ? "johnson" : o.delivery);
           const product = o.product?.shortName || o.product?.name || "Outro";
           const key = `${client}\u0000${sector}\u0000${unit}\u0000${product}`;
-          const current = grouped.get(key) || { client, sector, unit, product, quantity: 0, orders: 0 };
-          current.quantity += Number(o.total) || 0; current.orders += 1; grouped.set(key, current);
+          const current = grouped.get(key) || { client, sector, unit, product, quantity: 0, canceled: 0, orders: 0 };
+          current.quantity += finDelivered(o); current.canceled += finCanceled(o); current.orders += 1; grouped.set(key, current);
         });
         return [...grouped.values()].sort((a,b)=>a.sector.localeCompare(b.sector,"pt-BR")||a.unit.localeCompare(b.unit,"pt-BR")||a.product.localeCompare(b.product,"pt-BR"));
       }
@@ -4066,12 +4085,13 @@ doc.save(pdfName());
         const list = state.financeDelivery === "igarata" ? productsFor("igarata") : [];
         const byId = new Map();
         const keyOf = (o) => state.financeDelivery === "igarata" ? (o.product?.id || o.product?.shortName || "outro") : (o.product?.shortName || o.product?.name || "Outro");
-        list.forEach((p) => byId.set(p.id, { id: p.id, name: p.shortName || p.name, product: p, quantity: 0, orders: 0, days: {} }));
+        list.forEach((p) => byId.set(p.id, { id: p.id, name: p.shortName || p.name, product: p, quantity: 0, canceled: 0, orders: 0, days: {}, daysCanc: {} }));
         orders.forEach((o) => {
           const k = keyOf(o);
-          if (!byId.has(k)) byId.set(k, { id: k, name: o.product?.shortName || o.product?.name || "Outro", product: o.product || { id: k }, quantity: 0, orders: 0, days: {} });
-          const r = byId.get(k); const q = Number(o.total) || 0;
-          r.quantity += q; r.orders += 1; r.days[o.date] = (r.days[o.date] || 0) + q;
+          if (!byId.has(k)) byId.set(k, { id: k, name: o.product?.shortName || o.product?.name || "Outro", product: o.product || { id: k }, quantity: 0, canceled: 0, orders: 0, days: {}, daysCanc: {} });
+          const r = byId.get(k); const q = finDelivered(o), c = finCanceled(o);
+          r.quantity += q; r.canceled += c; r.orders += 1; r.days[o.date] = (r.days[o.date] || 0) + q;
+          if (c) r.daysCanc[o.date] = (r.daysCanc[o.date] || 0) + c;
         });
         return { orders, rows: [...byId.values()], dates: [...new Set(orders.map((o) => o.date))].sort() };
       }
@@ -4079,14 +4099,16 @@ doc.save(pdfName());
       function renderFinanceProducts() {
         const igarata = state.financeDelivery === "igarata";
         const { rows, dates } = financeProductRows();
-        const used = rows.filter((r) => r.quantity > 0); // só os produtos que foram fornecidos
+        const used = rows.filter((r) => r.quantity > 0 || r.canceled > 0); // só os produtos que foram pedidos
         if (!used.length || !dates.length) { el("financeProducts").innerHTML = ""; return; }
         const kgOf = (r, q) => igarata && finKg(r.product) ? r3(q * finKg(r.product)) : null;
-        const cell = (r, q) => q ? `${fmtN(q, 0)}${kgOf(r, q) !== null ? `<br><small>${fmtN(kgOf(r, q))} kg</small>` : ""}` : "—";
-        el("financeProducts").innerHTML = `<div class="fin-block"><h4>Tipos de produto — por dia e total</h4><p>Quantidade em unidades${igarata ? " e, embaixo, em kg (como na planilha da AF)" : ""}. Use a pesquisa acima para ver uma unidade só.</p>
+        const cell = (r, q, c = 0) => (q ? `${fmtN(q, 0)}${kgOf(r, q) !== null ? `<br><small>${fmtN(kgOf(r, q))} kg</small>` : ""}` : c ? "0" : "—")
+          + (c ? `<br><span class="fin-canc">−${fmtN(c, 0)} cancelado</span>` : "");
+        const anyCanc = used.some((r) => r.canceled > 0);
+        el("financeProducts").innerHTML = `<div class="fin-block"><h4>Tipos de produto — por dia e total</h4><p>Quantidade entregue em unidades${igarata ? " e, embaixo, em kg (como na planilha da AF)" : ""}. Use a pesquisa acima para ver uma unidade só.${anyCanc ? " <strong class=\"fin-canc\">Em vermelho: o que foi cancelado (já descontado).</strong>" : ""}</p>
           <div class="fin-scroll"><table class="fin-table"><thead><tr><th class="l">Dia</th>${used.map((r) => `<th>${escapeHtml(r.name)}</th>`).join("")}</tr></thead><tbody>
-          ${dates.map((d) => `<tr><td class="l">${finBr(d)} <small>${finParse(d).toLocaleDateString("pt-BR",{weekday:"short"})}</small></td>${used.map((r) => `<td>${cell(r, r.days[d] || 0)}</td>`).join("")}</tr>`).join("")}
-          <tr class="tot"><td class="l">TOTAL</td>${used.map((r) => `<td>${cell(r, r.quantity)}</td>`).join("")}</tr>
+          ${dates.map((d) => `<tr><td class="l">${finBr(d)} <small>${finParse(d).toLocaleDateString("pt-BR",{weekday:"short"})}</small></td>${used.map((r) => `<td>${cell(r, r.days[d] || 0, r.daysCanc[d] || 0)}</td>`).join("")}</tr>`).join("")}
+          <tr class="tot"><td class="l">TOTAL</td>${used.map((r) => `<td>${cell(r, r.quantity, r.canceled)}</td>`).join("")}</tr>
           </tbody></table></div></div>`;
       }
 
@@ -4099,7 +4121,7 @@ doc.save(pdfName());
         const saldos = af.saldos[period.key] || {};
         const { rows } = financeProductRows();
         // Só produtos fornecidos no período (ou com saldo da AF digitado, para não esconder uma pendência).
-        const lines = rows.filter((r) => r.quantity > 0 || (saldos[r.id] !== undefined && saldos[r.id] !== "")).map((r) => {
+        const lines = rows.filter((r) => r.quantity > 0 || r.canceled > 0 || (saldos[r.id] !== undefined && saldos[r.id] !== "")).map((r) => {
           const kgU = finKg(r.product);
           const fornecido = kgU ? r3(r.quantity * kgU) : r.quantity;
           const saldo = saldos[r.id] === undefined || saldos[r.id] === "" ? null : Number(saldos[r.id]);
@@ -4120,9 +4142,9 @@ doc.save(pdfName());
           : semSaldo.length ? `<div class="fin-status none">Sem pendência nos produtos informados. Falta o saldo de: ${semSaldo.map((l) => escapeHtml(l.name)).join(", ")}.</div>`
           : `<div class="fin-status ok">SEM PENDÊNCIA — o fornecido bate com o saldo da AF em todos os produtos.</div>`;
         box.innerHTML = `<div class="fin-block"><h4>Saldo da AF × fornecido — ${escapeHtml(period.label)}</h4>
-          <p>Digite o saldo da AF de cada produto (em kg, como na planilha). A diferença é saldo da AF − fornecido: negativo = entregou mais que a AF; positivo = ainda falta entregar. O saldo fica salvo para este período.</p>
-          <div class="fin-scroll"><table class="fin-table"><thead><tr><th class="l">Produto</th><th>Pedidos</th><th>Unidades</th><th>kg por und.</th><th>Fornecido</th><th>Saldo da AF</th><th>Diferença</th><th class="l">Situação</th></tr></thead><tbody>
-          ${lines.map((l) => `<tr><td class="l"><strong>${escapeHtml(l.name)}</strong></td><td>${l.orders}</td><td>${fmtN(l.quantity, 0)}</td>
+          <p>Digite o saldo da AF de cada produto (em kg, como na planilha). A diferença é saldo da AF − fornecido: negativo = entregou mais que a AF; positivo = ainda falta entregar. O saldo fica salvo para este período. Cancelamentos já saem do fornecido.</p>
+          <div class="fin-scroll"><table class="fin-table"><thead><tr><th class="l">Produto</th><th>Pedidos</th><th>Entregue (und)</th><th>Cancelado (und)</th><th>kg por und.</th><th>Fornecido</th><th>Saldo da AF</th><th>Diferença</th><th class="l">Situação</th></tr></thead><tbody>
+          ${lines.map((l) => `<tr><td class="l"><strong>${escapeHtml(l.name)}</strong></td><td>${l.orders}</td><td>${fmtN(l.quantity, 0)}</td><td>${l.canceled ? `<span class="fin-canc">${fmtN(l.canceled, 0)}</span>` : "—"}</td>
             <td><input class="kgf" data-af-kg="${escapeHtml(l.id)}" value="${String(l.kgU).replace(".", ",")}" inputmode="decimal" title="Peso de 1 unidade em kg (0 = conferir em unidades)" /></td>
             <td><strong>${fmtN(l.fornecido)}</strong> <small>${l.unit}</small></td>
             <td><input data-af-saldo="${escapeHtml(l.id)}" value="${l.saldo === null ? "" : String(l.saldo).replace(".", ",")}" inputmode="decimal" placeholder="${l.unit}" /></td>
@@ -4140,6 +4162,52 @@ doc.save(pdfName());
         }));
       }
 
+      // ---------- Cancelamentos: aparecem destacados e saem do fornecido ----------
+      function cancelFinanceOrder(o) {
+        const total = Number(o.total) || 0;
+        const atual = finCanceled(o);
+        const q = prompt(`Cancelar pedido: ${o.destination || "Sem unidade"} · ${o.product?.shortName || o.product?.name || ""} · ${finBr(o.date)} (${total} und).\n\nQuantas unidades foram canceladas? (${total} = pedido inteiro)`, String(atual || total));
+        if (q === null) return;
+        const qty = Math.round(finNum(q) ?? 0);
+        if (!(qty > 0) || qty > total) { alert(`Informe um número de 1 a ${total}.`); return; }
+        const motivo = prompt("Motivo do cancelamento (ex.: escola sem aula, pedido errado):", o.cancel?.motivo || "");
+        if (motivo === null) return;
+        o.cancel = { qty, motivo: motivo.trim(), at: new Date().toISOString(), by: portalUser.nome || "" };
+        saveLocal(); renderFinanceReport();
+      }
+      function undoCancelFinanceOrder(o) {
+        if (!confirm(`Desfazer o cancelamento de ${o.destination || "Sem unidade"} (${finBr(o.date)})? O pedido volta a contar inteiro.`)) return;
+        delete o.cancel;
+        saveLocal(); renderFinanceReport();
+      }
+      function renderFinanceCancel() {
+        const box = el("financeCancel");
+        const orders = financeOrders().slice().sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.destination || "").localeCompare(String(b.destination || ""), "pt-BR"));
+        if (!orders.length) { box.innerHTML = ""; return; }
+        const canc = orders.filter((o) => finCanceled(o) > 0);
+        const prodName = (o) => o.product?.shortName || o.product?.name || "Outro";
+        const who = (o) => o.cancel?.at ? `${new Date(o.cancel.at).toLocaleDateString("pt-BR")}${o.cancel.by ? ` · ${escapeHtml(o.cancel.by)}` : ""}` : "";
+        const ref = [];
+        const btn = (o, kind, label) => { ref.push(o); return `<button type="button" class="fin-btn ${kind === "undo" ? "" : "danger"}" data-fin-${kind}="${ref.length - 1}">${label}</button>`; };
+        box.innerHTML = `<div class="fin-block"><h4>Cancelamentos ${canc.length ? `<span class="fin-pill over">${canc.length} no período</span>` : '<span class="fin-pill ok">nenhum no período</span>'}</h4>
+          <p>Pedido cancelado continua no histórico, marcado como CANCELADO, e a quantidade cancelada não conta como fornecida (nem para a AF). Para registrar, abra a lista de pedidos abaixo e clique em "Cancelar".</p>
+          ${canc.length ? `<div class="fin-scroll"><table class="fin-table"><thead><tr><th class="l">Dia</th><th class="l">Unidade</th><th class="l">Produto</th><th>Pedido</th><th>Cancelado</th><th>Entregue</th><th class="l">Motivo</th><th class="l">Registrado</th><th></th></tr></thead><tbody>
+            ${canc.map((o) => `<tr class="cx"><td class="l">${finBr(o.date)}</td><td class="l">${escapeHtml(o.destination || "Sem unidade")}</td><td class="l">${escapeHtml(prodName(o))}</td><td>${fmtN(o.total, 0)}</td>
+              <td><strong class="fin-canc">${fmtN(finCanceled(o), 0)}</strong>${finCanceled(o) === Number(o.total) ? ' <small>(todo)</small>' : ""}</td><td>${fmtN(finDelivered(o), 0)}</td>
+              <td class="l">${escapeHtml(o.cancel?.motivo || "—")}</td><td class="l"><small>${who(o)}</small></td>
+              <td>${btn(o, "edit", "Alterar")} ${btn(o, "undo", "Desfazer")}</td></tr>`).join("")}
+            </tbody></table></div>` : ""}
+          <details class="fin-details" id="finOrdersDetails" ${state.finOrdersOpen ? "open" : ""}><summary>Pedidos do período (${orders.length}) — registrar cancelamento</summary>
+            <div class="fin-scroll"><table class="fin-table"><thead><tr><th class="l">Dia</th><th class="l">Unidade</th><th class="l">Produto</th><th>Quantidade</th><th class="l">Situação</th><th></th></tr></thead><tbody>
+            ${orders.map((o) => { const c = finCanceled(o); return `<tr class="${c ? "cx" : ""}"><td class="l">${finBr(o.date)}</td><td class="l">${escapeHtml(o.destination || "Sem unidade")}</td><td class="l">${escapeHtml(prodName(o))}</td><td>${fmtN(o.total, 0)}</td>
+              <td class="l">${c ? `<span class="fin-pill over">CANCELADO${c < Number(o.total) ? ` ${fmtN(c, 0)} und` : ""}</span>` : '<span class="fin-pill ok">Entregue</span>'}</td>
+              <td>${c ? btn(o, "undo", "Desfazer") : btn(o, "edit", "Cancelar")}</td></tr>`; }).join("")}
+            </tbody></table></div></details></div>`;
+        el("finOrdersDetails").ontoggle = (e) => { state.finOrdersOpen = e.target.open; };
+        box.querySelectorAll("[data-fin-edit]").forEach((b) => (b.onclick = () => cancelFinanceOrder(ref[Number(b.dataset.finEdit)])));
+        box.querySelectorAll("[data-fin-undo]").forEach((b) => (b.onclick = () => undoCancelFinanceOrder(ref[Number(b.dataset.finUndo)])));
+      }
+
       function renderFinanceReport() {
         const mode = el("financePeriodMode").value;
         el("financeMonthField").hidden = mode === "intervalo";
@@ -4150,11 +4218,13 @@ doc.save(pdfName());
         el("financePeriodInfo").textContent = period.label ? `Consultando ${period.label}` : mode === "dias" ? "Marque um ou mais dias acima." : "Escolha o período da consulta.";
         const rows = monthlyUnitRows();
         const units = new Set(rows.map(r=>r.unit)).size, quantity = rows.reduce((sum,r)=>sum+r.quantity,0), orders = rows.reduce((sum,r)=>sum+r.orders,0);
-        el("financeSummary").innerHTML = `<div class="bread-total-card"><span>Unidades</span><strong>${units}</strong></div><div class="bread-total-card"><span>Quantidade total</span><strong>${quantity.toLocaleString("pt-BR")}</strong></div><div class="bread-total-card"><span>Pedidos</span><strong>${orders}</strong></div>`;
+        const cancOrders = financeOrders().filter((o) => finCanceled(o) > 0), cancQty = cancOrders.reduce((s, o) => s + finCanceled(o), 0);
+        el("financeSummary").innerHTML = `<div class="bread-total-card"><span>Unidades</span><strong>${units}</strong></div><div class="bread-total-card"><span>Quantidade entregue</span><strong>${quantity.toLocaleString("pt-BR")}</strong></div><div class="bread-total-card"><span>Pedidos</span><strong>${orders}</strong></div><div class="bread-total-card ${cancOrders.length ? "fin-card-canc" : ""}"><span>Cancelamentos</span><strong>${cancOrders.length ? `${cancOrders.length} · ${cancQty.toLocaleString("pt-BR")} und` : "Nenhum"}</strong></div>`;
         renderFinanceProducts();
         renderFinanceAf();
+        renderFinanceCancel();
         const sectors=[...new Set(rows.map(r=>r.sector))];
-        el("financeUnitList").innerHTML = rows.length ? sectors.map(sector=>`<div class="settings-section"><div class="settings-section-title"><strong>${escapeHtml(sector)}</strong></div>${rows.filter(r=>r.sector===sector).map(r=>`<div class="settings-list-row"><div><strong>${escapeHtml(r.unit)}</strong><small>${escapeHtml(r.product)}</small></div><span>${r.orders} pedido(s)</span><strong>${r.quantity.toLocaleString("pt-BR")}</strong></div>`).join("")}</div>`).join("") : '<div class="empty-state"><p>Nenhum registro encontrado para o período e filtro informados.</p></div>';
+        el("financeUnitList").innerHTML = rows.length ? sectors.map(sector=>`<div class="settings-section"><div class="settings-section-title"><strong>${escapeHtml(sector)}</strong></div>${rows.filter(r=>r.sector===sector).map(r=>`<div class="settings-list-row"><div><strong>${escapeHtml(r.unit)}</strong><small>${escapeHtml(r.product)}${r.canceled ? ` · <span class="fin-canc">${r.canceled.toLocaleString("pt-BR")} cancelado(s)</span>` : ""}</small></div><span>${r.orders} pedido(s)</span><strong>${r.quantity.toLocaleString("pt-BR")}</strong></div>`).join("")}</div>`).join("") : '<div class="empty-state"><p>Nenhum registro encontrado para o período e filtro informados.</p></div>';
         el("exportFinanceCsv").disabled = !rows.length;
       }
 
@@ -4163,17 +4233,22 @@ doc.save(pdfName());
         const period = financePeriod();
         const quote = value => `"${String(value).replace(/"/g,'""')}"`;
         const num = (n) => String(r3(n)).replace(".", ",");
-        const lines = [`Período;${quote(period.label)}`, "", "Cliente;Setor;Unidade;Produto;Quantidade;Pedidos", ...rows.map(r=>[r.client,r.sector,r.unit,r.product,r.quantity,r.orders].map(quote).join(";"))];
+        const lines = [`Período;${quote(period.label)}`, "", "Cliente;Setor;Unidade;Produto;Entregue;Cancelado;Pedidos", ...rows.map(r=>[r.client,r.sector,r.unit,r.product,r.quantity,r.canceled,r.orders].map(quote).join(";"))];
         const { rows: prod } = financeProductRows();
         const igarata = state.financeDelivery === "igarata";
         const saldos = igarata ? (finAf().saldos[period.key] || {}) : {};
-        lines.push("", igarata ? "Produto;Pedidos;Unidades;kg por und.;Fornecido;Saldo AF;Diferença (saldo − fornecido);Situação" : "Produto;Pedidos;Unidades");
-        prod.filter((r) => r.quantity > 0 || saldos[r.id] !== undefined).forEach((r) => {
-          if (!igarata) { lines.push([r.name, r.orders, r.quantity].map(quote).join(";")); return; }
+        lines.push("", igarata ? "Produto;Pedidos;Entregue (und);Cancelado (und);kg por und.;Fornecido;Saldo AF;Diferença (saldo − fornecido);Situação" : "Produto;Pedidos;Entregue;Cancelado");
+        prod.filter((r) => r.quantity > 0 || r.canceled > 0 || saldos[r.id] !== undefined).forEach((r) => {
+          if (!igarata) { lines.push([r.name, r.orders, r.quantity, r.canceled].map(quote).join(";")); return; }
           const kgU = finKg(r.product), forn = kgU ? r3(r.quantity * kgU) : r.quantity, saldo = saldos[r.id];
           const diff = saldo === undefined ? null : r3(saldo - forn);
-          lines.push([r.name, r.orders, r.quantity, num(kgU), num(forn), saldo === undefined ? "" : num(saldo), diff === null ? "" : num(diff), diff === null ? "Sem saldo informado" : diff === 0 ? "Sem pendência" : diff < 0 ? "Pendência: acima da AF" : "Pendência: falta entregar"].map(quote).join(";"));
+          lines.push([r.name, r.orders, r.quantity, r.canceled, num(kgU), num(forn), saldo === undefined ? "" : num(saldo), diff === null ? "" : num(diff), diff === null ? "Sem saldo informado" : diff === 0 ? "Sem pendência" : diff < 0 ? "Pendência: acima da AF" : "Pendência: falta entregar"].map(quote).join(";"));
         });
+        const canc = financeOrders().filter((o) => finCanceled(o) > 0).sort((a, b) => String(a.date).localeCompare(String(b.date)));
+        if (canc.length) {
+          lines.push("", "CANCELAMENTOS", "Dia;Unidade;Produto;Pedido;Cancelado;Entregue;Motivo;Registrado por;Registrado em");
+          canc.forEach((o) => lines.push([finBr(o.date), o.destination || "Sem unidade", o.product?.shortName || o.product?.name || "", o.total, finCanceled(o), finDelivered(o), o.cancel?.motivo || "", o.cancel?.by || "", o.cancel?.at ? new Date(o.cancel.at).toLocaleString("pt-BR") : ""].map(quote).join(";")));
+        }
         const csv = lines.join("\r\n");
         const url = URL.createObjectURL(new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8"}));
         const a=document.createElement("a"); a.href=url; a.download=`CONSULTA_FINANCEIRO_${(period.key||"SEM_PERIODO").replace(/-/g,"_")}.csv`; a.click(); URL.revokeObjectURL(url);
