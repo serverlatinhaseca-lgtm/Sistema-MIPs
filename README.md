@@ -2,7 +2,7 @@
 
 > Portal interno para padronização operacional, gestão de receitas, avaliações de desempenho, reclamações e ferramentas de produção.
 
-![Versão](https://img.shields.io/badge/versão-2.17.1-ff8d2f)
+![Versão](https://img.shields.io/badge/versão-2.18.0-ff8d2f)
 ![React](https://img.shields.io/badge/React-18-61dafb)
 ![Node.js](https://img.shields.io/badge/Node.js-22-339933)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-4169e1)
@@ -11,6 +11,11 @@
 ## Sobre o sistema
 
 O Sistema Central reúne em um único portal os processos internos da Nova Esperança. A aplicação funciona em computadores e celulares, possui modo claro e escuro e separa os acessos conforme a função de cada usuário.
+
+### Novidades da versão 2.18.0
+
+- **Etiquetas → Financeiro:** a consulta por cliente e unidade agora é por **mês, semana, dia ou período (de/até)** e mostra os tipos de produto por dia e o total. Na **Igaratá**, há a tabela "Saldo da AF × fornecido" (como a planilha Calculadora IGARATA): digite o saldo da AF de cada produto em kg e ela calcula a diferença e mostra se há pendência (acima da AF ou faltando entregar). O saldo fica salvo para o período; o CSV leva tudo.
+- **Calculadora Gerdau:** o saldo anterior virou um campo na tela (já preenchido, dá para corrigir) e aparece em linha própria no cálculo; pedidos a cobrar agora podem ser **editados**.
 
 ### Novidades da versão 2.17.1
 

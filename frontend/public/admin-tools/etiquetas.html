@@ -351,6 +351,29 @@
       .bread-total-card { padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--cream); }
       .bread-total-card span { display:block; color:var(--muted); font-size:.66rem; font-weight:800; text-transform:uppercase; }
       .bread-total-card strong { display:block; margin-top:3px; color:var(--ink); font-size:1.05rem; }
+      /* Financeiro: período, produtos e saldo da AF */
+      .fin-period-info { margin:4px 0 0; color:var(--muted); font-size:.78rem; font-weight:700; }
+      .fin-block { margin:16px 0 4px; }
+      .fin-block h4 { margin:0 0 4px; font-size:.86rem; }
+      .fin-block > p { margin:0 0 8px; color:var(--muted); font-size:.74rem; line-height:1.4; }
+      .fin-scroll { overflow-x:auto; }
+      .fin-table { width:100%; border-collapse:collapse; font-size:.78rem; background:#fff; }
+      .fin-table th, .fin-table td { padding:6px 8px; border:1px solid var(--line); text-align:right; white-space:nowrap; }
+      .fin-table th { background:var(--cream); font-weight:800; text-align:center; }
+      .fin-table td.l, .fin-table th.l { text-align:left; }
+      .fin-table tr.tot td { background:#fff3e8; font-weight:800; }
+      .fin-table input { width:100px; min-height:32px; padding:4px 8px; border:1px solid var(--line); border-radius:7px; text-align:right; font:inherit; }
+      .fin-table input.kgf { width:70px; }
+      .fin-table small { color:var(--muted); font-weight:400; }
+      .fin-pill { display:inline-block; padding:2px 8px; border-radius:999px; font-weight:800; font-size:.72rem; }
+      .fin-pill.ok { background:#e3f1e8; color:#2f6b4f; }
+      .fin-pill.over { background:#fdecea; color:#a32a17; }
+      .fin-pill.left { background:#fff6db; color:#8a5a00; }
+      .fin-pill.none { background:var(--cream); color:var(--muted); }
+      .fin-status { margin:10px 0 0; padding:10px 12px; border-radius:10px; font-size:.82rem; font-weight:700; }
+      .fin-status.ok { background:#e3f1e8; color:#2f6b4f; }
+      .fin-status.pend { background:#fdecea; color:#a32a17; }
+      .fin-status.none { background:var(--cream); color:var(--muted); }
 
       .settings-panel {
         padding: 24px;
@@ -1169,6 +1192,14 @@
       html[data-theme="dark"] input,
       html[data-theme="dark"] select { color: #f7efe9 !important; background: #17100d !important; border-color: #5a4034 !important; }
       html[data-theme="dark"] input::placeholder { color: #927f74; opacity: 1; }
+      html[data-theme="dark"] .fin-table { background:#201713; }
+      html[data-theme="dark"] .fin-table th, html[data-theme="dark"] .fin-table td { border-color:#4a342a; color:#f7efe9; }
+      html[data-theme="dark"] .fin-table th, html[data-theme="dark"] .fin-pill.none, html[data-theme="dark"] .fin-status.none { background:#2a1f1a; color:#d8c9c0; }
+      html[data-theme="dark"] .fin-table tr.tot td { background:#3a2619; }
+      html[data-theme="dark"] .fin-pill.ok, html[data-theme="dark"] .fin-status.ok { background:#1f3a2b; color:#9ad7b5; }
+      html[data-theme="dark"] .fin-pill.over, html[data-theme="dark"] .fin-status.pend { background:#3b1e19; color:#ff9d8d; }
+      html[data-theme="dark"] .fin-pill.left { background:#3a3018; color:#f3d48a; }
+      html[data-theme="dark"] .fin-block > p, html[data-theme="dark"] .fin-period-info, html[data-theme="dark"] .fin-table small { color:#c8b8ae; }
       html[data-theme="dark"] .settings-section { border-color: #4a342a; }
       html[data-theme="dark"] .settings-list-row .remove-setting { background: #3b1e19 !important; border-color: #7c3a2e !important; color: #ff9d8d !important; }
       html[data-theme="dark"] .settings-list-row button:not(.remove-setting),
@@ -1400,13 +1431,21 @@
               <div class="bread-total-summary" id="financeRegistrySummary"></div>
             </section>
             <section class="settings-card" style="grid-column:1/-1">
-              <h3>Consulta mensal por cliente e unidade</h3>
+              <h3>Consulta por cliente e unidade</h3>
               <div class="settings-rule-grid">
-                <label class="field"><span>Mês de referência</span><input id="financeMonth" type="month" /></label>
+                <label class="field"><span>Consultar por</span><select id="financePeriodMode"><option value="mes">Mês</option><option value="semana">Semana</option><option value="dia">Dia</option><option value="intervalo">Período (de / até)</option></select></label>
+                <label class="field" id="financeMonthField"><span>Mês de referência</span><input id="financeMonth" type="month" /></label>
+                <label class="field" id="financeDayField" hidden><span id="financeDayLabel">Dia</span><input id="financeDay" type="date" /></label>
+                <label class="field" id="financeFromField" hidden><span>De</span><input id="financeFrom" type="date" /></label>
+                <label class="field" id="financeToField" hidden><span>Até</span><input id="financeTo" type="date" /></label>
                 <label class="field"><span>Pesquisar cliente ou unidade</span><input id="financeUnitSearch" type="search" placeholder="Digite para filtrar" /></label>
                 <label class="field"><span>Tipo de pão</span><select id="financeProductFilter"><option value="">Todos os tipos</option></select></label>
               </div>
+              <p class="fin-period-info" id="financePeriodInfo"></p>
               <div class="bread-total-summary" id="financeSummary"></div>
+              <div id="financeProducts"></div>
+              <div id="financeAf"></div>
+              <div class="fin-block"><h4>Por unidade</h4></div>
               <div class="settings-list" id="financeUnitList"></div>
               <button class="save-pdf-button" id="exportFinanceCsv" type="button">Baixar consulta em CSV</button>
             </section>
@@ -1590,7 +1629,7 @@
           const resposta = await fetch(adminApi, {
             method: "PUT",
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${portalToken}` },
-            body: JSON.stringify({ dados: { orders: state.orders, settings: { rules: state.rules, products: state.products, destinations: state.destinations, fixed: state.fixed, validityRules: state.validityRules, archivedOrders: state.archivedOrders } } })
+            body: JSON.stringify({ dados: { orders: state.orders, settings: { rules: state.rules, products: state.products, destinations: state.destinations, fixed: state.fixed, validityRules: state.validityRules, archivedOrders: state.archivedOrders, afIgarata: state.afIgarata } } })
           });
           if (!resposta.ok) throw new Error(`HTTP ${resposta.status}`);
           const badge = document.getElementById("pendingBadge");
@@ -2072,6 +2111,7 @@
         validityShift: "1º TURNO",
         validityQuantityOverride: null,
         financeDelivery: "igarata",
+        afIgarata: { kgPerUnit: {}, saldos: {} },
         settingsDelivery: "igarata",
         settingsRoute: "cidade",
         settingsFixedGroup: "segQua",
@@ -3913,20 +3953,53 @@ doc.save(pdfName());
         state.archivedOrders=state.archivedOrders.filter(o=>!archiveKeyMatches(o,key));saveLocal();renderArchive("Arquivo diário excluído.");
       }
 
-      function monthlyUnitRows() {
-        const month = el("financeMonth")?.value || "";
+      // ---------- Financeiro: período (mês, semana, dia ou de/até) ----------
+      const finYmd = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+      const finParse = (s) => { const [y,m,d] = String(s||"").split("-").map(Number); return y && m && d ? new Date(y, m-1, d) : null; };
+      const finBr = (s) => s ? s.split("-").reverse().join("/") : "";
+      function financePeriod() {
+        const mode = el("financePeriodMode")?.value || "mes";
+        let from = "", to = "", label = "";
+        if (mode === "mes") {
+          const month = el("financeMonth")?.value || "";
+          if (month) { const [y,m] = month.split("-").map(Number); from = `${month}-01`; to = finYmd(new Date(y, m, 0)); label = `Mês ${month.split("-").reverse().join("/")}`; }
+        } else if (mode === "semana" || mode === "dia") {
+          const day = finParse(el("financeDay")?.value);
+          if (day) {
+            if (mode === "dia") { from = to = finYmd(day); label = `Dia ${finBr(from)} (${day.toLocaleDateString("pt-BR",{weekday:"long"})})`; }
+            else { const seg = new Date(day); seg.setDate(day.getDate() - ((day.getDay()+6)%7)); const dom = new Date(seg); dom.setDate(seg.getDate()+6); from = finYmd(seg); to = finYmd(dom); label = `Semana de ${finBr(from)} (segunda) a ${finBr(to)} (domingo)`; }
+          }
+        } else {
+          from = el("financeFrom")?.value || ""; to = el("financeTo")?.value || "";
+          if (from && to && from > to) [from, to] = [to, from];
+          if (from && to) label = `De ${finBr(from)} até ${finBr(to)}`;
+        }
+        return { mode, from, to, label, key: from && to ? `${from}_${to}` : "" };
+      }
+      function financeOrders() {
+        const { from, to } = financePeriod();
         const search = (el("financeUnitSearch")?.value || "").trim().toLocaleLowerCase("pt-BR");
         const productFilter = el("financeProductFilter")?.value || "";
-        const all = [...state.orders, ...state.archivedOrders];
-        const grouped = new Map();
         const financeDeliveries = state.financeDelivery === "johnson" ? ["johnson","margarina"] : [state.financeDelivery];
-        all.filter(o => month && String(o.date || "").startsWith(month) && !o.validityOnly && financeDeliveries.includes(o.delivery)).forEach(o => {
+        return [...state.orders, ...state.archivedOrders].filter(o => {
+          const date = String(o.date || "");
+          if (!from || !to || date < from || date > to || o.validityOnly || !financeDeliveries.includes(o.delivery)) return false;
           const unit = o.destination || "Sem unidade";
           const client = o.delivery === "margarina" ? DELIVERY_META.johnson.title : (DELIVERY_META[o.delivery]?.title || titleName(o.delivery || "Outro"));
           const sector = sectorForUnit(unit, o.delivery === "margarina" ? "johnson" : o.delivery);
-          if (search && !`${client} ${sector} ${unit}`.toLocaleLowerCase("pt-BR").includes(search)) return;
+          if (search && !`${client} ${sector} ${unit}`.toLocaleLowerCase("pt-BR").includes(search)) return false;
           const product = o.product?.shortName || o.product?.name || "Outro";
-          if(productFilter && product!==productFilter)return;
+          return !productFilter || product === productFilter;
+        });
+      }
+
+      function monthlyUnitRows() {
+        const grouped = new Map();
+        financeOrders().forEach(o => {
+          const unit = o.destination || "Sem unidade";
+          const client = o.delivery === "margarina" ? DELIVERY_META.johnson.title : (DELIVERY_META[o.delivery]?.title || titleName(o.delivery || "Outro"));
+          const sector = sectorForUnit(unit, o.delivery === "margarina" ? "johnson" : o.delivery);
+          const product = o.product?.shortName || o.product?.name || "Outro";
           const key = `${client}\u0000${sector}\u0000${unit}\u0000${product}`;
           const current = grouped.get(key) || { client, sector, unit, product, quantity: 0, orders: 0 };
           current.quantity += Number(o.total) || 0; current.orders += 1; grouped.set(key, current);
@@ -3934,21 +4007,130 @@ doc.save(pdfName());
         return [...grouped.values()].sort((a,b)=>a.sector.localeCompare(b.sector,"pt-BR")||a.unit.localeCompare(b.unit,"pt-BR")||a.product.localeCompare(b.product,"pt-BR"));
       }
 
+      // ---------- Financeiro Igaratá: kg por produto e saldo da AF (planilha "Calculadora IGARATA") ----------
+      // A planilha conta em kg: pão normal 50 g (30 pães = 1,5 kg), mini 30 g (30 minis = 0,9 kg).
+      const finKgDefault = (p) => /^mini/.test(String(p.id||"")) ? 0.03 : p.id === "bolo" || p.unit === "unidade" ? 0 : 0.05;
+      const finAf = () => { state.afIgarata = state.afIgarata || {}; state.afIgarata.kgPerUnit = state.afIgarata.kgPerUnit || {}; state.afIgarata.saldos = state.afIgarata.saldos || {}; return state.afIgarata; };
+      const finKg = (p) => { const v = finAf().kgPerUnit[p.id]; return v === undefined || v === null || v === "" ? finKgDefault(p) : Number(v) || 0; };
+      const finNum = (v) => { let s = String(v ?? "").trim(); if (!s) return null; if (s.includes(",")) s = s.replace(/\./g,"").replace(",","."); const n = Number(s); return Number.isFinite(n) ? n : null; };
+      const fmtN = (n, d = 3) => Number(n || 0).toLocaleString("pt-BR", { maximumFractionDigits: d });
+      const r3 = (n) => Math.round(n * 1000) / 1000;
+
+      // Produtos do período: individual (por dia) e total, com kg.
+      function financeProductRows() {
+        const orders = financeOrders();
+        const list = state.financeDelivery === "igarata" ? productsFor("igarata") : [];
+        const byId = new Map();
+        const keyOf = (o) => state.financeDelivery === "igarata" ? (o.product?.id || o.product?.shortName || "outro") : (o.product?.shortName || o.product?.name || "Outro");
+        list.forEach((p) => byId.set(p.id, { id: p.id, name: p.shortName || p.name, product: p, quantity: 0, orders: 0, days: {} }));
+        orders.forEach((o) => {
+          const k = keyOf(o);
+          if (!byId.has(k)) byId.set(k, { id: k, name: o.product?.shortName || o.product?.name || "Outro", product: o.product || { id: k }, quantity: 0, orders: 0, days: {} });
+          const r = byId.get(k); const q = Number(o.total) || 0;
+          r.quantity += q; r.orders += 1; r.days[o.date] = (r.days[o.date] || 0) + q;
+        });
+        return { orders, rows: [...byId.values()], dates: [...new Set(orders.map((o) => o.date))].sort() };
+      }
+
+      function renderFinanceProducts() {
+        const igarata = state.financeDelivery === "igarata";
+        const { rows, dates } = financeProductRows();
+        const used = rows.filter((r) => r.quantity > 0 || igarata);
+        if (!used.length || !dates.length) { el("financeProducts").innerHTML = ""; return; }
+        const kgOf = (r, q) => igarata && finKg(r.product) ? r3(q * finKg(r.product)) : null;
+        const cell = (r, q) => q ? `${fmtN(q, 0)}${kgOf(r, q) !== null ? `<br><small>${fmtN(kgOf(r, q))} kg</small>` : ""}` : "—";
+        el("financeProducts").innerHTML = `<div class="fin-block"><h4>Tipos de produto — por dia e total</h4><p>Quantidade em unidades${igarata ? " e, embaixo, em kg (como na planilha da AF)" : ""}. Use a pesquisa acima para ver uma unidade só.</p>
+          <div class="fin-scroll"><table class="fin-table"><thead><tr><th class="l">Dia</th>${used.map((r) => `<th>${escapeHtml(r.name)}</th>`).join("")}</tr></thead><tbody>
+          ${dates.map((d) => `<tr><td class="l">${finBr(d)} <small>${finParse(d).toLocaleDateString("pt-BR",{weekday:"short"})}</small></td>${used.map((r) => `<td>${cell(r, r.days[d] || 0)}</td>`).join("")}</tr>`).join("")}
+          <tr class="tot"><td class="l">TOTAL</td>${used.map((r) => `<td>${cell(r, r.quantity)}</td>`).join("")}</tr>
+          </tbody></table></div></div>`;
+      }
+
+      function renderFinanceAf() {
+        const box = el("financeAf");
+        if (state.financeDelivery !== "igarata") { box.innerHTML = ""; return; }
+        const period = financePeriod();
+        if (!period.key) { box.innerHTML = ""; return; }
+        const af = finAf();
+        const saldos = af.saldos[period.key] || {};
+        const { rows } = financeProductRows();
+        const lines = rows.map((r) => {
+          const kgU = finKg(r.product);
+          const fornecido = kgU ? r3(r.quantity * kgU) : r.quantity;
+          const saldo = saldos[r.id] === undefined || saldos[r.id] === "" ? null : Number(saldos[r.id]);
+          const diff = saldo === null ? null : r3(saldo - fornecido);
+          const status = diff === null ? (fornecido ? "none" : "") : diff === 0 ? "ok" : diff < 0 ? "over" : "left";
+          return { ...r, kgU, unit: kgU ? "kg" : "und", fornecido, saldo, diff, status };
+        });
+        const pend = lines.filter((l) => l.status === "over" || l.status === "left");
+        const semSaldo = lines.filter((l) => l.status === "none");
+        const informados = lines.filter((l) => l.saldo !== null);
+        const pill = (l) => l.status === "ok" ? '<span class="fin-pill ok">Sem pendência</span>'
+          : l.status === "over" ? `<span class="fin-pill over">Pendência: ${fmtN(-l.diff)} ${l.unit} acima da AF</span>`
+          : l.status === "left" ? `<span class="fin-pill left">Pendência: faltam ${fmtN(l.diff)} ${l.unit} da AF</span>`
+          : l.status === "none" ? '<span class="fin-pill none">Informe o saldo</span>' : "—";
+        const resumo = !informados.length ? `<div class="fin-status none">Preencha o saldo da AF de cada produto para conferir a pendência deste período.</div>`
+          : pend.length ? `<div class="fin-status pend">COM PENDÊNCIA em ${pend.length} produto(s): ${pend.map((l) => `${escapeHtml(l.name)} (${l.diff < 0 ? "−" : "+"}${fmtN(Math.abs(l.diff))} ${l.unit})`).join(", ")}.${semSaldo.length ? ` Sem saldo informado: ${semSaldo.map((l) => escapeHtml(l.name)).join(", ")}.` : ""}</div>`
+          : semSaldo.length ? `<div class="fin-status none">Sem pendência nos produtos informados. Falta o saldo de: ${semSaldo.map((l) => escapeHtml(l.name)).join(", ")}.</div>`
+          : `<div class="fin-status ok">SEM PENDÊNCIA — o fornecido bate com o saldo da AF em todos os produtos.</div>`;
+        box.innerHTML = `<div class="fin-block"><h4>Saldo da AF × fornecido — ${escapeHtml(period.label)}</h4>
+          <p>Digite o saldo da AF de cada produto (em kg, como na planilha). A diferença é saldo da AF − fornecido: negativo = entregou mais que a AF; positivo = ainda falta entregar. O saldo fica salvo para este período.</p>
+          <div class="fin-scroll"><table class="fin-table"><thead><tr><th class="l">Produto</th><th>Pedidos</th><th>Unidades</th><th>kg por und.</th><th>Fornecido</th><th>Saldo da AF</th><th>Diferença</th><th class="l">Situação</th></tr></thead><tbody>
+          ${lines.map((l) => `<tr><td class="l"><strong>${escapeHtml(l.name)}</strong></td><td>${l.orders}</td><td>${fmtN(l.quantity, 0)}</td>
+            <td><input class="kgf" data-af-kg="${escapeHtml(l.id)}" value="${String(l.kgU).replace(".", ",")}" inputmode="decimal" title="Peso de 1 unidade em kg (0 = conferir em unidades)" /></td>
+            <td><strong>${fmtN(l.fornecido)}</strong> <small>${l.unit}</small></td>
+            <td><input data-af-saldo="${escapeHtml(l.id)}" value="${l.saldo === null ? "" : String(l.saldo).replace(".", ",")}" inputmode="decimal" placeholder="${l.unit}" /></td>
+            <td>${l.diff === null ? "—" : `<strong>${l.diff > 0 ? "+" : ""}${fmtN(l.diff)}</strong> <small>${l.unit}</small>`}</td><td class="l">${pill(l)}</td></tr>`).join("")}
+          </tbody></table></div>${resumo}</div>`;
+        box.querySelectorAll("[data-af-saldo]").forEach((inp) => (inp.onchange = () => {
+          const v = finNum(inp.value); const cur = { ...(finAf().saldos[period.key] || {}) };
+          if (v === null) delete cur[inp.dataset.afSaldo]; else cur[inp.dataset.afSaldo] = v;
+          if (Object.keys(cur).length) finAf().saldos[period.key] = cur; else delete finAf().saldos[period.key];
+          saveLocal(); renderFinanceAf();
+        }));
+        box.querySelectorAll("[data-af-kg]").forEach((inp) => (inp.onchange = () => {
+          const v = finNum(inp.value); finAf().kgPerUnit[inp.dataset.afKg] = v === null ? "" : v;
+          saveLocal(); renderFinanceProducts(); renderFinanceAf();
+        }));
+      }
+
       function renderFinanceReport() {
+        const mode = el("financePeriodMode").value;
+        el("financeMonthField").hidden = mode !== "mes";
+        el("financeDayField").hidden = !(mode === "dia" || mode === "semana");
+        el("financeDayLabel").textContent = mode === "semana" ? "Qualquer dia da semana" : "Dia";
+        el("financeFromField").hidden = el("financeToField").hidden = mode !== "intervalo";
+        const period = financePeriod();
+        el("financePeriodInfo").textContent = period.label || "Escolha o período da consulta.";
         const rows = monthlyUnitRows();
         const units = new Set(rows.map(r=>r.unit)).size, quantity = rows.reduce((sum,r)=>sum+r.quantity,0), orders = rows.reduce((sum,r)=>sum+r.orders,0);
         el("financeSummary").innerHTML = `<div class="bread-total-card"><span>Unidades</span><strong>${units}</strong></div><div class="bread-total-card"><span>Quantidade total</span><strong>${quantity.toLocaleString("pt-BR")}</strong></div><div class="bread-total-card"><span>Pedidos</span><strong>${orders}</strong></div>`;
+        renderFinanceProducts();
+        renderFinanceAf();
         const sectors=[...new Set(rows.map(r=>r.sector))];
-        el("financeUnitList").innerHTML = rows.length ? sectors.map(sector=>`<div class="settings-section"><div class="settings-section-title"><strong>${escapeHtml(sector)}</strong></div>${rows.filter(r=>r.sector===sector).map(r=>`<div class="settings-list-row"><div><strong>${escapeHtml(r.unit)}</strong><small>${escapeHtml(r.product)}</small></div><span>${r.orders} pedido(s)</span><strong>${r.quantity.toLocaleString("pt-BR")}</strong></div>`).join("")}</div>`).join("") : '<div class="empty-state"><p>Nenhum registro encontrado para o mês e filtro informados.</p></div>';
+        el("financeUnitList").innerHTML = rows.length ? sectors.map(sector=>`<div class="settings-section"><div class="settings-section-title"><strong>${escapeHtml(sector)}</strong></div>${rows.filter(r=>r.sector===sector).map(r=>`<div class="settings-list-row"><div><strong>${escapeHtml(r.unit)}</strong><small>${escapeHtml(r.product)}</small></div><span>${r.orders} pedido(s)</span><strong>${r.quantity.toLocaleString("pt-BR")}</strong></div>`).join("")}</div>`).join("") : '<div class="empty-state"><p>Nenhum registro encontrado para o período e filtro informados.</p></div>';
         el("exportFinanceCsv").disabled = !rows.length;
       }
 
       function exportFinanceCsv() {
         const rows = monthlyUnitRows(); if (!rows.length) return;
+        const period = financePeriod();
         const quote = value => `"${String(value).replace(/"/g,'""')}"`;
-        const csv = ["Cliente;Setor;Unidade;Produto;Quantidade;Pedidos", ...rows.map(r=>[r.client,r.sector,r.unit,r.product,r.quantity,r.orders].map(quote).join(";"))].join("\r\n");
+        const num = (n) => String(r3(n)).replace(".", ",");
+        const lines = [`Período;${quote(period.label)}`, "", "Cliente;Setor;Unidade;Produto;Quantidade;Pedidos", ...rows.map(r=>[r.client,r.sector,r.unit,r.product,r.quantity,r.orders].map(quote).join(";"))];
+        const { rows: prod } = financeProductRows();
+        const igarata = state.financeDelivery === "igarata";
+        const saldos = igarata ? (finAf().saldos[period.key] || {}) : {};
+        lines.push("", igarata ? "Produto;Pedidos;Unidades;kg por und.;Fornecido;Saldo AF;Diferença (saldo − fornecido);Situação" : "Produto;Pedidos;Unidades");
+        prod.filter((r) => r.quantity > 0 || saldos[r.id] !== undefined).forEach((r) => {
+          if (!igarata) { lines.push([r.name, r.orders, r.quantity].map(quote).join(";")); return; }
+          const kgU = finKg(r.product), forn = kgU ? r3(r.quantity * kgU) : r.quantity, saldo = saldos[r.id];
+          const diff = saldo === undefined ? null : r3(saldo - forn);
+          lines.push([r.name, r.orders, r.quantity, num(kgU), num(forn), saldo === undefined ? "" : num(saldo), diff === null ? "" : num(diff), diff === null ? "Sem saldo informado" : diff === 0 ? "Sem pendência" : diff < 0 ? "Pendência: acima da AF" : "Pendência: falta entregar"].map(quote).join(";"));
+        });
+        const csv = lines.join("\r\n");
         const url = URL.createObjectURL(new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8"}));
-        const a=document.createElement("a"); a.href=url; a.download=`CONSULTA_FINANCEIRO_${(el("financeMonth").value||"SEM_MES").replace("-","_")}.csv`; a.click(); URL.revokeObjectURL(url);
+        const a=document.createElement("a"); a.href=url; a.download=`CONSULTA_FINANCEIRO_${(period.key||"SEM_PERIODO").replace(/-/g,"_")}.csv`; a.click(); URL.revokeObjectURL(url);
       }
 
       function renderArchive(message = "") {
@@ -3994,6 +4176,8 @@ doc.save(pdfName());
       function renderFinance() {
         const months=[...new Set([...state.orders,...state.archivedOrders].map(o=>String(o.date||"").slice(0,7)).filter(Boolean))].sort().reverse();
         if(!el("financeMonth").value) el("financeMonth").value=months[0]||new Date().toISOString().slice(0,7);
+        if(!el("financeDay").value) el("financeDay").value=finYmd(new Date());
+        if(!el("financeFrom").value||!el("financeTo").value){const [y,m]=el("financeMonth").value.split("-").map(Number);el("financeFrom").value=`${el("financeMonth").value}-01`;el("financeTo").value=finYmd(new Date(y,m,0));}
         const clients=automaticClientsAndUnits();
         el("financeClientTabs").innerHTML=clients.map(c=>`<button type="button" data-finance-client="${c.key}" class="${state.financeDelivery===c.key?"active":""}">${escapeHtml(c.name)}</button>`).join("");
         document.querySelectorAll("[data-finance-client]").forEach(b=>b.onclick=()=>{state.financeDelivery=b.dataset.financeClient;renderFinance();});
@@ -4006,7 +4190,7 @@ doc.save(pdfName());
         const sectors=[...new Set(selected.units.map(u=>sectorForUnit(u,selected.key)))];
         el("financeClientList").innerHTML=sectors.map(sector=>`<div class="settings-section"><div class="settings-section-title"><strong>${escapeHtml(sector)}</strong><span>${selected.units.filter(u=>sectorForUnit(u,selected.key)===sector).length} unidade(s)</span></div><div class="settings-list">${selected.units.filter(u=>sectorForUnit(u,selected.key)===sector).map(u=>`<div class="settings-list-row"><strong>${escapeHtml(u)}</strong></div>`).join("")}</div></div>`).join("")||'<small>Nenhuma unidade salva.</small>';
         el("financeRegistrySummary").innerHTML=`<div class="bread-total-card"><span>Clientes</span><strong>${clients.length}</strong></div><div class="bread-total-card"><span>Unidades</span><strong>${clients.reduce((s,c)=>s+c.units.length,0)}</strong></div>`;
-        el("financeMonth").onchange=renderFinanceReport; el("financeUnitSearch").oninput=renderFinanceReport; el("financeProductFilter").onchange=renderFinanceReport; el("exportFinanceCsv").onclick=exportFinanceCsv;
+        ["financeMonth","financeDay","financeFrom","financeTo","financePeriodMode"].forEach(id=>el(id).onchange=renderFinanceReport); el("financeUnitSearch").oninput=renderFinanceReport; el("financeProductFilter").onchange=renderFinanceReport; el("exportFinanceCsv").onclick=exportFinanceCsv;
         renderFinanceReport();
       }
 
@@ -4025,6 +4209,7 @@ doc.save(pdfName());
               fixed: state.fixed,
               validityRules: state.validityRules,
               archivedOrders: state.archivedOrders,
+              afIgarata: state.afIgarata,
             })
           );
         } catch {}
@@ -4071,6 +4256,7 @@ doc.save(pdfName());
               state.validityRules = normalizeValidityRules(settings.validityRules);
             if (!state.validityRules.some(rule=>rule.id===state.validityRuleId)) state.validityRuleId=state.validityRules[0].id;
             if (Array.isArray(settings.archivedOrders)) state.archivedOrders = settings.archivedOrders;
+            if (settings.afIgarata && typeof settings.afIgarata === "object") state.afIgarata = settings.afIgarata;
             if (settings.products && typeof settings.products === "object")
               Object.keys(state.products).forEach(key => {
                 if (Array.isArray(settings.products[key]) && settings.products[key].length)

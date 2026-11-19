@@ -112,6 +112,8 @@
         <div class="toolbar">
           <label class="field">Valor da AF (R$)<input id="inAf" class="money" inputmode="decimal" placeholder="0,00" /></label>
           <label class="field">Desconto (R$)<input id="inDesc" class="money" inputmode="decimal" placeholder="0,00" title="Valor a abater da AF (na planilha: 816,10 − 104)" /></label>
+          <label class="field">+ Saldo anterior (R$)<input id="inSaldo" class="money" inputmode="decimal" title="Sobra da última AF — vem sozinho do banco; pode corrigir aqui" /></label>
+          <button class="btn small" type="button" id="btnSaldoAuto" hidden>Usar saldo salvo</button>
           <label class="field">Nº da AF / observação<input id="inNota" class="wide" placeholder="Opcional" /></label>
         </div>
         <div id="calcWarn"></div>
@@ -135,6 +137,7 @@
         <div class="scroll" id="ordForm"></div>
         <div class="toolbar" style="margin-top:10px">
           <button class="btn primary" type="button" id="ordSave">Salvar pedido</button>
+          <button class="btn" type="button" id="ordCancel" hidden>Cancelar edição</button>
           <span class="hint">Produto novo (ex.: outro pão)? Cadastre em "Pacotes e preços" → Outros produtos.</span>
         </div>
         <div class="msg" id="ordMsg"></div>
@@ -207,6 +210,7 @@
       const toNum = (v) => {
         let s = String(v ?? "").trim().replace(/^R\$\s*/, "");
         if (s.includes(",")) s = s.replace(/\./g, "").replace(",", ".");
+        else if (/^\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, ""); // "1.000" = mil
         const n = Number(s);
         return Number.isFinite(n) ? n : 0;
       };
@@ -364,7 +368,9 @@
         const pctSum = data.items.reduce((t, i) => t + toNum(i.pct), 0);
         return { af: cents(af), desconto: cents(desconto), saldoAnterior: cents(saldo), disponivel, lines, usado, sobra: cents(disponivel - usado), pctSum };
       }
-      const current = () => compute(toNum(el("inAf").value), toNum(el("inDesc").value), currentSaldo());
+      // Saldo anterior: vem do banco (sobra da última AF); se a pessoa digitar outro valor, vale o digitado.
+      const saldoInput = () => (ui.saldoManual ? toNum(el("inSaldo").value) : currentSaldo());
+      const current = () => compute(toNum(el("inAf").value), toNum(el("inDesc").value), saldoInput());
 
       // ---------- Abas ----------
       function renderTabs() {
@@ -380,6 +386,8 @@
 
       // ---------- Calcular ----------
       function renderCalc() {
+        if (!ui.saldoManual && document.activeElement !== el("inSaldo")) el("inSaldo").value = currentSaldo().toFixed(2).replace(".", ",");
+        el("btnSaldoAuto").hidden = !ui.saldoManual;
         const r = current();
         let warn = "";
         if (Math.round(r.pctSum) !== 100) warn += `<div class="warn">A divisão entre os pacotes soma ${fmt(r.pctSum)}% (deveria ser 100%). Ajuste em "Pacotes e preços".</div>`;
@@ -390,6 +398,10 @@
           r.lines.map((l) => `<div class="card main"><span>${esc(l.name)} · ${fmt(l.pct)}%</span><strong>${fmt(l.packs, 0)} pct</strong><small>${fmt(l.units, 0)} und · ${money(l.value)}</small></div>`).join("") +
           `<div class="card"><span>Sobra → saldo da próxima</span><strong>${money(r.sobra)}</strong><small>${money(r.disponivel)} − ${money(r.usado)} em pacotes</small></div>`;
         el("calcTable").innerHTML = `<table class="grid"><thead><tr><th>Pacote</th><th>Preço und.</th><th>Und./pct</th><th>Preço pct</th><th>%</th><th>Valor da parte</th><th>Pacotes</th><th>Valor usado</th></tr></thead><tbody>
+          <tr><td class="left" colspan="7">Valor da AF</td><td class="right">${money(r.af)}</td></tr>
+          ${r.desconto ? `<tr><td class="left" colspan="7">− Desconto</td><td class="right">${money(r.desconto)}</td></tr>` : ""}
+          <tr><td class="left" colspan="7">+ Saldo anterior (sobra da última AF)</td><td class="right">${money(r.saldoAnterior)}</td></tr>
+          <tr class="total"><td class="left" colspan="7">VALOR PARA OS PACOTES</td><td class="right">${money(r.disponivel)}</td></tr>
           ${r.lines.map((l) => `<tr><td class="left">${esc(l.name)}</td><td class="right">${money(l.price)}</td><td>${fmt(l.perPack, 0)}</td><td class="right">${money(l.packPrice)}</td><td>${fmt(l.pct)}%</td><td class="right">${money(l.part)}</td><td><strong>${fmt(l.packs, 0)}</strong></td><td class="right">${money(l.value)}</td></tr>`).join("")}
           <tr class="total"><td class="left" colspan="7">TOTAL EM PACOTES</td><td class="right">${money(r.usado)}</td></tr>
           <tr class="total"><td class="left" colspan="7">SOBRA (vira saldo)</td><td class="right">${money(r.sobra)}</td></tr></tbody></table>`;
@@ -419,6 +431,7 @@
         el("inAf").value = "";
         el("inDesc").value = "";
         el("inNota").value = "";
+        ui.saldoManual = false;
         renderCalc();
         el("calcMsg").textContent = `AF salva. Saldo para a próxima: ${money(r.sobra)}.`;
       }
@@ -512,6 +525,10 @@
       }
       function renderOrders() {
         if (!el("ordDate").value) el("ordDate").value = today();
+        const editing = ui.editOrderId && data.orders.find((o) => o.id === ui.editOrderId);
+        if (ui.editOrderId && !editing) ui.editOrderId = null;
+        el("ordSave").textContent = editing ? "Salvar alterações do pedido" : "Salvar pedido";
+        el("ordCancel").hidden = !editing;
         el("ordForm").innerHTML = `<table class="grid"><thead><tr><th>Produto</th><th>Preço</th><th>Quantidade</th><th>Valor</th></tr></thead><tbody>
           ${orderProducts().map((p) => `<tr><td class="left">${esc(p.name)}${p.hint ? `<br><span class="hint">${esc(p.hint)}</span>` : ""}</td><td class="right">${money(p.price)} / ${esc(p.unit)}</td>
             <td><input class="n" data-oq="${esc(p.ref)}" value="${esc(ordQty[p.ref] ?? "")}" inputmode="decimal" placeholder="0" /></td><td class="right" id="ordVal-${esc(p.ref)}">${money(toNum(ordQty[p.ref]) * p.price)}</td></tr>`).join("")}
@@ -527,10 +544,12 @@
               <td class="left">${(o.lines || []).map((l) => `<strong>${fmt(l.qty, 3)}</strong> ${esc(l.unit)} ${esc(l.name)} × ${money(l.price)}`).join("<br>")}</td>
               <td class="right"><strong>${money(o.total)}</strong></td>
               <td>${o.status === "cobrado" ? `Cobrado${o.cobradoEm ? `<br><span class="hint">${esc(new Date(o.cobradoEm).toLocaleDateString("pt-BR"))}</span>` : ""}` : "<strong>A cobrar</strong>"}</td>
-              <td><button type="button" class="btn small" data-o-st="${esc(o.id)}">${o.status === "cobrado" ? "Voltar a cobrar" : "Marcar cobrado"}</button>
+              <td><button type="button" class="btn small" data-o-edit="${esc(o.id)}">${o.id === ui.editOrderId ? "Editando..." : "Editar"}</button>
+                <button type="button" class="btn small" data-o-st="${esc(o.id)}">${o.status === "cobrado" ? "Voltar a cobrar" : "Marcar cobrado"}</button>
                 <button type="button" class="btn small danger" data-o-del="${esc(o.id)}">×</button></td></tr>`).join("")}
           </tbody></table>`
           : `<p class="hint">Nenhum pedido anotado ainda.</p>`;
+        el("ordTable").querySelectorAll("[data-o-edit]").forEach((b) => (b.onclick = () => editOrder(b.dataset.oEdit)));
         el("ordTable").querySelectorAll("[data-o-st]").forEach((b) => (b.onclick = () => {
           const o = data.orders.find((x) => x.id === b.dataset.oSt);
           if (!o) return;
@@ -542,28 +561,51 @@
         el("ordTable").querySelectorAll("[data-o-del]").forEach((b) => (b.onclick = () => {
           if (!confirm("Apagar este pedido?")) return;
           data.orders = data.orders.filter((x) => x.id !== b.dataset.oDel);
+          if (ui.editOrderId === b.dataset.oDel) clearOrderForm();
           save();
           renderOrders();
         }));
       }
+      function clearOrderForm() {
+        ui.editOrderId = null;
+        Object.keys(ordQty).forEach((k) => delete ordQty[k]);
+        el("ordNota").value = "";
+        el("ordDate").value = today();
+      }
+      // Editar: joga o pedido de volta no formulário (data, anotação e quantidades).
+      function editOrder(id) {
+        const o = data.orders.find((x) => x.id === id);
+        if (!o) return;
+        clearOrderForm();
+        ui.editOrderId = o.id;
+        el("ordDate").value = o.date || today();
+        el("ordNota").value = o.nota || "";
+        const refs = new Set(orderProducts().map((p) => p.ref));
+        const missing = [];
+        (o.lines || []).forEach((l) => { if (refs.has(l.ref)) ordQty[l.ref] = String(l.qty).replace(".", ","); else missing.push(l.name); });
+        el("ordMsg").classList.toggle("error", !!missing.length);
+        el("ordMsg").textContent = missing.length
+          ? `Atenção: ${missing.join(", ")} não está mais cadastrado — se salvar, sai do pedido.`
+          : "Editando o pedido: mude as quantidades e clique em \"Salvar alterações do pedido\".";
+        renderOrders();
+        el("ordForm").scrollIntoView({ behavior: "smooth", block: "center" });
+      }
       function saveOrder() {
         const d = orderDraft();
         if (!d.lines.length) { el("ordMsg").textContent = "Coloque a quantidade de pelo menos um produto."; el("ordMsg").classList.add("error"); return; }
-        data.orders.unshift({
-          id: newId("ped"),
-          at: new Date().toISOString(),
+        const fields = {
           date: el("ordDate").value || today(),
-          by: portalUser.nome || "",
           nota: el("ordNota").value.trim(),
           lines: d.lines.map(({ ref, name, unit, price, qty, value }) => ({ ref, name, unit, price, qty, value })),
           total: d.total,
-          status: "pendente",
-        });
+        };
+        const editing = ui.editOrderId && data.orders.find((o) => o.id === ui.editOrderId);
+        if (editing) Object.assign(editing, fields, { editadoEm: new Date().toISOString(), editadoPor: portalUser.nome || "" });
+        else data.orders.unshift({ id: newId("ped"), at: new Date().toISOString(), by: portalUser.nome || "", status: "pendente", ...fields });
         save();
-        Object.keys(ordQty).forEach((k) => delete ordQty[k]);
-        el("ordNota").value = "";
+        clearOrderForm();
         el("ordMsg").classList.remove("error");
-        el("ordMsg").textContent = `Pedido salvo: ${money(d.total)} a cobrar.`;
+        el("ordMsg").textContent = editing ? `Pedido alterado: ${money(d.total)}.` : `Pedido salvo: ${money(d.total)} a cobrar.`;
         renderOrders();
       }
 
@@ -613,10 +655,13 @@
 
       // ---------- Eventos ----------
       ["inAf", "inDesc"].forEach((id) => el(id).addEventListener("input", () => { el("calcMsg").textContent = ""; renderCalc(); }));
+      el("inSaldo").addEventListener("input", () => { ui.saldoManual = cents(toNum(el("inSaldo").value)) !== cents(currentSaldo()); el("calcMsg").textContent = ""; renderCalc(); });
+      el("btnSaldoAuto").onclick = () => { ui.saldoManual = false; renderCalc(); };
       el("btnFechar").onclick = fechar;
       el("btnPrint").onclick = printCalc;
       el("btnAjuste").onclick = ajustarSaldo;
       el("ordSave").onclick = saveOrder;
+      el("ordCancel").onclick = () => { clearOrderForm(); el("ordMsg").textContent = ""; renderOrders(); };
       el("extAdd").onclick = () => {
         const name = prompt("Nome do produto:");
         if (!name || !name.trim()) return;
