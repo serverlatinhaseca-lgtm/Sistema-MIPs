@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Calculadora Gerdau</title>
+    <style>
+      :root {
+        --ink: #231d18;
+        --muted: #6e655d;
+        --line: #e5ddd3;
+        --paper: #fffdf9;
+        --cream: #faf7f2;
+        --orange: #e87523;
+        --orange-dark: #a65526;
+        --green: #2f6b4f;
+        --soft: #fff3e8;
+        --warn-bg: #fff6db;
+        --warn: #8a5a00;
+      }
+      * { box-sizing: border-box; }
+      [hidden] { display: none !important; }
+      body { margin: 0; background: transparent; color: var(--ink); font-family: Inter, "Segoe UI", Arial, sans-serif; font-size: 14px; }
+      button, input, select { font: inherit; }
+      .app { display: flex; flex-direction: column; gap: 14px; padding: 2px 2px 40px; }
+      .tabs { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+      .tab { min-height: 40px; padding: 0 16px; border: 1px solid var(--line); border-radius: 10px; background: #fff; color: var(--ink); font-weight: 700; cursor: pointer; }
+      .tab.active { border-color: var(--orange); background: var(--soft); color: var(--orange-dark); }
+      .badge { margin-left: auto; padding: 6px 12px; border-radius: 999px; border: 1px solid #ffd0aa; background: var(--soft); color: #8f461f; font-size: 12px; font-weight: 700; }
+      .badge:empty { display: none; }
+      .badge.error { border-color: #f3b4a8; background: #fdecea; color: #a32a17; }
+      .panel { padding: 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); }
+      .panel h2 { margin: 0 0 4px; font-size: 18px; }
+      .panel h3 { margin: 18px 0 8px; font-size: 15px; }
+      .panel p.sub { margin: 0 0 14px; color: var(--muted); font-size: 13px; }
+      .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-bottom: 12px; }
+      .field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: var(--muted); }
+      .field input { min-height: 38px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); font-weight: 400; }
+      .field input.money { width: 150px; text-align: right; }
+      .field input.wide { width: 280px; }
+      .btn { min-height: 38px; padding: 0 14px; border: 1px solid #cfc4b8; border-radius: 9px; background: #fff; color: var(--ink); font-weight: 700; cursor: pointer; }
+      .btn.primary { border: 0; background: linear-gradient(135deg, #ff9b48, #e87523); color: #fff; }
+      .btn:disabled { opacity: 0.5; cursor: default; }
+      .btn.small { min-height: 30px; padding: 0 10px; font-size: 12px; }
+      .btn.danger { border-color: #e7b3a9; color: #a32a17; }
+      .info { padding: 9px 12px; border-radius: 9px; background: var(--cream); color: var(--muted); font-size: 13px; }
+      .info strong { color: var(--ink); }
+      .warn { padding: 9px 12px; border-radius: 9px; background: var(--warn-bg); color: var(--warn); font-size: 13px; font-weight: 600; margin-bottom: 10px; }
+      .scroll { overflow-x: auto; }
+      table.grid { width: 100%; border-collapse: collapse; font-size: 13px; }
+      .grid th, .grid td { padding: 5px 7px; border: 1px solid var(--line); text-align: center; white-space: nowrap; }
+      .grid th { background: var(--cream); font-weight: 800; }
+      .grid td.left { text-align: left; white-space: normal; }
+      .grid td.right { text-align: right; }
+      .grid tr.total td { background: var(--soft); font-weight: 800; }
+      .grid tr.adj td { color: var(--muted); font-style: italic; }
+      .grid input { width: 100%; min-width: 60px; padding: 5px 6px; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--ink); }
+      .grid input.n { width: 90px; text-align: right; }
+      .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; margin: 14px 0; }
+      .card { padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--cream); }
+      .card span { display: block; color: var(--muted); font-size: 11px; font-weight: 800; text-transform: uppercase; }
+      .card strong { display: block; font-size: 24px; margin: 2px 0; }
+      .card small { color: var(--muted); font-size: 12px; }
+      .card.main { border-left: 5px solid var(--orange); background: var(--soft); }
+      .card.main strong { color: var(--orange-dark); }
+      .card.money { border-left: 5px solid var(--green); }
+      .card.money strong { color: var(--green); }
+      .hint { color: var(--muted); font-size: 12px; }
+      .msg { min-height: 18px; color: var(--green); font-size: 13px; font-weight: 700; }
+      .msg.error { color: #a32a17; }
+      .print-area { display: none; }
+
+      html[data-theme="dark"] body { color: #f7efe9; }
+      html[data-theme="dark"] .panel { background: #201713; border-color: #4a342a; }
+      html[data-theme="dark"] .tab, html[data-theme="dark"] .btn { background: #2a1f1a; border-color: #62483b; color: #f7efe9; }
+      html[data-theme="dark"] .tab.active { background: #4a2b1d; border-color: #ff8d2f; color: #ffb477; }
+      html[data-theme="dark"] .btn.primary { background: linear-gradient(135deg, #ff9b48, #e87523); color: #fff; }
+      html[data-theme="dark"] .grid th, html[data-theme="dark"] .card, html[data-theme="dark"] .info { background: #2a1f1a; color: #f7efe9; }
+      html[data-theme="dark"] .grid th, html[data-theme="dark"] .grid td, html[data-theme="dark"] .card { border-color: #4a342a; }
+      html[data-theme="dark"] .grid tr.total td, html[data-theme="dark"] .card.main { background: #3a2619; }
+      html[data-theme="dark"] .card.main strong { color: #ffb477; }
+      html[data-theme="dark"] .card.money strong { color: #6fd3a0; }
+      html[data-theme="dark"] .warn { background: #3a3018; color: #f3d48a; }
+      html[data-theme="dark"] input { background: #17100d !important; color: #f7efe9 !important; border-color: #5a4034 !important; }
+      html[data-theme="dark"] .card span, html[data-theme="dark"] .card small, html[data-theme="dark"] .hint, html[data-theme="dark"] .panel p.sub, html[data-theme="dark"] .field, html[data-theme="dark"] .info { color: #c8b8ae; }
+      html[data-theme="dark"] .info strong { color: #f7efe9; }
+
+      @page { size: A4; margin: 12mm; }
+      @media print {
+        body { background: #fff; color: #000; font-family: Arial, Helvetica, sans-serif; }
+        .app { display: none !important; }
+        .print-area { display: block; }
+        .print-area h1 { margin: 0 0 2mm; font-size: 15pt; color: #a65526; border-bottom: 0.8mm solid #e87523; padding-bottom: 1mm; }
+        .print-area p { margin: 0 0 3mm; font-size: 9.5pt; }
+        .doc { width: 100%; border-collapse: collapse; font-size: 10pt; margin-bottom: 4mm; }
+        .doc th, .doc td { border: 0.3mm solid #000; padding: 1.2mm 1.5mm; text-align: center; }
+        .doc td.left { text-align: left; }
+        .doc td.right { text-align: right; }
+        .doc th, .doc tr.total td { background: #e5e5e5; font-weight: 800; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .big { font-size: 13pt; font-weight: 800; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <div class="tabs" id="tabs"></div>
+
+      <!-- CALCULAR -->
+      <section class="panel" id="viewCalc">
+        <h2>Calcular pacotes da AF</h2>
+        <p class="sub">O valor da AF (mais o saldo que sobrou da última vez) é dividido entre os pacotes e arredondado para baixo, como na planilha. O que não fecha um pacote inteiro não se perde: vira saldo para a próxima AF.</p>
+        <div class="toolbar">
+          <label class="field">Valor da AF (R$)<input id="inAf" class="money" inputmode="decimal" placeholder="0,00" /></label>
+          <label class="field">Desconto (R$)<input id="inDesc" class="money" inputmode="decimal" placeholder="0,00" title="Valor a abater da AF (na planilha: 816,10 − 104)" /></label>
+          <label class="field">Nº da AF / observação<input id="inNota" class="wide" placeholder="Opcional" /></label>
+        </div>
+        <div id="calcWarn"></div>
+        <div class="cards" id="calcCards"></div>
+        <div class="scroll" id="calcTable"></div>
+        <div class="toolbar" style="margin-top:14px">
+          <button class="btn primary" type="button" id="btnFechar">Salvar e levar a sobra como saldo</button>
+          <button class="btn" type="button" id="btnPrint">Imprimir</button>
+        </div>
+        <div class="msg" id="calcMsg"></div>
+      </section>
+
+      <!-- PEDIDOS A COBRAR -->
+      <section class="panel" id="viewOrders" hidden>
+        <h2>Pedidos a cobrar</h2>
+        <p class="sub">Anote aqui o que a Gerdau pediu (pacotes e outros produtos). Fica salvo no banco como "a cobrar" até você marcar como cobrado.</p>
+        <div class="toolbar">
+          <label class="field">Data<input id="ordDate" type="date" /></label>
+          <label class="field">Anotação<input id="ordNota" class="wide" placeholder="Ex.: pedido por WhatsApp, nº do pedido..." /></label>
+        </div>
+        <div class="scroll" id="ordForm"></div>
+        <div class="toolbar" style="margin-top:10px">
+          <button class="btn primary" type="button" id="ordSave">Salvar pedido</button>
+          <span class="hint">Produto novo (ex.: outro pão)? Cadastre em "Pacotes e preços" → Outros produtos.</span>
+        </div>
+        <div class="msg" id="ordMsg"></div>
+        <h3>Anotados</h3>
+        <div class="info" id="ordSum" style="margin-bottom:10px"></div>
+        <div class="scroll" id="ordTable"></div>
+      </section>
+
+      <!-- PACOTES -->
+      <section class="panel" id="viewCfg" hidden>
+        <h2>Pacotes e preços</h2>
+        <p class="sub">Preço da unidade, quantas unidades vão no pacote e quanto (%) do valor vai para cada pacote. Padrão da planilha: Vermelho R$ 6,70 e Amarelo R$ 7,50, 7 por pacote, 50% cada.</p>
+        <div class="scroll" id="cfgTable"></div>
+        <div class="toolbar" style="margin-top:10px">
+          <button class="btn small" type="button" id="cfgAdd">+ Novo pacote</button>
+        </div>
+        <h3>Outros produtos (para os pedidos)</h3>
+        <div class="scroll" id="extTable"></div>
+        <div class="toolbar" style="margin-top:10px">
+          <button class="btn small" type="button" id="extAdd">+ Novo produto</button>
+        </div>
+      </section>
+
+      <!-- HISTÓRICO -->
+      <section class="panel" id="viewHist" hidden>
+        <h2>Histórico e saldo</h2>
+        <p class="sub">Cada AF salva guarda quanto sobrou. O saldo atual é o que sobrou da última — ele entra sozinho na próxima conta.</p>
+        <div class="toolbar">
+          <div class="info" id="histSaldo" style="flex:1"></div>
+          <button class="btn small" type="button" id="btnAjuste">Corrigir saldo</button>
+        </div>
+        <div class="scroll" id="histTable"></div>
+      </section>
+    </div>
+
+    <section class="print-area" id="printArea"></section>
+
+    <script>
+      // ---------- Acesso e banco (mesmo padrão das outras ferramentas) ----------
+      const portalUser = JSON.parse(localStorage.getItem("user") || "{}");
+      const portalToken = localStorage.getItem("token");
+      if (!portalToken || String(portalUser.perfil || "").toLowerCase() !== "administrador") {
+        window.top.location.href = "/mips";
+      }
+      const apiBase = window.location.protocol === "https:" ? "" : `http://${window.location.hostname}:7001`;
+      const api = `${apiBase}/api/ferramentas-admin/gerdau`;
+      const CACHE_KEY = "calculadora-gerdau";
+
+      // ---------- Dados padrão (planilha "Calculadora GERDAU.xlsx") ----------
+      function defaultData() {
+        return {
+          v: 1,
+          items: [
+            { id: "vermelho", name: "Vermelho", price: 6.7, perPack: 7, pct: 50 },
+            { id: "amarelo", name: "Amarelo", price: 7.5, perPack: 7, pct: 50 },
+          ],
+          extras: defaultExtras(),
+          orders: [],
+          history: [],
+        };
+      }
+      function defaultExtras() {
+        return [{ id: "pao-de-leite", name: "Pão de leite", price: 0.8, unit: "und" }];
+      }
+
+      const el = (id) => document.getElementById(id);
+      const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+      const money = (n) => Number(n || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+      const fmt = (n, d = 2) => Number(n || 0).toLocaleString("pt-BR", { maximumFractionDigits: d });
+      const toNum = (v) => {
+        let s = String(v ?? "").trim().replace(/^R\$\s*/, "");
+        if (s.includes(",")) s = s.replace(/\./g, "").replace(",", ".");
+        const n = Number(s);
+        return Number.isFinite(n) ? n : 0;
+      };
+      const cents = (n) => Math.round(n * 100) / 100;
+      // TRUNC da planilha, sem errar por 0,0000001 (ex.: 46,9 × 7 ÷ 46,9).
+      const trunc = (x) => Math.floor(Math.round(x * 1e6) / 1e6);
+      const newId = (p) => `${p}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+
+      let data = defaultData();
+      const ui = { view: "calc", loaded: false, badge: "", badgeError: false };
+
+      // ---------- Banco: lê o banco antes de cada envio e mescla (igual ao Romaneio) ----------
+      let saveTimer, retryTimer, synced = null, inFlight = null, sendAgain = false;
+      const SYNC_KEY = `${CACHE_KEY}-sincronizado`;
+      const clone = (v) => JSON.parse(JSON.stringify(v));
+      const canon = (v) => JSON.stringify(v, (_, x) => (x && typeof x === "object" && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) : x));
+      const equal = (a, b) => canon(a) === canon(b);
+      function setBadge(text, error = false) {
+        ui.badge = text;
+        ui.badgeError = error;
+        const b = document.querySelector(".badge");
+        if (!b) return;
+        b.textContent = text;
+        b.classList.toggle("error", error);
+      }
+      function writeCache() {
+        try {
+          localStorage.setItem(CACHE_KEY, JSON.stringify(data));
+          if (synced) localStorage.setItem(SYNC_KEY, JSON.stringify(synced));
+        } catch {}
+      }
+      function mergeList(local, server, base) {
+        const byId = (arr) => new Map((arr || []).map((x) => [x.id, x]));
+        const L = byId(local), B = base ? byId(base) : null;
+        const result = (server || []).filter((s) => {
+          if (!B || !B.has(s.id) || L.has(s.id)) return true;
+          return !equal(s, B.get(s.id));
+        }).map((s) => {
+          const l = L.get(s.id);
+          if (!l) return s;
+          const changed = B ? !equal(l, B.get(s.id)) : false;
+          return changed ? clone(l) : s;
+        });
+        const S = byId(server);
+        (local || []).forEach((l) => { if (!S.has(l.id) && (!B || !B.has(l.id))) result.push(clone(l)); });
+        return result;
+      }
+      const byDateDesc = (a, b) => String(b.at).localeCompare(String(a.at));
+      function mergeData(local, server, base) {
+        if (!server) return clone(local);
+        return {
+          v: 1,
+          items: mergeList(local.items, server.items, base?.items),
+          extras: mergeList(local.extras, server.extras, base?.extras),
+          orders: mergeList(local.orders, server.orders, base?.orders).sort(byDateDesc).slice(0, 1000),
+          history: mergeList(local.history, server.history, base?.history).sort(byDateDesc).slice(0, 500),
+        };
+      }
+      function normalize(d) {
+        if (!d || typeof d !== "object" || !Array.isArray(d.items)) return defaultData();
+        return {
+          v: 1,
+          items: d.items,
+          extras: Array.isArray(d.extras) ? d.extras : defaultExtras(),
+          orders: (Array.isArray(d.orders) ? d.orders : []).slice().sort(byDateDesc),
+          history: (Array.isArray(d.history) ? d.history : []).slice().sort(byDateDesc),
+        };
+      }
+      const authHeader = () => ({ Authorization: `Bearer ${localStorage.getItem("token")}` });
+      const httpError = (status) => Object.assign(new Error(`HTTP ${status}`), { status });
+      async function readServer() {
+        const r = await fetch(api, { headers: authHeader(), cache: "no-store" });
+        if (r.status === 404) return null;
+        if (!r.ok) throw httpError(r.status);
+        const { dados } = await r.json();
+        return normalize(dados);
+      }
+      function syncFailed(e) {
+        ui.loaded = true;
+        const expired = e?.status === 401 || e?.status === 403;
+        setBadge(expired ? "Sessão expirada — entre no portal de novo. Nada foi perdido: as alterações sobem sozinhas depois disso." : "Sem conexão com o banco — as alterações ficam guardadas aqui e sobem sozinhas.", true);
+        clearTimeout(retryTimer);
+        retryTimer = setTimeout(syncNow, 20000);
+      }
+      async function doSync() {
+        try {
+          const before = clone(data);
+          const server = await readServer();
+          const merged = mergeData(before, server, synced);
+          if (!server || !equal(merged, server)) {
+            setBadge("Salvando no banco...");
+            const r = await fetch(api, { method: "PUT", headers: { "Content-Type": "application/json", ...authHeader() }, body: JSON.stringify({ dados: merged }) });
+            if (!r.ok) throw httpError(r.status);
+          }
+          const changedMeanwhile = !equal(data, before);
+          const cameFromServer = !equal(before, merged);
+          synced = clone(merged);
+          data = changedMeanwhile ? mergeData(data, merged, before) : merged;
+          if (changedMeanwhile) sendAgain = true;
+          writeCache();
+          ui.loaded = true;
+          setBadge(changedMeanwhile ? "Salvando no banco..." : "Salvo no banco");
+          const typing = /^(INPUT|SELECT)$/.test(document.activeElement?.tagName || "");
+          if (cameFromServer && !typing) render();
+          else if (cameFromServer) renderCalc(true);
+        } catch (e) {
+          syncFailed(e);
+        }
+      }
+      function syncNow() {
+        clearTimeout(saveTimer);
+        clearTimeout(retryTimer);
+        if (inFlight) { sendAgain = true; return inFlight; }
+        inFlight = doSync().finally(() => {
+          inFlight = null;
+          if (sendAgain) { sendAgain = false; syncNow(); }
+        });
+        return inFlight;
+      }
+      function save() {
+        writeCache();
+        clearTimeout(saveTimer);
+        setBadge("Salvando no banco...");
+        saveTimer = setTimeout(syncNow, 400);
+      }
+      async function load() {
+        let cached = null;
+        try { cached = JSON.parse(localStorage.getItem(CACHE_KEY) || "null"); } catch {}
+        if (cached) data = normalize(cached);
+        let snapshot = null;
+        try { snapshot = JSON.parse(localStorage.getItem(SYNC_KEY) || "null"); } catch {}
+        synced = snapshot ? normalize(snapshot) : cached ? null : defaultData();
+        render();
+        await syncNow();
+        render();
+      }
+
+      // ---------- Regra ----------
+      // Saldo atual = o que sobrou no último registro (AF salva ou correção manual).
+      const lastEntry = () => data.history.slice().sort(byDateDesc)[0] || null;
+      const currentSaldo = () => toNum(lastEntry()?.sobra);
+
+      // disponível = AF − desconto + saldo anterior; cada pacote recebe a sua % e
+      // leva só pacotes inteiros (TRUNC); o que não fecha pacote vira o novo saldo.
+      function compute(af, desconto, saldo) {
+        const disponivel = cents(af - desconto + saldo);
+        const items = data.items.filter((i) => toNum(i.price) > 0 && toNum(i.perPack) > 0);
+        const lines = items.map((i) => {
+          const packPrice = cents(toNum(i.price) * toNum(i.perPack));
+          const part = (disponivel * toNum(i.pct)) / 100;
+          const packs = part > 0 ? trunc(part / packPrice) : 0;
+          return { id: i.id, name: i.name, price: toNum(i.price), perPack: toNum(i.perPack), pct: toNum(i.pct), packPrice, part: cents(part), packs, units: packs * toNum(i.perPack), value: cents(packs * packPrice) };
+        });
+        const usado = cents(lines.reduce((t, l) => t + l.value, 0));
+        const pctSum = data.items.reduce((t, i) => t + toNum(i.pct), 0);
+        return { af: cents(af), desconto: cents(desconto), saldoAnterior: cents(saldo), disponivel, lines, usado, sobra: cents(disponivel - usado), pctSum };
+      }
+      const current = () => compute(toNum(el("inAf").value), toNum(el("inDesc").value), currentSaldo());
+
+      // ---------- Abas ----------
+      function renderTabs() {
+        el("tabs").innerHTML = [["calc", "Calcular"], ["orders", "Pedidos a cobrar"], ["cfg", "Pacotes e preços"], ["hist", "Histórico e saldo"]]
+          .map(([id, label]) => `<button type="button" class="tab ${ui.view === id ? "active" : ""}" data-view="${id}">${label}</button>`)
+          .join("") + `<span class="badge ${ui.badgeError ? "error" : ""}">${esc(ui.loaded ? ui.badge || "" : "Carregando...")}</span>`;
+        document.querySelectorAll("[data-view]").forEach((b) => (b.onclick = () => { ui.view = b.dataset.view; render(); }));
+        el("viewCalc").hidden = ui.view !== "calc";
+        el("viewCfg").hidden = ui.view !== "cfg";
+        el("viewOrders").hidden = ui.view !== "orders";
+        el("viewHist").hidden = ui.view !== "hist";
+      }
+
+      // ---------- Calcular ----------
+      function renderCalc() {
+        const r = current();
+        let warn = "";
+        if (Math.round(r.pctSum) !== 100) warn += `<div class="warn">A divisão entre os pacotes soma ${fmt(r.pctSum)}% (deveria ser 100%). Ajuste em "Pacotes e preços".</div>`;
+        if (r.sobra < 0) warn += `<div class="warn">O saldo está negativo — confira os valores.</div>`;
+        el("calcWarn").innerHTML = warn;
+        el("calcCards").innerHTML =
+          `<div class="card money"><span>Valor para os pacotes</span><strong>${money(r.disponivel)}</strong><small>AF ${money(r.af)}${r.desconto ? ` − desconto ${money(r.desconto)}` : ""} + saldo anterior ${money(r.saldoAnterior)}</small></div>` +
+          r.lines.map((l) => `<div class="card main"><span>${esc(l.name)} · ${fmt(l.pct)}%</span><strong>${fmt(l.packs, 0)} pct</strong><small>${fmt(l.units, 0)} und · ${money(l.value)}</small></div>`).join("") +
+          `<div class="card"><span>Sobra → saldo da próxima</span><strong>${money(r.sobra)}</strong><small>${money(r.disponivel)} − ${money(r.usado)} em pacotes</small></div>`;
+        el("calcTable").innerHTML = `<table class="grid"><thead><tr><th>Pacote</th><th>Preço und.</th><th>Und./pct</th><th>Preço pct</th><th>%</th><th>Valor da parte</th><th>Pacotes</th><th>Valor usado</th></tr></thead><tbody>
+          ${r.lines.map((l) => `<tr><td class="left">${esc(l.name)}</td><td class="right">${money(l.price)}</td><td>${fmt(l.perPack, 0)}</td><td class="right">${money(l.packPrice)}</td><td>${fmt(l.pct)}%</td><td class="right">${money(l.part)}</td><td><strong>${fmt(l.packs, 0)}</strong></td><td class="right">${money(l.value)}</td></tr>`).join("")}
+          <tr class="total"><td class="left" colspan="7">TOTAL EM PACOTES</td><td class="right">${money(r.usado)}</td></tr>
+          <tr class="total"><td class="left" colspan="7">SOBRA (vira saldo)</td><td class="right">${money(r.sobra)}</td></tr></tbody></table>`;
+        el("btnFechar").disabled = !(r.af > 0);
+      }
+
+      function fechar() {
+        const r = current();
+        if (!(r.af > 0)) return;
+        if (!confirm(`Salvar esta AF e levar ${money(r.sobra)} como saldo para a próxima?`)) return;
+        data.history.unshift({
+          id: newId("af"),
+          kind: "af",
+          at: new Date().toISOString(),
+          by: portalUser.nome || "",
+          nota: el("inNota").value.trim(),
+          af: r.af,
+          desconto: r.desconto,
+          saldoAnterior: r.saldoAnterior,
+          disponivel: r.disponivel,
+          lines: r.lines,
+          usado: r.usado,
+          sobra: r.sobra,
+        });
+        data.history = data.history.slice(0, 500);
+        save();
+        el("inAf").value = "";
+        el("inDesc").value = "";
+        el("inNota").value = "";
+        renderCalc();
+        el("calcMsg").textContent = `AF salva. Saldo para a próxima: ${money(r.sobra)}.`;
+      }
+
+      function printCalc() {
+        const r = current();
+        const nota = el("inNota").value.trim();
+        el("printArea").innerHTML = `<h1>Calculadora Gerdau${nota ? ` — ${esc(nota)}` : ""}</h1>
+          <p>Impresso em ${new Date().toLocaleString("pt-BR")}</p>
+          <table class="doc"><tbody>
+            <tr><td class="left">Valor da AF</td><td class="right">${money(r.af)}</td></tr>
+            ${r.desconto ? `<tr><td class="left">Desconto</td><td class="right">− ${money(r.desconto)}</td></tr>` : ""}
+            <tr><td class="left">Saldo anterior</td><td class="right">${money(r.saldoAnterior)}</td></tr>
+            <tr class="total"><td class="left">Valor para os pacotes</td><td class="right">${money(r.disponivel)}</td></tr>
+          </tbody></table>
+          <table class="doc"><thead><tr><th>Pacote</th><th>Preço pct</th><th>%</th><th>Pacotes</th><th>Unidades</th><th>Valor</th></tr></thead><tbody>
+          ${r.lines.map((l) => `<tr><td class="left">${esc(l.name)}</td><td class="right">${money(l.packPrice)}</td><td>${fmt(l.pct)}%</td><td class="big">${fmt(l.packs, 0)}</td><td>${fmt(l.units, 0)}</td><td class="right">${money(l.value)}</td></tr>`).join("")}
+          <tr class="total"><td class="left" colspan="5">Total em pacotes</td><td class="right">${money(r.usado)}</td></tr>
+          <tr class="total"><td class="left" colspan="5">Saldo para a próxima AF</td><td class="right">${money(r.sobra)}</td></tr>
+          </tbody></table>`;
+        window.print();
+      }
+
+      // ---------- Pacotes e preços ----------
+      function renderCfg() {
+        el("cfgTable").innerHTML = `<table class="grid"><thead><tr><th>Pacote</th><th>Preço und. (R$)</th><th>Und. por pacote</th><th>% do valor</th><th>Preço do pacote</th><th></th></tr></thead><tbody>
+          ${data.items.map((i) => `<tr><td><input data-k="name" data-id="${esc(i.id)}" value="${esc(i.name)}" /></td>
+            <td><input class="n" data-k="price" data-id="${esc(i.id)}" value="${esc(String(i.price).replace(".", ","))}" inputmode="decimal" /></td>
+            <td><input class="n" data-k="perPack" data-id="${esc(i.id)}" value="${esc(i.perPack)}" inputmode="numeric" /></td>
+            <td><input class="n" data-k="pct" data-id="${esc(i.id)}" value="${esc(String(i.pct).replace(".", ","))}" inputmode="decimal" /></td>
+            <td class="right">${money(toNum(i.price) * toNum(i.perPack))}</td>
+            <td><button type="button" class="btn small danger" data-del="${esc(i.id)}">×</button></td></tr>`).join("")}
+          </tbody></table>`;
+        el("cfgTable").querySelectorAll("input[data-k]").forEach((inp) => (inp.onchange = () => {
+          const it = data.items.find((x) => x.id === inp.dataset.id);
+          if (!it) return;
+          it[inp.dataset.k] = inp.dataset.k === "name" ? inp.value.trim() : toNum(inp.value);
+          save();
+          renderCfg();
+        }));
+        el("cfgTable").querySelectorAll("[data-del]").forEach((b) => (b.onclick = () => {
+          const it = data.items.find((x) => x.id === b.dataset.del);
+          if (!it || !confirm(`Excluir o pacote "${it.name}"?`)) return;
+          data.items = data.items.filter((x) => x.id !== it.id);
+          save();
+          renderCfg();
+        }));
+      }
+
+      function renderExtras() {
+        el("extTable").innerHTML = `<table class="grid"><thead><tr><th>Produto</th><th>Preço (R$)</th><th>Unidade</th><th></th></tr></thead><tbody>
+          ${data.extras.map((i) => `<tr><td><input data-e="name" data-id="${esc(i.id)}" value="${esc(i.name)}" /></td>
+            <td><input class="n" data-e="price" data-id="${esc(i.id)}" value="${esc(String(i.price).replace(".", ","))}" inputmode="decimal" /></td>
+            <td><input class="n" data-e="unit" data-id="${esc(i.id)}" value="${esc(i.unit || "und")}" /></td>
+            <td><button type="button" class="btn small danger" data-e-del="${esc(i.id)}">×</button></td></tr>`).join("")}
+          </tbody></table>`;
+        el("extTable").querySelectorAll("input[data-e]").forEach((inp) => (inp.onchange = () => {
+          const it = data.extras.find((x) => x.id === inp.dataset.id);
+          if (!it) return;
+          it[inp.dataset.e] = inp.dataset.e === "price" ? toNum(inp.value) : inp.value.trim();
+          save();
+          renderExtras();
+        }));
+        el("extTable").querySelectorAll("[data-e-del]").forEach((b) => (b.onclick = () => {
+          const it = data.extras.find((x) => x.id === b.dataset.eDel);
+          if (!it || !confirm(`Excluir o produto "${it.name}"?`)) return;
+          data.extras = data.extras.filter((x) => x.id !== it.id);
+          save();
+          renderExtras();
+        }));
+      }
+
+      // ---------- Pedidos a cobrar ----------
+      const today = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
+      const brDate = (iso) => (iso ? iso.split("-").reverse().join("/") : "—");
+      // O que pode ser pedido: os pacotes (preço do pacote) e os outros produtos (preço unitário).
+      const orderProducts = () => [
+        ...data.items.filter((i) => toNum(i.price) > 0).map((i) => ({ ref: `pct:${i.id}`, name: `Pacote ${i.name}`, unit: "pct", price: cents(toNum(i.price) * toNum(i.perPack)), hint: `${fmt(i.perPack, 0)} × ${money(i.price)}` })),
+        ...data.extras.map((e) => ({ ref: `ext:${e.id}`, name: e.name, unit: e.unit || "und", price: toNum(e.price), hint: "" })),
+      ];
+      const ordQty = {};
+      function orderDraft() {
+        const lines = orderProducts().map((p) => ({ ...p, qty: toNum(ordQty[p.ref]) })).filter((l) => l.qty > 0).map((l) => ({ ...l, value: cents(l.qty * l.price) }));
+        return { lines, total: cents(lines.reduce((t, l) => t + l.value, 0)) };
+      }
+      function renderOrderTotal() {
+        const d = orderDraft();
+        const cell = el("ordDraftTotal");
+        if (cell) cell.textContent = money(d.total);
+        orderProducts().forEach((p) => { const c = el(`ordVal-${p.ref}`); if (c) c.textContent = money(toNum(ordQty[p.ref]) * p.price); });
+      }
+      function renderOrders() {
+        if (!el("ordDate").value) el("ordDate").value = today();
+        el("ordForm").innerHTML = `<table class="grid"><thead><tr><th>Produto</th><th>Preço</th><th>Quantidade</th><th>Valor</th></tr></thead><tbody>
+          ${orderProducts().map((p) => `<tr><td class="left">${esc(p.name)}${p.hint ? `<br><span class="hint">${esc(p.hint)}</span>` : ""}</td><td class="right">${money(p.price)} / ${esc(p.unit)}</td>
+            <td><input class="n" data-oq="${esc(p.ref)}" value="${esc(ordQty[p.ref] ?? "")}" inputmode="decimal" placeholder="0" /></td><td class="right" id="ordVal-${esc(p.ref)}">${money(toNum(ordQty[p.ref]) * p.price)}</td></tr>`).join("")}
+          <tr class="total"><td class="left" colspan="3">TOTAL DO PEDIDO</td><td class="right" id="ordDraftTotal">${money(orderDraft().total)}</td></tr></tbody></table>`;
+        el("ordForm").querySelectorAll("[data-oq]").forEach((inp) => (inp.oninput = () => { ordQty[inp.dataset.oq] = inp.value; renderOrderTotal(); }));
+
+        const list = data.orders.slice().sort((a, b) => String(b.date || b.at).localeCompare(String(a.date || a.at)) || byDateDesc(a, b));
+        const pend = list.filter((o) => o.status !== "cobrado");
+        el("ordSum").innerHTML = `A cobrar: <strong>${money(pend.reduce((t, o) => t + toNum(o.total), 0))}</strong> em ${pend.length} pedido(s).`;
+        el("ordTable").innerHTML = list.length
+          ? `<table class="grid"><thead><tr><th>Data</th><th>Anotação</th><th>Itens</th><th>Total</th><th>Situação</th><th></th></tr></thead><tbody>
+            ${list.map((o) => `<tr${o.status === "cobrado" ? ' class="adj"' : ""}><td>${esc(brDate(o.date))}${o.by ? `<br><span class="hint">${esc(o.by)}</span>` : ""}</td><td class="left">${esc(o.nota || "—")}</td>
+              <td class="left">${(o.lines || []).map((l) => `<strong>${fmt(l.qty, 3)}</strong> ${esc(l.unit)} ${esc(l.name)} × ${money(l.price)}`).join("<br>")}</td>
+              <td class="right"><strong>${money(o.total)}</strong></td>
+              <td>${o.status === "cobrado" ? `Cobrado${o.cobradoEm ? `<br><span class="hint">${esc(new Date(o.cobradoEm).toLocaleDateString("pt-BR"))}</span>` : ""}` : "<strong>A cobrar</strong>"}</td>
+              <td><button type="button" class="btn small" data-o-st="${esc(o.id)}">${o.status === "cobrado" ? "Voltar a cobrar" : "Marcar cobrado"}</button>
+                <button type="button" class="btn small danger" data-o-del="${esc(o.id)}">×</button></td></tr>`).join("")}
+          </tbody></table>`
+          : `<p class="hint">Nenhum pedido anotado ainda.</p>`;
+        el("ordTable").querySelectorAll("[data-o-st]").forEach((b) => (b.onclick = () => {
+          const o = data.orders.find((x) => x.id === b.dataset.oSt);
+          if (!o) return;
+          if (o.status === "cobrado") { o.status = "pendente"; delete o.cobradoEm; }
+          else { o.status = "cobrado"; o.cobradoEm = new Date().toISOString(); }
+          save();
+          renderOrders();
+        }));
+        el("ordTable").querySelectorAll("[data-o-del]").forEach((b) => (b.onclick = () => {
+          if (!confirm("Apagar este pedido?")) return;
+          data.orders = data.orders.filter((x) => x.id !== b.dataset.oDel);
+          save();
+          renderOrders();
+        }));
+      }
+      function saveOrder() {
+        const d = orderDraft();
+        if (!d.lines.length) { el("ordMsg").textContent = "Coloque a quantidade de pelo menos um produto."; el("ordMsg").classList.add("error"); return; }
+        data.orders.unshift({
+          id: newId("ped"),
+          at: new Date().toISOString(),
+          date: el("ordDate").value || today(),
+          by: portalUser.nome || "",
+          nota: el("ordNota").value.trim(),
+          lines: d.lines.map(({ ref, name, unit, price, qty, value }) => ({ ref, name, unit, price, qty, value })),
+          total: d.total,
+          status: "pendente",
+        });
+        save();
+        Object.keys(ordQty).forEach((k) => delete ordQty[k]);
+        el("ordNota").value = "";
+        el("ordMsg").classList.remove("error");
+        el("ordMsg").textContent = `Pedido salvo: ${money(d.total)} a cobrar.`;
+        renderOrders();
+      }
+
+      // ---------- Histórico ----------
+      function renderHist() {
+        const h = data.history.slice().sort(byDateDesc);
+        el("histSaldo").innerHTML = `Saldo atual: <strong>${money(currentSaldo())}</strong> — entra sozinho na próxima AF.`;
+        el("histTable").innerHTML = h.length
+          ? `<table class="grid"><thead><tr><th>Data</th><th>AF / obs.</th><th>Valor AF</th><th>Desconto</th><th>Saldo anterior</th><th>Pacotes</th><th>Usado</th><th>Sobra (saldo)</th><th></th></tr></thead><tbody>
+            ${h.map((x, i) => x.kind === "ajuste"
+              ? `<tr class="adj"><td>${esc(new Date(x.at).toLocaleString("pt-BR"))}${x.by ? `<br><span class="hint">${esc(x.by)}</span>` : ""}</td><td class="left" colspan="6">Saldo corrigido à mão${x.nota ? ` — ${esc(x.nota)}` : ""} (era ${money(x.saldoAnterior)})</td><td class="right"><strong>${money(x.sobra)}</strong></td>
+                <td>${i === 0 ? `<button type="button" class="btn small danger" data-h-del="${esc(x.id)}" title="Desfazer">×</button>` : ""}</td></tr>`
+              : `<tr><td>${esc(new Date(x.at).toLocaleString("pt-BR"))}${x.by ? `<br><span class="hint">${esc(x.by)}</span>` : ""}</td><td class="left">${esc(x.nota || "—")}</td>
+                <td class="right">${money(x.af)}</td><td class="right">${x.desconto ? money(x.desconto) : "—"}</td><td class="right">${money(x.saldoAnterior)}</td>
+                <td class="left">${(x.lines || []).map((l) => `<strong>${fmt(l.packs, 0)}</strong> ${esc(l.name)}`).join("<br>")}</td>
+                <td class="right">${money(x.usado)}</td><td class="right"><strong>${money(x.sobra)}</strong></td>
+                <td>${i === 0 ? `<button type="button" class="btn small danger" data-h-del="${esc(x.id)}" title="Desfazer">×</button>` : ""}</td></tr>`).join("")}
+          </tbody></table><p class="hint">Só o registro mais recente pode ser desfeito — assim o saldo volta para o valor de antes.</p>`
+          : `<p class="hint">Nenhuma AF salva ainda. Saldo atual: R$ 0,00.</p>`;
+        el("histTable").querySelectorAll("[data-h-del]").forEach((b) => (b.onclick = () => {
+          if (!confirm("Desfazer este registro? O saldo volta para o valor anterior.")) return;
+          data.history = data.history.filter((x) => x.id !== b.dataset.hDel);
+          save();
+          render();
+        }));
+      }
+
+      function ajustarSaldo() {
+        const atual = currentSaldo();
+        const v = prompt(`Saldo atual: ${money(atual)}.\nNovo saldo (R$):`, String(atual).replace(".", ","));
+        if (v === null || !String(v).trim()) return;
+        const novo = cents(toNum(v));
+        if (novo === atual) return;
+        const nota = prompt("Motivo da correção (opcional):") || "";
+        data.history.unshift({ id: newId("aj"), kind: "ajuste", at: new Date().toISOString(), by: portalUser.nome || "", nota: nota.trim(), saldoAnterior: atual, sobra: novo });
+        save();
+        render();
+      }
+
+      function render() {
+        renderTabs();
+        if (ui.view === "calc") renderCalc();
+        if (ui.view === "cfg") { renderCfg(); renderExtras(); }
+        if (ui.view === "orders") renderOrders();
+        if (ui.view === "hist") renderHist();
+      }
+
+      // ---------- Eventos ----------
+      ["inAf", "inDesc"].forEach((id) => el(id).addEventListener("input", () => { el("calcMsg").textContent = ""; renderCalc(); }));
+      el("btnFechar").onclick = fechar;
+      el("btnPrint").onclick = printCalc;
+      el("btnAjuste").onclick = ajustarSaldo;
+      el("ordSave").onclick = saveOrder;
+      el("extAdd").onclick = () => {
+        const name = prompt("Nome do produto:");
+        if (!name || !name.trim()) return;
+        data.extras.push({ id: newId("prd"), name: name.trim(), price: 0, unit: "und" });
+        save();
+        renderExtras();
+      };
+      el("cfgAdd").onclick = () => {
+        const name = prompt("Nome do novo pacote:");
+        if (!name || !name.trim()) return;
+        data.items.push({ id: newId("pct"), name: name.trim(), price: 0, perPack: 7, pct: 0 });
+        save();
+        renderCfg();
+      };
+
+      load();
+    </script>
+  </body>
+</html>

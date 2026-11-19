@@ -2,7 +2,7 @@
 
 > Portal interno para padronização operacional, gestão de receitas, avaliações de desempenho, reclamações e ferramentas de produção.
 
-![Versão](https://img.shields.io/badge/versão-2.16.0-ff8d2f)
+![Versão](https://img.shields.io/badge/versão-2.17.0-ff8d2f)
 ![React](https://img.shields.io/badge/React-18-61dafb)
 ![Node.js](https://img.shields.io/badge/Node.js-22-339933)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-4169e1)
@@ -11,6 +11,10 @@
 ## Sobre o sistema
 
 O Sistema Central reúne em um único portal os processos internos da Nova Esperança. A aplicação funciona em computadores e celulares, possui modo claro e escuro e separa os acessos conforme a função de cada usuário.
+
+### Novidades da versão 2.17.0
+
+- **Calculadora Gerdau** (Ferramentas → `/ferramentas/gerdau`, só Administrador): digite o valor da AF (e um desconto, se houver) e ela divide entre os pacotes Vermelho e Amarelo (50% cada, 7 unidades por pacote) só em pacotes inteiros, como a planilha. O que não fecha um pacote **não se perde mais**: fica salvo no banco como saldo e entra sozinho na próxima AF. Histórico de AFs, correção manual do saldo e impressão. Aba **Pedidos a cobrar** para anotar o que a Gerdau pede (pacotes Vermelho/Amarelo e outros produtos, como pão de leite) com total e marcação de "cobrado".
 
 ### Novidades da versão 2.15.0
 
