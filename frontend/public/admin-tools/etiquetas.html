@@ -2295,6 +2295,48 @@
         );
       }
 
+      // Cancelamento (registrado na fila de pedidos): order.cancel = { qty, motivo, at, by }.
+      function cancelQty(o) {
+        return Math.min(Number(o.labelCount || o.total) || 0, Math.max(0, Number(o.cancel?.qty) || 0));
+      }
+      // Pedidos que vão para a impressão: cancelado inteiro não imprime; parcial imprime só o que sobrou.
+      function printableOrders() {
+        return activeOrders().map((o) => {
+          const c = cancelQty(o);
+          if (!c) return o;
+          const rest = (Number(o.labelCount || o.total) || 0) - c;
+          if (rest <= 0) return null;
+          if (o.parts?.length) {
+            const size = Number(o.product?.packageSize) || Math.max(...o.parts);
+            return { ...o, total: rest, parts: divide(rest, size) };
+          }
+          return { ...o, total: rest, labelCount: o.labelCount ? rest : o.labelCount };
+        }).filter(Boolean);
+      }
+      function cancelOrder(o) {
+        if (!o) return;
+        const total = Number(o.labelCount || o.total) || 0;
+        const q = prompt(`Cancelar: ${o.destination || "Sem unidade"} · ${o.product?.shortName || o.product?.name || ""} · ${formatDate(o.date)} (${total} und).\n\nQuantas unidades foram canceladas? (${total} = pedido inteiro)`, String(cancelQty(o) || total));
+        if (q === null) return;
+        const qty = Math.round(Number(String(q).replace(",", ".")) || 0);
+        if (!(qty > 0) || qty > total) { alert(`Informe um número de 1 a ${total}.`); return; }
+        const motivo = prompt("Motivo do cancelamento (ex.: escola sem aula, pedido errado):", o.cancel?.motivo || "");
+        if (motivo === null) return;
+        o.cancel = { qty, motivo: motivo.trim(), at: new Date().toISOString(), by: portalUser.nome || "" };
+        saveLocal(); render();
+      }
+      function undoCancelOrder(o) {
+        if (!o || !confirm(`Desfazer o cancelamento de ${o.destination || "Sem unidade"} (${formatDate(o.date)})? O pedido volta a contar e a imprimir inteiro.`)) return;
+        delete o.cancel;
+        saveLocal(); render();
+      }
+      const cancelButtons = (o) => o.cancel?.qty
+        ? `<button type="button" data-uncancel-order="${o.id}" title="${String(o.cancel.motivo || "").replace(/"/g, "&quot;")}">Desfazer cancel.</button>`
+        : `<button type="button" data-cancel-order="${o.id}">Cancelar</button>`;
+      const cancelBadge = (o) => o.cancel?.qty
+        ? ` • <strong style="color:#a32a17">CANCELADO ${cancelQty(o) >= Number(o.labelCount || o.total) ? "(TODO — não imprime)" : `${cancelQty(o)} UND (imprime só o resto)`}${o.cancel.motivo ? ` — ${String(o.cancel.motivo).replace(/[<>&]/g, "")}` : ""}</strong>`
+        : "";
+
       function allDates() {
         return [
           ...new Set(
@@ -2312,7 +2354,7 @@
 
       function labels() {
         if (state.delivery === "genericas")
-          return activeOrders().flatMap((o) =>
+          return printableOrders().flatMap((o) =>
             o.parts?.length
               ? o.parts.map((qty, index) => ({
                   id: `${o.id}-${index}`,
@@ -2330,7 +2372,7 @@
                   line3: o.line3 || "",
                 }))
           );
-        const packages = activeOrders()
+        const packages = printableOrders()
           .filter((o) => !o.validityOnly)
           .flatMap((o) =>
             o.parts.map((qty, index) => ({
@@ -2345,7 +2387,7 @@
             }))
           );
         if (!["johnson", "margarina"].includes(state.delivery)) return packages;
-        const johnsonOrders = activeOrders().filter((o) => !o.validityOnly);
+        const johnsonOrders = printableOrders().filter((o) => !o.validityOnly);
         const shiftNames = ["1º TURNO", "2º TURNO", "3º TURNO"];
         const presentShifts = [
           ...shiftNames.filter((shift) => johnsonOrders.some((o) => o.shift === shift)),
@@ -3455,7 +3497,7 @@
         el("queueCount").textContent = `${printable.length} etiqueta${
           printable.length === 1 ? "" : "s"
         } • ${pages} folha${pages === 1 ? "" : "s"}`;
-        const totaisPorPao = orders.filter(o=>!o.validityOnly&&o.product&&Number(o.total)>0).reduce((acc,o)=>{const nome=o.product.shortName||o.product.name||"Outro";acc[nome]=(acc[nome]||0)+Number(o.total);return acc;},{});
+        const totaisPorPao = orders.filter(o=>!o.validityOnly&&o.product&&Number(o.total)-cancelQty(o)>0).reduce((acc,o)=>{const nome=o.product.shortName||o.product.name||"Outro";acc[nome]=(acc[nome]||0)+Number(o.total)-cancelQty(o);return acc;},{}); // cancelado não conta
         el("breadTotals").innerHTML = Object.entries(totaisPorPao).length
           ? Object.entries(totaisPorPao).map(([nome,total])=>`<div class="bread-total-card"><span>${escapeHtml(nome)}</span><strong>${total.toLocaleString("pt-BR")} pães</strong></div>`).join("")
           : '<div class="bread-total-card"><span>Total por tipo</span><strong>0 pães</strong></div>';
@@ -3480,7 +3522,7 @@
                     } etiquetas genéricas</span><small>${
                       [o.line2, o.line3].filter(Boolean).join(" • ") ||
                       "Somente texto principal"
-                    }</small></div><div class="batch-actions"><button class="edit-order" type="button" data-edit-order="${o.id}">Editar</button><button type="button" data-remove="${o.id}">Remover</button></div></article>`
+                    }${cancelBadge(o)}</small></div><div class="batch-actions"><button class="edit-order" type="button" data-edit-order="${o.id}">Editar</button>${cancelButtons(o)}<button type="button" data-remove="${o.id}">Remover</button></div></article>`
                   : `<article class="batch-item"><label><input type="checkbox" data-archive-select="${o.id}" ${state.selectedOrderIds.has(o.id)?"checked":""} aria-label="Selecionar pedido"></label><div><strong>${o.destination}${
                       o.shift ? ` • ${o.shift}` : ""
                     }${o.afternoon ? " • TARDE" : ""}</strong><span>${
@@ -3491,7 +3533,7 @@
                       o.parts.length === 1 ? "" : "s"
                     }</span><small>${o.parts.join(" + ")}${
                       o.source === "fixo" ? " • PEDIDO FIXO" : ""
-                    }${o.cancel?.qty ? ` • <strong style="color:#a32a17">CANCELADO ${o.cancel.qty >= o.total ? "(TODO)" : `${o.cancel.qty} UND`}</strong>` : ""}</small></div><div class="batch-actions"><button class="edit-order" type="button" data-edit-order="${o.id}">Editar</button><button type="button" data-remove="${o.id}">Remover</button></div></article>`
+                    }${cancelBadge(o)}</small></div><div class="batch-actions"><button class="edit-order" type="button" data-edit-order="${o.id}">Editar</button>${cancelButtons(o)}<button type="button" data-remove="${o.id}">Remover</button></div></article>`
               )
               .join("")}</div>`
           : '<div class="empty-state"><span>6187</span><p>Os pedidos adicionados aparecerão aqui.</p></div>';
@@ -3511,6 +3553,8 @@
           el("deleteSelectedButton").disabled=!state.selectedOrderIds.size;
         });
         document.querySelectorAll("[data-edit-order]").forEach(button=>button.onclick=()=>openOrderEdit(Number(button.dataset.editOrder)));
+        document.querySelectorAll("[data-cancel-order]").forEach(button=>button.onclick=()=>cancelOrder(state.orders.find(o=>o.id===Number(button.dataset.cancelOrder))));
+        document.querySelectorAll("[data-uncancel-order]").forEach(button=>button.onclick=()=>undoCancelOrder(state.orders.find(o=>o.id===Number(button.dataset.uncancelOrder))));
         el("archiveSelectedButton").disabled = !state.selectedOrderIds.size;
         el("deleteSelectedButton").disabled = !state.selectedOrderIds.size;
         el("copyActiveDayButton").disabled = !orders.length;
@@ -3641,7 +3685,7 @@
       function romaneioParaibunaHtml() {
         const esc = (s) =>
           String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
-        const orders = activeOrders();
+        const orders = printableOrders(); // cancelado não entra no romaneio
         const products = [];
         orders.forEach((o) => {
           if (!products.some((p) => p.id === o.product.id)) products.push(o.product);
@@ -3682,7 +3726,7 @@
       function printRomaneioParaibuna() {
         if (state.delivery !== "paraibuna") return;
         if (!state.date) return alert("Selecione a data da entrega para imprimir o romaneio.");
-        if (!activeOrders().length) return alert("Nenhum pedido nesta data e rota para o romaneio.");
+        if (!printableOrders().length) return alert("Nenhum pedido (não cancelado) nesta data e rota para o romaneio.");
         el("printArea").innerHTML = romaneioParaibunaHtml();
         // Volta a área de impressão para as etiquetas do dia depois de imprimir.
         window.addEventListener("afterprint", () => renderPreviewAndPrint(), { once: true });
@@ -4162,24 +4206,7 @@ doc.save(pdfName());
         }));
       }
 
-      // ---------- Cancelamentos: aparecem destacados e saem do fornecido ----------
-      function cancelFinanceOrder(o) {
-        const total = Number(o.total) || 0;
-        const atual = finCanceled(o);
-        const q = prompt(`Cancelar pedido: ${o.destination || "Sem unidade"} · ${o.product?.shortName || o.product?.name || ""} · ${finBr(o.date)} (${total} und).\n\nQuantas unidades foram canceladas? (${total} = pedido inteiro)`, String(atual || total));
-        if (q === null) return;
-        const qty = Math.round(finNum(q) ?? 0);
-        if (!(qty > 0) || qty > total) { alert(`Informe um número de 1 a ${total}.`); return; }
-        const motivo = prompt("Motivo do cancelamento (ex.: escola sem aula, pedido errado):", o.cancel?.motivo || "");
-        if (motivo === null) return;
-        o.cancel = { qty, motivo: motivo.trim(), at: new Date().toISOString(), by: portalUser.nome || "" };
-        saveLocal(); renderFinanceReport();
-      }
-      function undoCancelFinanceOrder(o) {
-        if (!confirm(`Desfazer o cancelamento de ${o.destination || "Sem unidade"} (${finBr(o.date)})? O pedido volta a contar inteiro.`)) return;
-        delete o.cancel;
-        saveLocal(); renderFinanceReport();
-      }
+      // ---------- Cancelamentos: só mostra (cancelar/desfazer é na fila de pedidos) ----------
       function renderFinanceCancel() {
         const box = el("financeCancel");
         const orders = financeOrders().slice().sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.destination || "").localeCompare(String(b.destination || ""), "pt-BR"));
@@ -4187,25 +4214,13 @@ doc.save(pdfName());
         const canc = orders.filter((o) => finCanceled(o) > 0);
         const prodName = (o) => o.product?.shortName || o.product?.name || "Outro";
         const who = (o) => o.cancel?.at ? `${new Date(o.cancel.at).toLocaleDateString("pt-BR")}${o.cancel.by ? ` · ${escapeHtml(o.cancel.by)}` : ""}` : "";
-        const ref = [];
-        const btn = (o, kind, label) => { ref.push(o); return `<button type="button" class="fin-btn ${kind === "undo" ? "" : "danger"}" data-fin-${kind}="${ref.length - 1}">${label}</button>`; };
         box.innerHTML = `<div class="fin-block"><h4>Cancelamentos ${canc.length ? `<span class="fin-pill over">${canc.length} no período</span>` : '<span class="fin-pill ok">nenhum no período</span>'}</h4>
-          <p>Pedido cancelado continua no histórico, marcado como CANCELADO, e a quantidade cancelada não conta como fornecida (nem para a AF). Para registrar, abra a lista de pedidos abaixo e clique em "Cancelar".</p>
-          ${canc.length ? `<div class="fin-scroll"><table class="fin-table"><thead><tr><th class="l">Dia</th><th class="l">Unidade</th><th class="l">Produto</th><th>Pedido</th><th>Cancelado</th><th>Entregue</th><th class="l">Motivo</th><th class="l">Registrado</th><th></th></tr></thead><tbody>
+          <p>Para cancelar um pedido, use o botão "Cancelar" na fila de pedidos (aba das etiquetas, no dia da entrega). O pedido cancelado não é impresso e a quantidade cancelada não conta como fornecida (nem para a AF).</p>
+          ${canc.length ? `<div class="fin-scroll"><table class="fin-table"><thead><tr><th class="l">Dia</th><th class="l">Unidade</th><th class="l">Produto</th><th>Pedido</th><th>Cancelado</th><th>Entregue</th><th class="l">Motivo</th><th class="l">Registrado</th></tr></thead><tbody>
             ${canc.map((o) => `<tr class="cx"><td class="l">${finBr(o.date)}</td><td class="l">${escapeHtml(o.destination || "Sem unidade")}</td><td class="l">${escapeHtml(prodName(o))}</td><td>${fmtN(o.total, 0)}</td>
               <td><strong class="fin-canc">${fmtN(finCanceled(o), 0)}</strong>${finCanceled(o) === Number(o.total) ? ' <small>(todo)</small>' : ""}</td><td>${fmtN(finDelivered(o), 0)}</td>
-              <td class="l">${escapeHtml(o.cancel?.motivo || "—")}</td><td class="l"><small>${who(o)}</small></td>
-              <td>${btn(o, "edit", "Alterar")} ${btn(o, "undo", "Desfazer")}</td></tr>`).join("")}
-            </tbody></table></div>` : ""}
-          <details class="fin-details" id="finOrdersDetails" ${state.finOrdersOpen ? "open" : ""}><summary>Pedidos do período (${orders.length}) — registrar cancelamento</summary>
-            <div class="fin-scroll"><table class="fin-table"><thead><tr><th class="l">Dia</th><th class="l">Unidade</th><th class="l">Produto</th><th>Quantidade</th><th class="l">Situação</th><th></th></tr></thead><tbody>
-            ${orders.map((o) => { const c = finCanceled(o); return `<tr class="${c ? "cx" : ""}"><td class="l">${finBr(o.date)}</td><td class="l">${escapeHtml(o.destination || "Sem unidade")}</td><td class="l">${escapeHtml(prodName(o))}</td><td>${fmtN(o.total, 0)}</td>
-              <td class="l">${c ? `<span class="fin-pill over">CANCELADO${c < Number(o.total) ? ` ${fmtN(c, 0)} und` : ""}</span>` : '<span class="fin-pill ok">Entregue</span>'}</td>
-              <td>${c ? btn(o, "undo", "Desfazer") : btn(o, "edit", "Cancelar")}</td></tr>`; }).join("")}
-            </tbody></table></div></details></div>`;
-        el("finOrdersDetails").ontoggle = (e) => { state.finOrdersOpen = e.target.open; };
-        box.querySelectorAll("[data-fin-edit]").forEach((b) => (b.onclick = () => cancelFinanceOrder(ref[Number(b.dataset.finEdit)])));
-        box.querySelectorAll("[data-fin-undo]").forEach((b) => (b.onclick = () => undoCancelFinanceOrder(ref[Number(b.dataset.finUndo)])));
+              <td class="l">${escapeHtml(o.cancel?.motivo || "—")}</td><td class="l"><small>${who(o)}</small></td></tr>`).join("")}
+            </tbody></table></div>` : ""}</div>`;
       }
 
       function renderFinanceReport() {
