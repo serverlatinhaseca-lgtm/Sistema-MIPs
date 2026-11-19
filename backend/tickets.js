@@ -1,5 +1,6 @@
 // Regras puras de tickets/chat — Fase 2 (sem dependência de banco).
-const CATEGORIAS_TICKET = ['ASO', 'Folga', 'Dúvida', 'Documento', 'Banco de Horas', 'Outro'];
+// 19/11/2026: "Banco de Horas" saiu das categorias (tickets antigos mantêm o texto gravado).
+const CATEGORIAS_TICKET = ['ASO', 'Folga', 'Dúvida', 'Documento', 'Outro'];
 // Status enxutos (23/10/2026): Atendendo = na fila/responsabilidade do RH,
 // Pendente = aguardando retorno do funcionário, Concluído = arquivado no histórico.
 const STATUS_TICKET = ['Atendendo', 'Pendente', 'Concluído'];

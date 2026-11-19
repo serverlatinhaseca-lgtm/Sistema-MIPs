@@ -5,7 +5,7 @@ import Sidebar from '../components/Sidebar';
 import LeitorTopbar from '../components/LeitorTopbar';
 import API from '../api';
 
-const CATEGORIAS = ['ASO', 'Folga', 'Dúvida', 'Documento', 'Banco de Horas', 'Outro'];
+const CATEGORIAS = ['ASO', 'Folga', 'Dúvida', 'Documento', 'Outro'];
 // Atendendo = na fila do RH · Pendente = aguardando o funcionário · Concluído = histórico.
 const STATUS = ['Atendendo', 'Pendente', 'Concluído'];
 const PRIORIDADES = ['Baixa', 'Média', 'Alta', 'Urgente'];

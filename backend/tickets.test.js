@@ -17,7 +17,7 @@ test('SLA por prioridade (Urgente 4h … Baixa 120h)', () => {
 });
 
 test('categorias e status do prompt', () => {
-  assert.deepEqual(CATEGORIAS_TICKET, ['ASO', 'Folga', 'Dúvida', 'Documento', 'Banco de Horas', 'Outro']);
+  assert.deepEqual(CATEGORIAS_TICKET, ['ASO', 'Folga', 'Dúvida', 'Documento', 'Outro']);
   assert.deepEqual(STATUS_TICKET, ['Atendendo', 'Pendente', 'Concluído']);
 });
 

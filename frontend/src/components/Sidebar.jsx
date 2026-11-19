@@ -13,7 +13,7 @@ export default function Sidebar({ emDrawer = false, aoNavegar = () => {} }) {
   const location = useLocation();
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const [dark, setDark] = useState(document.documentElement.classList.contains('dark'));
-  const [pastas, setPastas] = useState({ferramentas:location.pathname.startsWith('/ferramentas'),configuracao:['/usuarios','/configuracoes'].includes(location.pathname),rh:['/aso','/banco-horas','/folgas','/atendimento','/comunicados','/desabafos'].includes(location.pathname)});
+  const [pastas, setPastas] = useState({ferramentas:location.pathname.startsWith('/ferramentas'),configuracao:['/usuarios','/configuracoes'].includes(location.pathname),rh:['/aso','/folgas','/atendimento','/comunicados','/desabafos'].includes(location.pathname)});
   const [ticketsAtendendo, setTicketsAtendendo] = useState(0);
   const [modo, setModo] = useState(() => localStorage.getItem('sidebar-modo') || 'fixa');
   const [visivel, setVisivel] = useState(false);
@@ -22,9 +22,11 @@ export default function Sidebar({ emDrawer = false, aoNavegar = () => {} }) {
   const alternarModo = () => { const v = modo === 'fixa' ? 'flutuante' : 'fixa'; setModo(v); localStorage.setItem('sidebar-modo', v); setVisivel(false); };
   const branding = useBranding();
 
-  // 24/10/2026: o perfil RH vê Atendimento, Banco de Horas, Folgas, Comunicados,
-  // ASO e Desabafos direto na barra. O Administrador vê tudo isso na pasta "RH".
-  // O Gerente tem na pasta "RH" somente Folgas, Comunicados e Banco de Horas.
+  // 24/10/2026: o perfil RH vê Atendimento, Folgas, Comunicados, ASO e Desabafos
+  // direto na barra. O Administrador vê tudo isso na pasta "RH".
+  // O Gerente tem na pasta "RH" somente Folgas.
+  // 19/11/2026: Banco de Horas saiu do menu de todos os perfis (a rota /banco-horas
+  // continua existindo para os links das notificações antigas).
   // O perfil RH vê SOMENTE: Início, Manuais, Reclamações e os itens de RH —
   // sem Receitas, Avaliações nem Meu desempenho.
   const perfil = String(user.perfil || '').toLowerCase();
@@ -103,11 +105,10 @@ export default function Sidebar({ emDrawer = false, aoNavegar = () => {} }) {
     <IconBtn titulo="Reclamações" ativo={isActive('/reclamacoes')} abrir={() => ir('/reclamacoes')}><AlertTriangle size={20} /></IconBtn>
     {/* Mesma estrutura da barra aberta: o que está dentro de pasta aparece só como o ícone da pasta. */}
     {ehAdministrador || ehGerente ? (
-      <IconePasta chave="rh" titulo="RH" rotas={ehAdministrador ? ['/atendimento','/banco-horas','/folgas','/comunicados','/aso','/desabafos'] : ['/banco-horas','/folgas']} />
+      <IconePasta chave="rh" titulo="RH" rotas={ehAdministrador ? ['/atendimento','/folgas','/comunicados','/aso','/desabafos'] : ['/folgas']} />
     ) : (
       <>
         <IconBtn titulo="Atendimento" ativo={isActive('/atendimento')} abrir={() => ir('/atendimento')}><IconeAtendimento tamanho={20} /></IconBtn>
-        <IconBtn titulo={perfil === 'leitor' ? 'Meu Banco de Horas' : 'Banco de Horas'} ativo={isActive('/banco-horas')} abrir={() => ir('/banco-horas')}><FileText size={20} /></IconBtn>
         <IconBtn titulo={perfil === 'leitor' ? 'Minhas Folgas' : 'Folgas'} ativo={isActive('/folgas')} abrir={() => ir('/folgas')}><CalendarDays size={20} /></IconBtn>
         <IconBtn titulo="Comunicados" ativo={isActive('/comunicados')} abrir={() => ir('/comunicados')}><Megaphone size={20} /></IconBtn>
         <IconBtn titulo={perfil === 'leitor' ? 'Meu ASO' : 'ASO'} ativo={isActive('/aso')} abrir={() => ir('/aso')}><HeartPulse size={20} /></IconBtn>
@@ -165,9 +166,6 @@ export default function Sidebar({ emDrawer = false, aoNavegar = () => {} }) {
               <div onClick={() => ir('/atendimento')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/atendimento') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}>
                 <span className="mr-3 inline-flex"><IconeAtendimento tamanho={20} /></span> Atendimento
               </div>
-              <div onClick={() => ir('/banco-horas')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/banco-horas') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}>
-                <FileText size={20} className="mr-3" /> Banco de Horas
-              </div>
               <div onClick={() => ir('/folgas')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/folgas') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}>
                 <CalendarDays size={20} className="mr-3" /> Folgas
               </div>
@@ -185,16 +183,14 @@ export default function Sidebar({ emDrawer = false, aoNavegar = () => {} }) {
             // Administrador: todos os itens de pessoas na pasta RH
             <Pasta titulo="RH" aberta={pastas.rh} alternar={()=>setPastas(v=>({...v,rh:!v.rh}))}>
               <Item icon={<IconeAtendimento tamanho={18}/>} titulo="Atendimento" ativo={isActive('/atendimento')} abrir={()=>ir('/atendimento')}/>
-              <Item icon={<FileText size={18}/>} titulo="Banco de Horas" ativo={isActive('/banco-horas')} abrir={()=>ir('/banco-horas')}/>
               <Item icon={<CalendarDays size={18}/>} titulo="Folgas" ativo={isActive('/folgas')} abrir={()=>ir('/folgas')}/>
               <Item icon={<Megaphone size={18}/>} titulo="Comunicados" ativo={isActive('/comunicados')} abrir={()=>ir('/comunicados')}/>
               <Item icon={<HeartPulse size={18}/>} titulo="ASO" ativo={isActive('/aso')} abrir={()=>ir('/aso')}/>
               {podeVerDesabafos && <Item icon={<Ghost size={18}/>} titulo="Desabafos" ativo={isActive('/desabafos')} abrir={()=>ir('/desabafos')}/>}
             </Pasta>
           ) : ehGerente ? (
-            // Gerente: só Folgas e Banco de Horas no módulo RH
+            // Gerente: só Folgas no módulo RH
             <Pasta titulo="RH" aberta={pastas.rh} alternar={()=>setPastas(v=>({...v,rh:!v.rh}))}>
-              <Item icon={<FileText size={18}/>} titulo="Banco de Horas" ativo={isActive('/banco-horas')} abrir={()=>ir('/banco-horas')}/>
               <Item icon={<CalendarDays size={18}/>} titulo="Folgas" ativo={isActive('/folgas')} abrir={()=>ir('/folgas')}/>
             </Pasta>
           ) : (
@@ -202,9 +198,6 @@ export default function Sidebar({ emDrawer = false, aoNavegar = () => {} }) {
             <>
               <div onClick={() => ir('/atendimento')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/atendimento') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}>
                 <span className="mr-3 inline-flex"><IconeAtendimento tamanho={20} /></span> Atendimento
-              </div>
-              <div onClick={() => ir('/banco-horas')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/banco-horas') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}>
-                <FileText size={20} className="mr-3" /> {user.perfil?.toLowerCase() === 'leitor' ? 'Meu Banco de Horas' : 'Banco de Horas'}
               </div>
               <div onClick={() => ir('/folgas')} className={`p-3 rounded-lg font-medium cursor-pointer flex items-center transition-colors ${isActive('/folgas') ? 'bg-white/10 text-[var(--sidebar-text)]' : 'text-[var(--sidebar-text)] opacity-80 hover:opacity-100 hover:bg-white/5'}`}>
                 <CalendarDays size={20} className="mr-3" /> {user.perfil?.toLowerCase() === 'leitor' ? 'Minhas Folgas' : 'Folgas'}
