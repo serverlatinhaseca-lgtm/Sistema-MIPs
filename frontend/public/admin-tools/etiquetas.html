@@ -4174,19 +4174,23 @@ doc.save(pdfName());
           return { ...r, kgU, unit: kgU ? "kg" : "und", fornecido, saldo, diff, status };
         });
         if (!lines.length) { box.innerHTML = ""; return; }
-        const pend = lines.filter((l) => l.status === "over" || l.status === "left");
+        // Pendência = AF com saldo MENOR que o fornecido (diferença negativa).
+        // AF maior que o fornecido (diferença positiva) = saldo positivo da AF, não é pendência.
+        const pend = lines.filter((l) => l.status === "over");
+        const positivos = lines.filter((l) => l.status === "left");
         const semSaldo = lines.filter((l) => l.status === "none");
         const informados = lines.filter((l) => l.saldo !== null);
-        const pill = (l) => l.status === "ok" ? '<span class="fin-pill ok">Sem pendência</span>'
+        const pill = (l) => l.status === "ok" ? '<span class="fin-pill ok">Sem pendência (zerado)</span>'
           : l.status === "over" ? `<span class="fin-pill over">Pendência: ${fmtN(-l.diff)} ${l.unit} acima da AF</span>`
-          : l.status === "left" ? `<span class="fin-pill left">Pendência: faltam ${fmtN(l.diff)} ${l.unit} da AF</span>`
+          : l.status === "left" ? `<span class="fin-pill ok">Saldo positivo AF: +${fmtN(l.diff)} ${l.unit}</span>`
           : l.status === "none" ? '<span class="fin-pill none">Informe o saldo</span>' : "—";
+        const lista = (arr, sinal) => arr.map((l) => `${escapeHtml(l.name)} (${sinal}${fmtN(Math.abs(l.diff))} ${l.unit})`).join(", ");
+        const extras = `${positivos.length ? ` Saldo positivo na AF: ${lista(positivos, "+")}.` : ""}${semSaldo.length ? ` Sem saldo informado: ${semSaldo.map((l) => escapeHtml(l.name)).join(", ")}.` : ""}`;
         const resumo = !informados.length ? `<div class="fin-status none">Preencha o saldo da AF de cada produto para conferir a pendência deste período.</div>`
-          : pend.length ? `<div class="fin-status pend">COM PENDÊNCIA em ${pend.length} produto(s): ${pend.map((l) => `${escapeHtml(l.name)} (${l.diff < 0 ? "−" : "+"}${fmtN(Math.abs(l.diff))} ${l.unit})`).join(", ")}.${semSaldo.length ? ` Sem saldo informado: ${semSaldo.map((l) => escapeHtml(l.name)).join(", ")}.` : ""}</div>`
-          : semSaldo.length ? `<div class="fin-status none">Sem pendência nos produtos informados. Falta o saldo de: ${semSaldo.map((l) => escapeHtml(l.name)).join(", ")}.</div>`
-          : `<div class="fin-status ok">SEM PENDÊNCIA — o fornecido bate com o saldo da AF em todos os produtos.</div>`;
+          : pend.length ? `<div class="fin-status pend">COM PENDÊNCIA em ${pend.length} produto(s) — fornecido acima da AF: ${lista(pend, "−")}.${extras}</div>`
+          : `<div class="fin-status ${semSaldo.length ? "none" : "ok"}">SEM PENDÊNCIA — nenhum produto passou do saldo da AF.${extras}</div>`;
         box.innerHTML = `<div class="fin-block"><h4>Saldo da AF × fornecido — ${escapeHtml(period.label)}</h4>
-          <p>Digite o saldo da AF de cada produto (em kg, como na planilha). A diferença é saldo da AF − fornecido: negativo = entregou mais que a AF; positivo = ainda falta entregar. O saldo fica salvo para este período. Cancelamentos já saem do fornecido.</p>
+          <p>Digite o saldo da AF de cada produto (em kg, como na planilha). A diferença é saldo da AF − fornecido: positivo = saldo positivo na AF (sobra na AF, não é pendência); negativo = pendência (entregou mais do que a AF cobre). O saldo fica salvo para este período. Cancelamentos já saem do fornecido.</p>
           <div class="fin-scroll"><table class="fin-table"><thead><tr><th class="l">Produto</th><th>Pedidos</th><th>Entregue (und)</th><th>Cancelado (und)</th><th>kg por und.</th><th>Fornecido</th><th>Saldo da AF</th><th>Diferença</th><th class="l">Situação</th></tr></thead><tbody>
           ${lines.map((l) => `<tr><td class="l"><strong>${escapeHtml(l.name)}</strong></td><td>${l.orders}</td><td>${fmtN(l.quantity, 0)}</td><td>${l.canceled ? `<span class="fin-canc">${fmtN(l.canceled, 0)}</span>` : "—"}</td>
             <td><input class="kgf" data-af-kg="${escapeHtml(l.id)}" value="${String(l.kgU).replace(".", ",")}" inputmode="decimal" title="Peso de 1 unidade em kg (0 = conferir em unidades)" /></td>
@@ -4257,7 +4261,7 @@ doc.save(pdfName());
           if (!igarata) { lines.push([r.name, r.orders, r.quantity, r.canceled].map(quote).join(";")); return; }
           const kgU = finKg(r.product), forn = kgU ? r3(r.quantity * kgU) : r.quantity, saldo = saldos[r.id];
           const diff = saldo === undefined ? null : r3(saldo - forn);
-          lines.push([r.name, r.orders, r.quantity, r.canceled, num(kgU), num(forn), saldo === undefined ? "" : num(saldo), diff === null ? "" : num(diff), diff === null ? "Sem saldo informado" : diff === 0 ? "Sem pendência" : diff < 0 ? "Pendência: acima da AF" : "Pendência: falta entregar"].map(quote).join(";"));
+          lines.push([r.name, r.orders, r.quantity, r.canceled, num(kgU), num(forn), saldo === undefined ? "" : num(saldo), diff === null ? "" : num(diff), diff === null ? "Sem saldo informado" : diff === 0 ? "Sem pendência (zerado)" : diff < 0 ? "Pendência: fornecido acima da AF" : "Saldo positivo na AF"].map(quote).join(";"));
         });
         const canc = financeOrders().filter((o) => finCanceled(o) > 0).sort((a, b) => String(a.date).localeCompare(String(b.date)));
         if (canc.length) {

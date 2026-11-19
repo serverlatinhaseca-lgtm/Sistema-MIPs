@@ -2,7 +2,7 @@
 
 > Portal interno para padronização operacional, gestão de receitas, avaliações de desempenho, reclamações e ferramentas de produção.
 
-![Versão](https://img.shields.io/badge/versão-2.19.1-ff8d2f)
+![Versão](https://img.shields.io/badge/versão-2.19.2-ff8d2f)
 ![React](https://img.shields.io/badge/React-18-61dafb)
 ![Node.js](https://img.shields.io/badge/Node.js-22-339933)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-4169e1)
@@ -11,6 +11,10 @@
 ## Sobre o sistema
 
 O Sistema Central reúne em um único portal os processos internos da Nova Esperança. A aplicação funciona em computadores e celulares, possui modo claro e escuro e separa os acessos conforme a função de cada usuário.
+
+### Novidades da versão 2.19.2
+
+- **Saldo da AF × fornecido (Igaratá):** quando a AF tem mais que o fornecido, aparece **"Saldo positivo AF: +X kg"** (não é pendência). **Pendência** é só quando a AF tem menos que o fornecido ("Pendência: X kg acima da AF").
 
 ### Novidades da versão 2.19.1
 
