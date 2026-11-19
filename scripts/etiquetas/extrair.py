@@ -88,10 +88,40 @@ def extrair_pdf(caminho):
             print("[texto fora da tabela] " + " / ".join(fora))
 
 
+def nome_cor(rgb):
+    """Nome aproximado de uma cor de fundo (None = sem cor/branco)."""
+    if not rgb:
+        return None
+    r, g, b = rgb
+    if r > 235 and g > 235 and b > 235:
+        return None
+    if r > 200 and g > 180 and b < 160:
+        return "AMARELO"
+    if g > r + 30 and g > b:
+        return "VERDE"
+    if r > g + 40 and r > b + 40:
+        return "VERMELHO/LARANJA"
+    if b > r + 30:
+        return "AZUL"
+    if abs(r - g) < 20 and abs(g - b) < 20:
+        return "CINZA"
+    return "#%02x%02x%02x" % (r, g, b)
+
+
+def marcar_cor(texto, cor):
+    if not cor:
+        return texto
+    return f"{texto} [fundo {cor}]" if limpar(texto) else f"[fundo {cor}]"
+
+
 def extrair_xls(caminho):
     import xlrd
 
-    livro = xlrd.open_workbook(caminho)
+    try:
+        livro = xlrd.open_workbook(caminho, formatting_info=True)
+    except NotImplementedError:
+        livro = xlrd.open_workbook(caminho)
+    coloridas = False
     for aba in livro.sheets():
         print(f"\n--- aba '{aba.name}' ({aba.nrows} linhas x {aba.ncols} colunas)")
         linhas = []
@@ -101,34 +131,61 @@ def extrair_xls(caminho):
                 cel = aba.cell(r, c)
                 if cel.ctype == xlrd.XL_CELL_DATE:
                     try:
-                        celulas.append(xlrd.xldate_as_datetime(cel.value, livro.datemode).strftime("%Y-%m-%d (data)"))
+                        texto = xlrd.xldate_as_datetime(cel.value, livro.datemode).strftime("%Y-%m-%d (data)")
                     except Exception:
-                        celulas.append(numero(cel.value))
+                        texto = numero(cel.value)
                 elif cel.ctype == xlrd.XL_CELL_NUMBER:
-                    celulas.append(numero(cel.value))
+                    texto = numero(cel.value)
                 else:
-                    celulas.append(cel.value)
+                    texto = limpar(cel.value)
+                cor = None
+                if livro.formatting_info and texto:
+                    xf = livro.xf_list[cel.xf_index]
+                    if xf.background.fill_pattern:
+                        cor = nome_cor(livro.colour_map.get(xf.background.pattern_colour_index))
+                if cor:
+                    coloridas = True
+                celulas.append(marcar_cor(texto, cor))
             linhas.append(celulas)
         imprimir_linhas(linhas)
+    if coloridas:
+        print("(células com [fundo COR] estão pintadas na planilha — veja se há legenda tipo 'amarelo = pão de leite')")
 
 
 def extrair_xlsx(caminho):
     import datetime
     import openpyxl
 
-    livro = openpyxl.load_workbook(caminho, data_only=True, read_only=True)
+    livro = openpyxl.load_workbook(caminho, data_only=True)
+    coloridas = False
     for aba in livro.worksheets:
         print(f"\n--- aba '{aba.title}'")
         linhas = []
-        for linha in aba.iter_rows(values_only=True):
+        for linha in aba.iter_rows():
             celulas = []
-            for v in linha:
+            for cel in linha:
+                v = cel.value
                 if isinstance(v, (datetime.datetime, datetime.date)):
-                    celulas.append(v.strftime("%Y-%m-%d (data)"))
+                    texto = v.strftime("%Y-%m-%d (data)")
                 else:
-                    celulas.append(numero(v))
+                    texto = numero(v)
+                cor = None
+                try:
+                    fill = cel.fill
+                    rgb = fill.fgColor.rgb if fill and fill.fill_type == "solid" else None
+                    if isinstance(rgb, str) and len(rgb) >= 6:
+                        h = rgb[-6:]
+                        cor = nome_cor((int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)))
+                except Exception:
+                    cor = None
+                if cor and texto:
+                    coloridas = True
+                    texto = marcar_cor(texto, cor)
+                celulas.append(texto)
             linhas.append(celulas)
         imprimir_linhas(linhas)
+    if coloridas:
+        print("(células com [fundo COR] estão pintadas na planilha — veja se há legenda tipo 'amarelo = pão de leite')")
 
 
 def extrair_csv(caminho):
