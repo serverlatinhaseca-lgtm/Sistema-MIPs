@@ -61,6 +61,7 @@ export default function FerramentasAdmin() {
           title={ferramenta.titulo}
           src={ferramenta.arquivo}
           onLoad={sincronizarTema}
+          allow="clipboard-write"
           scrolling="auto"
           className="min-h-0 w-full flex-1 border-0 bg-transparent"
         />

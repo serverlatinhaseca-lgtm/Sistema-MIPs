@@ -360,6 +360,11 @@
       .fin-btn { padding:4px 10px; border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--ink); font:inherit; font-size:.74rem; font-weight:700; cursor:pointer; }
       .fin-btn.danger { border-color:#e7b3a9; color:#a32a17; }
       .fin-details { margin-top:10px; }
+      .fin-msg { margin-top:10px; padding:12px; border:1px solid #f3b4a8; border-radius:10px; background:#fff; }
+      .fin-msg-head { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:8px; font-size:.82rem; }
+      .fin-msg-head span { color:#2f6b4f; font-size:.76rem; font-weight:700; }
+      .fin-msg textarea { width:100%; padding:10px; border:1px solid var(--line); border-radius:8px; font:inherit; font-size:.84rem; line-height:1.45; resize:vertical; }
+      .fin-msg small { color:var(--muted); font-size:.7rem; }
       .fin-details summary { cursor:pointer; font-weight:800; font-size:.8rem; padding:6px 0; }
       .fin-days { margin:6px 0 4px; }
       .fin-days-list { display:flex; flex-wrap:wrap; gap:6px; margin:6px 0; }
@@ -1214,6 +1219,9 @@
       html[data-theme="dark"] .fin-btn { background:#2a1f1a; border-color:#51392e; color:#f7efe9; }
       html[data-theme="dark"] .fin-btn.danger { color:#ff9d8d; border-color:#7c3a2e; }
       html[data-theme="dark"] .fin-details summary { color:#f7efe9; }
+      html[data-theme="dark"] .fin-msg { background:#201713; border-color:#7c3a2e; }
+      html[data-theme="dark"] .fin-msg textarea { background:#17100d; color:#f7efe9; border-color:#5a4034; }
+      html[data-theme="dark"] .fin-msg-head span { color:#9ad7b5; }
       html[data-theme="dark"] .fin-day, html[data-theme="dark"] .fin-days-actions button { background:#2a1f1a; border-color:#51392e; color:#f7efe9; }
       html[data-theme="dark"] .fin-day.on { background:#1f3a2b; border-color:#3f8a5f; color:#9ad7b5; }
       html[data-theme="dark"] .fin-day small, html[data-theme="dark"] .fin-days-actions { color:#c8b8ae; }
@@ -4186,8 +4194,23 @@ doc.save(pdfName());
           : l.status === "none" ? '<span class="fin-pill none">Informe o saldo</span>' : "—";
         const lista = (arr, sinal) => arr.map((l) => `${escapeHtml(l.name)} (${sinal}${fmtN(Math.abs(l.diff))} ${l.unit})`).join(", ");
         const extras = `${positivos.length ? ` Saldo positivo na AF: ${lista(positivos, "+")}.` : ""}${semSaldo.length ? ` Sem saldo informado: ${semSaldo.map((l) => escapeHtml(l.name)).join(", ")}.` : ""}`;
+        // Mensagem pronta para copiar e mandar ao cliente (só quando há pendência).
+        const q2 = (n, unit) => unit === "kg" ? `${Number(n).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 3 })} kg` : `${Number(n).toLocaleString("pt-BR")} ${unit}`;
+        const periodoTxt = period.mode === "dias" ? (() => { const d = period.days; const p = d.map((x, i) => (i === d.length - 1 ? finBr(x) : `${x.slice(8, 10)}/${x.slice(5, 7)}`)); return `${d.length > 1 ? "dias" : "dia"} ${p.length > 1 ? p.slice(0, -1).join(", ") + " e " + p[p.length - 1] : p[0]}`; })()
+          : period.mode === "mes" ? `mês ${finBr(period.from).slice(3)}` : `${finBr(period.from)} a ${finBr(period.to)}`;
+        const nomeMsg = (l) => { const s = String(l.product?.name || l.name).toLocaleLowerCase("pt-BR"); return s.charAt(0).toLocaleUpperCase("pt-BR") + s.slice(1); };
+        const mensagem = pend.length ? [
+          `Olá! Identificamos uma pendência na AF (período: ${periodoTxt}):`,
+          "",
+          ...pend.map((l) => `${nomeMsg(l)}: ${q2(-l.diff, l.unit)}`),
+          "",
+          "Foi fornecido:",
+          ...pend.flatMap((l, i) => [...(i ? [""] : []), `${nomeMsg(l)}: ${q2(l.fornecido, l.unit)}`, `(AF tinha: ${q2(l.saldo, l.unit)})`]),
+        ].join("\n") : "";
         const resumo = !informados.length ? `<div class="fin-status none">Preencha o saldo da AF de cada produto para conferir a pendência deste período.</div>`
-          : pend.length ? `<div class="fin-status pend">COM PENDÊNCIA em ${pend.length} produto(s) — fornecido acima da AF: ${lista(pend, "−")}.${extras}</div>`
+          : pend.length ? `<div class="fin-status pend">TEM PENDÊNCIA (período: ${escapeHtml(periodoTxt)}) — ${pend.length} produto(s) fornecido(s) acima da AF.${extras}</div>
+            <div class="fin-msg"><div class="fin-msg-head"><strong>Mensagem para o cliente</strong><button type="button" class="fin-btn" id="finCopyMsg">Copiar mensagem</button><span id="finCopyOk"></span></div>
+            <textarea id="finMsgText" rows="${Math.min(24, mensagem.split("\n").length + 1)}">${escapeHtml(mensagem)}</textarea><small>Dá para ajustar o texto aqui antes de copiar.</small></div>`
           : `<div class="fin-status ${semSaldo.length ? "none" : "ok"}">SEM PENDÊNCIA — nenhum produto passou do saldo da AF.${extras}</div>`;
         box.innerHTML = `<div class="fin-block"><h4>Saldo da AF × fornecido — ${escapeHtml(period.label)}</h4>
           <p>Digite o saldo da AF de cada produto (em kg, como na planilha). A diferença é saldo da AF − fornecido: positivo = saldo positivo na AF (sobra na AF, não é pendência); negativo = pendência (entregou mais do que a AF cobre). O saldo fica salvo para este período. Cancelamentos já saem do fornecido.</p>
@@ -4198,6 +4221,13 @@ doc.save(pdfName());
             <td><input data-af-saldo="${escapeHtml(l.id)}" value="${l.saldo === null ? "" : String(l.saldo).replace(".", ",")}" inputmode="decimal" placeholder="${l.unit}" /></td>
             <td>${l.diff === null ? "—" : `<strong>${l.diff > 0 ? "+" : ""}${fmtN(l.diff)}</strong> <small>${l.unit}</small>`}</td><td class="l">${pill(l)}</td></tr>`).join("")}
           </tbody></table></div>${resumo}</div>`;
+        if (el("finCopyMsg")) el("finCopyMsg").onclick = async () => {
+          const ta = el("finMsgText"), text = ta.value;
+          let ok = false;
+          try { if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(text); ok = true; } } catch {}
+          if (!ok) { ta.focus(); ta.select(); try { ok = document.execCommand("copy"); } catch {} }
+          el("finCopyOk").textContent = ok ? "Copiada! É só colar no WhatsApp/e-mail." : "Não deu para copiar sozinho — selecione o texto e use Ctrl+C.";
+        };
         box.querySelectorAll("[data-af-saldo]").forEach((inp) => (inp.onchange = () => {
           const v = finNum(inp.value); const cur = { ...(finAf().saldos[period.key] || {}) };
           if (v === null) delete cur[inp.dataset.afSaldo]; else cur[inp.dataset.afSaldo] = v;
