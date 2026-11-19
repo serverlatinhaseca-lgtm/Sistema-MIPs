@@ -8,7 +8,9 @@ no OpenCode com `opencode/deepseek-v4.1-flash-free`, sem depender do modelo acer
 - `scripts/etiquetas/extrair.py` + `extrair.ps1`: PDF → linhas de tabela (texto lido por célula,
   porque `find_tables().extract()` embaralha "0,05" → "005 ,"); .xls/.xlsx com cor de fundo
   (`[fundo AMARELO]`, a planilha rural usa "amarelo = pão de leite"). Página sem texto = escaneada.
-  Instalado `xlrd` no WSL (`pip3 install --user --break-system-packages xlrd`).
+  O agente é para o **OpenCode desktop no Windows**: `extrair.ps1` roda o `extrair.py` num container
+  Docker (`scripts/etiquetas/Dockerfile`, imagem `mips-extrair:<hash>` construída na 1ª vez), sem WSL.
+  `.ps1` salvos com BOM para o PowerShell 5.1 não estragar os acentos.
 - `scripts/etiquetas/lancar.js` + `lancar.ps1`: roda no container `portal_mips_backend`; lê JSON
   simples (`entrega`, `rota`, `data`, `local`, `produto`, `quantidade`, `tarde`), casa local com o
   cadastro (apelidos CCPCD→CCPDC, EMEF LEONINA→EMEIF…; casamento por palavras), produto por id ou

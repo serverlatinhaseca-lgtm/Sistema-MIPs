@@ -1,4 +1,4 @@
-# Confere (padrão) ou grava (-Aplicar) pedidos de etiquetas no banco.
+﻿# Confere (padrão) ou grava (-Aplicar) pedidos de etiquetas no banco.
 # Uso:
 #   powershell -NoProfile -File scripts/etiquetas/lancar.ps1 backups/pedidos-igarata-23a27nov.json
 #   powershell -NoProfile -File scripts/etiquetas/lancar.ps1 backups/pedidos-igarata-23a27nov.json -Aplicar

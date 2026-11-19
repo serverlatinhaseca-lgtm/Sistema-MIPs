@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """Extrai o texto de pedidos (PDF, XLS, XLSX, CSV) em linhas de tabela legíveis.
 
-Uso (no WSL): python3 extrair.py ARQUIVO [ARQUIVO...]
-No Windows use o wrapper: powershell -NoProfile -File scripts/etiquetas/extrair.ps1 "D:\\...\\arquivo.pdf"
+Não rode direto: use o wrapper do Windows (roda isto num container Docker, imagem mips-extrair):
+  powershell -NoProfile -File scripts/etiquetas/extrair.ps1 "D:\\...\\arquivo.pdf"
 
 Saída: uma linha por linha de tabela, células separadas por " | ".
 PDF: usa a detecção de tabelas do PyMuPDF; sem tabela, cai para o texto corrido.
 Página sem texto = escaneada (precisa de leitura humana ou modelo com visão).
-Dependências no WSL: pymupdf, openpyxl, xlrd (pip3 install --user --break-system-packages ...).
+Dependências (pymupdf, openpyxl, xlrd) ficam na imagem — ver Dockerfile ao lado.
 """
 import csv
 import os
