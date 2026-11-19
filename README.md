@@ -2,7 +2,7 @@
 
 > Portal interno para padronização operacional, gestão de receitas, avaliações de desempenho, reclamações e ferramentas de produção.
 
-![Versão](https://img.shields.io/badge/versão-2.18.0-ff8d2f)
+![Versão](https://img.shields.io/badge/versão-2.18.1-ff8d2f)
 ![React](https://img.shields.io/badge/React-18-61dafb)
 ![Node.js](https://img.shields.io/badge/Node.js-22-339933)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-4169e1)
@@ -11,6 +11,10 @@
 ## Sobre o sistema
 
 O Sistema Central reúne em um único portal os processos internos da Nova Esperança. A aplicação funciona em computadores e celulares, possui modo claro e escuro e separa os acessos conforme a função de cada usuário.
+
+### Novidades da versão 2.18.1
+
+- **Etiquetas → Financeiro:** a consulta agora é por **dias escolhidos** — clique nos dias do mês (quantos quiser, mesmo pulando dias); o botão "Marcar os dias com entrega" marca todos que tiveram pedido. Continua dando para ver o mês inteiro ou um período de/até. As tabelas mostram só os produtos que a unidade/cliente recebeu.
 
 ### Novidades da versão 2.18.0
 

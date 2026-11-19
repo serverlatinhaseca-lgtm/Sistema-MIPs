@@ -353,6 +353,14 @@
       .bread-total-card strong { display:block; margin-top:3px; color:var(--ink); font-size:1.05rem; }
       /* Financeiro: período, produtos e saldo da AF */
       .fin-period-info { margin:4px 0 0; color:var(--muted); font-size:.78rem; font-weight:700; }
+      .fin-days { margin:6px 0 4px; }
+      .fin-days-list { display:flex; flex-wrap:wrap; gap:6px; margin:6px 0; }
+      .fin-day { min-width:62px; padding:6px 8px; border:1px solid var(--line); border-radius:9px; background:#fff; color:var(--ink); font:inherit; font-size:.76rem; font-weight:700; cursor:pointer; text-align:center; line-height:1.2; }
+      .fin-day small { display:block; color:var(--muted); font-weight:600; font-size:.66rem; }
+      .fin-day.on { border-color:var(--green); background:#e3f1e8; color:#1f4d37; }
+      .fin-day.empty { opacity:.55; }
+      .fin-days-actions { display:flex; flex-wrap:wrap; gap:8px; align-items:center; font-size:.74rem; color:var(--muted); }
+      .fin-days-actions button { padding:4px 10px; border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--ink); font:inherit; font-weight:700; cursor:pointer; }
       .fin-block { margin:16px 0 4px; }
       .fin-block h4 { margin:0 0 4px; font-size:.86rem; }
       .fin-block > p { margin:0 0 8px; color:var(--muted); font-size:.74rem; line-height:1.4; }
@@ -1193,6 +1201,9 @@
       html[data-theme="dark"] select { color: #f7efe9 !important; background: #17100d !important; border-color: #5a4034 !important; }
       html[data-theme="dark"] input::placeholder { color: #927f74; opacity: 1; }
       html[data-theme="dark"] .fin-table { background:#201713; }
+      html[data-theme="dark"] .fin-day, html[data-theme="dark"] .fin-days-actions button { background:#2a1f1a; border-color:#51392e; color:#f7efe9; }
+      html[data-theme="dark"] .fin-day.on { background:#1f3a2b; border-color:#3f8a5f; color:#9ad7b5; }
+      html[data-theme="dark"] .fin-day small, html[data-theme="dark"] .fin-days-actions { color:#c8b8ae; }
       html[data-theme="dark"] .fin-table th, html[data-theme="dark"] .fin-table td { border-color:#4a342a; color:#f7efe9; }
       html[data-theme="dark"] .fin-table th, html[data-theme="dark"] .fin-pill.none, html[data-theme="dark"] .fin-status.none { background:#2a1f1a; color:#d8c9c0; }
       html[data-theme="dark"] .fin-table tr.tot td { background:#3a2619; }
@@ -1433,14 +1444,14 @@
             <section class="settings-card" style="grid-column:1/-1">
               <h3>Consulta por cliente e unidade</h3>
               <div class="settings-rule-grid">
-                <label class="field"><span>Consultar por</span><select id="financePeriodMode"><option value="mes">Mês</option><option value="semana">Semana</option><option value="dia">Dia</option><option value="intervalo">Período (de / até)</option></select></label>
-                <label class="field" id="financeMonthField"><span>Mês de referência</span><input id="financeMonth" type="month" /></label>
-                <label class="field" id="financeDayField" hidden><span id="financeDayLabel">Dia</span><input id="financeDay" type="date" /></label>
+                <label class="field"><span>Consultar por</span><select id="financePeriodMode"><option value="dias">Dias (escolher um ou mais)</option><option value="mes">Mês inteiro</option><option value="intervalo">Período (de / até)</option></select></label>
+                <label class="field" id="financeMonthField"><span id="financeMonthLabel">Mês de referência</span><input id="financeMonth" type="month" /></label>
                 <label class="field" id="financeFromField" hidden><span>De</span><input id="financeFrom" type="date" /></label>
                 <label class="field" id="financeToField" hidden><span>Até</span><input id="financeTo" type="date" /></label>
                 <label class="field"><span>Pesquisar cliente ou unidade</span><input id="financeUnitSearch" type="search" placeholder="Digite para filtrar" /></label>
                 <label class="field"><span>Tipo de pão</span><select id="financeProductFilter"><option value="">Todos os tipos</option></select></label>
               </div>
+              <div class="fin-days" id="financeDays" hidden></div>
               <p class="fin-period-info" id="financePeriodInfo"></p>
               <div class="bread-total-summary" id="financeSummary"></div>
               <div id="financeProducts"></div>
@@ -3957,33 +3968,66 @@ doc.save(pdfName());
       const finYmd = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
       const finParse = (s) => { const [y,m,d] = String(s||"").split("-").map(Number); return y && m && d ? new Date(y, m-1, d) : null; };
       const finBr = (s) => s ? s.split("-").reverse().join("/") : "";
+      // Dias escolhidos um a um (podem pular dias e passar de um mês para outro).
+      const finSelectedDays = () => (state.financeDays = (state.financeDays || []).filter(Boolean).sort());
+      const finDaysLabel = (days) => {
+        if (!days.length) return "";
+        const short = (d) => d.slice(8, 10) + "/" + d.slice(5, 7);
+        const parts = days.map((d, i) => (i === days.length - 1 ? finBr(d) : short(d)));
+        return `${days.length} dia${days.length > 1 ? "s" : ""}: ${parts.length > 1 ? parts.slice(0, -1).join(", ") + " e " + parts[parts.length - 1] : parts[0]}`;
+      };
       function financePeriod() {
-        const mode = el("financePeriodMode")?.value || "mes";
-        let from = "", to = "", label = "";
-        if (mode === "mes") {
+        const mode = el("financePeriodMode")?.value || "dias";
+        let from = "", to = "", label = "", days = null, key = "";
+        if (mode === "dias") {
+          days = finSelectedDays();
+          if (days.length) { from = days[0]; to = days[days.length - 1]; label = finDaysLabel(days); key = `dias_${days.join(",")}`; }
+        } else if (mode === "mes") {
           const month = el("financeMonth")?.value || "";
           if (month) { const [y,m] = month.split("-").map(Number); from = `${month}-01`; to = finYmd(new Date(y, m, 0)); label = `Mês ${month.split("-").reverse().join("/")}`; }
-        } else if (mode === "semana" || mode === "dia") {
-          const day = finParse(el("financeDay")?.value);
-          if (day) {
-            if (mode === "dia") { from = to = finYmd(day); label = `Dia ${finBr(from)} (${day.toLocaleDateString("pt-BR",{weekday:"long"})})`; }
-            else { const seg = new Date(day); seg.setDate(day.getDate() - ((day.getDay()+6)%7)); const dom = new Date(seg); dom.setDate(seg.getDate()+6); from = finYmd(seg); to = finYmd(dom); label = `Semana de ${finBr(from)} (segunda) a ${finBr(to)} (domingo)`; }
-          }
         } else {
           from = el("financeFrom")?.value || ""; to = el("financeTo")?.value || "";
           if (from && to && from > to) [from, to] = [to, from];
           if (from && to) label = `De ${finBr(from)} até ${finBr(to)}`;
         }
-        return { mode, from, to, label, key: from && to ? `${from}_${to}` : "" };
+        return { mode, from, to, label, days, key: key || (from && to ? `${from}_${to}` : "") };
+      }
+      // Botões com todos os dias do mês; os que têm entrega do cliente aparecem destacados com a quantidade de pedidos.
+      function renderFinanceDays() {
+        const box = el("financeDays");
+        if (el("financePeriodMode").value !== "dias") { box.hidden = true; return; }
+        box.hidden = false;
+        const month = el("financeMonth").value;
+        if (!month) { box.innerHTML = ""; return; }
+        const [y, m] = month.split("-").map(Number);
+        const deliveries = state.financeDelivery === "johnson" ? ["johnson","margarina"] : [state.financeDelivery];
+        const count = {};
+        [...state.orders, ...state.archivedOrders].forEach((o) => { if (!o.validityOnly && deliveries.includes(o.delivery) && String(o.date || "").startsWith(month)) count[o.date] = (count[o.date] || 0) + 1; });
+        const sel = new Set(finSelectedDays());
+        const all = Array.from({ length: new Date(y, m, 0).getDate() }, (_, i) => `${month}-${String(i + 1).padStart(2, "0")}`);
+        const fora = [...sel].filter((d) => !d.startsWith(month));
+        box.innerHTML = `<div class="fin-days-actions"><span>Clique nos dias para marcar ou desmarcar (pode escolher quantos quiser, mesmo pulando dias).</span>
+            <button type="button" id="finDaysWith">Marcar os dias com entrega</button><button type="button" id="finDaysClear">Limpar seleção</button></div>
+          <div class="fin-days-list">${all.map((d) => { const dt = finParse(d); return `<button type="button" class="fin-day ${sel.has(d) ? "on" : ""} ${count[d] ? "" : "empty"}" data-fin-day="${d}">${d.slice(8)}/${d.slice(5, 7)}<small>${dt.toLocaleDateString("pt-BR", { weekday: "short" }).replace(".", "")}${count[d] ? ` · ${count[d]} ped.` : ""}</small></button>`; }).join("")}</div>
+          ${fora.length ? `<div class="fin-days-actions"><span>Também marcados em outro mês: ${fora.map(finBr).join(", ")}</span></div>` : ""}`;
+        box.querySelectorAll("[data-fin-day]").forEach((b) => (b.onclick = () => {
+          const d = b.dataset.finDay, cur = new Set(finSelectedDays());
+          cur.has(d) ? cur.delete(d) : cur.add(d);
+          state.financeDays = [...cur];
+          renderFinanceReport();
+        }));
+        el("finDaysWith").onclick = () => { state.financeDays = [...new Set([...finSelectedDays().filter((d) => !d.startsWith(month)), ...Object.keys(count)])]; renderFinanceReport(); };
+        el("finDaysClear").onclick = () => { state.financeDays = []; renderFinanceReport(); };
       }
       function financeOrders() {
-        const { from, to } = financePeriod();
+        const { from, to, days } = financePeriod();
+        const daySet = days ? new Set(days) : null;
         const search = (el("financeUnitSearch")?.value || "").trim().toLocaleLowerCase("pt-BR");
         const productFilter = el("financeProductFilter")?.value || "";
         const financeDeliveries = state.financeDelivery === "johnson" ? ["johnson","margarina"] : [state.financeDelivery];
         return [...state.orders, ...state.archivedOrders].filter(o => {
           const date = String(o.date || "");
-          if (!from || !to || date < from || date > to || o.validityOnly || !financeDeliveries.includes(o.delivery)) return false;
+          if (!from || !to || date < from || date > to || (daySet && !daySet.has(date)) || o.validityOnly || !financeDeliveries.includes(o.delivery)) return false;
           const unit = o.destination || "Sem unidade";
           const client = o.delivery === "margarina" ? DELIVERY_META.johnson.title : (DELIVERY_META[o.delivery]?.title || titleName(o.delivery || "Outro"));
           const sector = sectorForUnit(unit, o.delivery === "margarina" ? "johnson" : o.delivery);
@@ -4035,7 +4079,7 @@ doc.save(pdfName());
       function renderFinanceProducts() {
         const igarata = state.financeDelivery === "igarata";
         const { rows, dates } = financeProductRows();
-        const used = rows.filter((r) => r.quantity > 0 || igarata);
+        const used = rows.filter((r) => r.quantity > 0); // só os produtos que foram fornecidos
         if (!used.length || !dates.length) { el("financeProducts").innerHTML = ""; return; }
         const kgOf = (r, q) => igarata && finKg(r.product) ? r3(q * finKg(r.product)) : null;
         const cell = (r, q) => q ? `${fmtN(q, 0)}${kgOf(r, q) !== null ? `<br><small>${fmtN(kgOf(r, q))} kg</small>` : ""}` : "—";
@@ -4054,7 +4098,8 @@ doc.save(pdfName());
         const af = finAf();
         const saldos = af.saldos[period.key] || {};
         const { rows } = financeProductRows();
-        const lines = rows.map((r) => {
+        // Só produtos fornecidos no período (ou com saldo da AF digitado, para não esconder uma pendência).
+        const lines = rows.filter((r) => r.quantity > 0 || (saldos[r.id] !== undefined && saldos[r.id] !== "")).map((r) => {
           const kgU = finKg(r.product);
           const fornecido = kgU ? r3(r.quantity * kgU) : r.quantity;
           const saldo = saldos[r.id] === undefined || saldos[r.id] === "" ? null : Number(saldos[r.id]);
@@ -4062,6 +4107,7 @@ doc.save(pdfName());
           const status = diff === null ? (fornecido ? "none" : "") : diff === 0 ? "ok" : diff < 0 ? "over" : "left";
           return { ...r, kgU, unit: kgU ? "kg" : "und", fornecido, saldo, diff, status };
         });
+        if (!lines.length) { box.innerHTML = ""; return; }
         const pend = lines.filter((l) => l.status === "over" || l.status === "left");
         const semSaldo = lines.filter((l) => l.status === "none");
         const informados = lines.filter((l) => l.saldo !== null);
@@ -4096,12 +4142,12 @@ doc.save(pdfName());
 
       function renderFinanceReport() {
         const mode = el("financePeriodMode").value;
-        el("financeMonthField").hidden = mode !== "mes";
-        el("financeDayField").hidden = !(mode === "dia" || mode === "semana");
-        el("financeDayLabel").textContent = mode === "semana" ? "Qualquer dia da semana" : "Dia";
+        el("financeMonthField").hidden = mode === "intervalo";
+        el("financeMonthLabel").textContent = mode === "dias" ? "Mês dos dias" : "Mês de referência";
         el("financeFromField").hidden = el("financeToField").hidden = mode !== "intervalo";
+        renderFinanceDays();
         const period = financePeriod();
-        el("financePeriodInfo").textContent = period.label || "Escolha o período da consulta.";
+        el("financePeriodInfo").textContent = period.label ? `Consultando ${period.label}` : mode === "dias" ? "Marque um ou mais dias acima." : "Escolha o período da consulta.";
         const rows = monthlyUnitRows();
         const units = new Set(rows.map(r=>r.unit)).size, quantity = rows.reduce((sum,r)=>sum+r.quantity,0), orders = rows.reduce((sum,r)=>sum+r.orders,0);
         el("financeSummary").innerHTML = `<div class="bread-total-card"><span>Unidades</span><strong>${units}</strong></div><div class="bread-total-card"><span>Quantidade total</span><strong>${quantity.toLocaleString("pt-BR")}</strong></div><div class="bread-total-card"><span>Pedidos</span><strong>${orders}</strong></div>`;
@@ -4176,7 +4222,6 @@ doc.save(pdfName());
       function renderFinance() {
         const months=[...new Set([...state.orders,...state.archivedOrders].map(o=>String(o.date||"").slice(0,7)).filter(Boolean))].sort().reverse();
         if(!el("financeMonth").value) el("financeMonth").value=months[0]||new Date().toISOString().slice(0,7);
-        if(!el("financeDay").value) el("financeDay").value=finYmd(new Date());
         if(!el("financeFrom").value||!el("financeTo").value){const [y,m]=el("financeMonth").value.split("-").map(Number);el("financeFrom").value=`${el("financeMonth").value}-01`;el("financeTo").value=finYmd(new Date(y,m,0));}
         const clients=automaticClientsAndUnits();
         el("financeClientTabs").innerHTML=clients.map(c=>`<button type="button" data-finance-client="${c.key}" class="${state.financeDelivery===c.key?"active":""}">${escapeHtml(c.name)}</button>`).join("");
@@ -4190,7 +4235,7 @@ doc.save(pdfName());
         const sectors=[...new Set(selected.units.map(u=>sectorForUnit(u,selected.key)))];
         el("financeClientList").innerHTML=sectors.map(sector=>`<div class="settings-section"><div class="settings-section-title"><strong>${escapeHtml(sector)}</strong><span>${selected.units.filter(u=>sectorForUnit(u,selected.key)===sector).length} unidade(s)</span></div><div class="settings-list">${selected.units.filter(u=>sectorForUnit(u,selected.key)===sector).map(u=>`<div class="settings-list-row"><strong>${escapeHtml(u)}</strong></div>`).join("")}</div></div>`).join("")||'<small>Nenhuma unidade salva.</small>';
         el("financeRegistrySummary").innerHTML=`<div class="bread-total-card"><span>Clientes</span><strong>${clients.length}</strong></div><div class="bread-total-card"><span>Unidades</span><strong>${clients.reduce((s,c)=>s+c.units.length,0)}</strong></div>`;
-        ["financeMonth","financeDay","financeFrom","financeTo","financePeriodMode"].forEach(id=>el(id).onchange=renderFinanceReport); el("financeUnitSearch").oninput=renderFinanceReport; el("financeProductFilter").onchange=renderFinanceReport; el("exportFinanceCsv").onclick=exportFinanceCsv;
+        ["financeMonth","financeFrom","financeTo","financePeriodMode"].forEach(id=>el(id).onchange=renderFinanceReport); el("financeUnitSearch").oninput=renderFinanceReport; el("financeProductFilter").onchange=renderFinanceReport; el("exportFinanceCsv").onclick=exportFinanceCsv;
         renderFinanceReport();
       }
 
