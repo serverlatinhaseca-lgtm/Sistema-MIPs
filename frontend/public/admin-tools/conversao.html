@@ -319,8 +319,21 @@
           }
           d.seeds[LANCH_ID] = true;
         }
+        // 21/11/2026: vínculos item → produto (e "não cobrar") passam a ser POR CLIENTE.
+        // Os globais antigos são copiados uma vez para cada cliente (mantém o resultado de hoje)
+        // e a lista global fica vazia; cada cliente pode "esquecer" os seus em Regras dos clientes.
+        if (!d.seeds[ALIAS_SEED]) {
+          const global = d.aliases && typeof d.aliases === "object" ? d.aliases : {};
+          d.clients.forEach((c) => {
+            c.aliases = c.aliases && typeof c.aliases === "object" ? c.aliases : {};
+            Object.entries(global).forEach(([k, a]) => { if (!(k in c.aliases)) c.aliases[k] = JSON.parse(JSON.stringify(a)); });
+          });
+          d.aliases = {};
+          d.seeds[ALIAS_SEED] = true;
+        }
         return d;
       }
+      const ALIAS_SEED = "vinculos-por-cliente";
       const isSum = (client) => client?.mode === "somar";
       // Preço do produto para o cliente: o próprio dele, se tiver; senão o da tabela única.
       function priceFor(client, product) {
@@ -421,9 +434,9 @@
             v: 2,
             products: Array.isArray(d.products) ? d.products : [],
             aliases: d.aliases && typeof d.aliases === "object" ? d.aliases : {},
-            clients: d.clients.map((c) => rename({ targets: [], prices: {}, match: "", ...c })),
+            clients: d.clients.map((c) => rename({ targets: [], prices: {}, match: "", ...c, ...(c.aliases ? { aliases: { ...c.aliases } } : {}) })),
             history,
-            seeds: d.seeds,
+            seeds: { ...(d.seeds || {}) },
           });
         }
         // Versão antiga (tabela por cliente) → tabela única. Base = tabela do Santos Dumont
@@ -447,9 +460,10 @@
         if (r.status === 404) return null;
         if (!r.ok) throw httpError(r.status);
         const { dados } = await r.json();
+        const rawSeeds = clone((dados && dados.seeds) || {});
         const n = normalize(dados);
-        // Cliente acrescentado agora (lateSeeds) ainda não está no banco: força o envio.
-        serverMissingSeeds = !equal(n.seeds, (dados && dados.seeds) || {});
+        // Cliente/migração acrescentados agora (lateSeeds) ainda não estão no banco: força o envio.
+        serverMissingSeeds = !equal(n.seeds, rawSeeds);
         return n;
       }
       let serverMissingSeeds = false;
@@ -595,27 +609,64 @@
       }
 
       // ---------- Vínculo item do relatório → produto da tabela ----------
-      const STOP = new Set(["de", "da", "do", "das", "dos", "em", "e", "com", "individual", "embalado", "embalada", "embalados", "caixa", "peca", "gramas", "gr", "g", "und", "un", "unidade", "pct", "lt", "litro", "kilo", "fatiado", "fatiada"]);
-      const KEY = ["mini", "integral", "leite", "frances", "forma", "kg", "cortado", "margarina", "coco", "creme", "cenoura", "gluten", "brioche", "hamburguer", "bolo", "catarina"];
-      const tokens = (s) => fold(s).replace(/[^a-z0-9]+/g, " ").split(" ").filter((t) => t && !STOP.has(t) && !/^\d+([.,]\d+)?(kg|g|ml|lt|l)?$/.test(t));
-      function autoMatch(label) {
+      const STOP = new Set(["de", "da", "do", "das", "dos", "em", "e", "com", "c", "individual", "embalado", "embalada", "embalados", "embaladas", "embal", "emb", "caixa", "peca", "pecas", "gramas", "grama", "gr", "g", "und", "un", "unid", "unidade", "unidades", "pct", "pacote", "lt", "litro", "fatiado", "fatiada", "fatiados", "fatiadas", "tipo", "sabor", "sabores", "unitario", "unitaria"]);
+      // Grafias diferentes do mesmo produto → uma palavra só (plural, abreviação, sinônimo).
+      const SYN = {
+        paes: "pao", pães: "pao", ovos: "ovo", bolos: "bolo", leites: "leite", queijos: "queijo", hamburguers: "hamburguer", hamburger: "hamburguer",
+        hamburgueres: "hamburguer", mucarela: "mussarela", muzarela: "mussarela", mozarela: "mussarela", mozzarela: "mussarela", mussarella: "mussarela",
+        muzzarela: "mussarela", mozzarella: "mussarela", quilo: "kg", kilo: "kg", kilos: "kg", quilos: "kg", kgs: "kg", fr: "frances", franc: "frances",
+        hotdog: "hot", cachorro: "hot", brioches: "brioche", cortados: "cortado", mini: "mini", minis: "mini", integrais: "integral", sonhos: "sonho",
+        carolinas: "carolina", panetones: "panetone", ricotas: "ricota", bandejas: "bandeja", latas: "lata",
+      };
+      // Palavras que mudam o produto: se uma está no item e não no produto (ou o contrário), não casa.
+      const KEY = ["mini", "integral", "leite", "frances", "forma", "cortado", "margarina", "coco", "creme", "cenoura", "gluten", "brioche", "hamburguer", "bolo", "catarina", "milho"];
+      // No bolo o sabor não muda o produto (Bolo 500g - Cenoura = bolo).
+      const BOLO_FREE = new Set(["leite", "coco", "creme", "cenoura", "milho"]);
+      const tokens = (s) => fold(s).replace(/[^a-z0-9]+/g, " ").split(" ").map((t) => SYN[t] || t)
+        .filter((t) => t && !STOP.has(t) && !/^\d+([.,]\d+)?(kg|g|gr|ml|lt|l)?$/.test(t));
+      // Peso escrito no nome, em gramas ("500g" → 500, "1,5kg" → 1500); 0 = não tem.
+      function weightOf(s) {
+        const m = fold(s).match(/(\d+(?:[.,]\d+)?)\s*(kg|quilos?|kilos?|g|gr|gramas?)\b/);
+        if (!m) return 0;
+        const n = Number(m[1].replace(",", "."));
+        return /^(kg|quilo|kilo)/.test(m[2]) ? n * 1000 : n;
+      }
+      // Melhor produto para o item: todas as palavras do produto têm que estar no item, as
+      // palavras-chave têm que bater, e o peso, se os dois tiverem (Bolo 500g × Bolo 1,5kg).
+      // "kg" só pesa a favor/contra (mussarela em kg continua sendo "Mussarela").
+      // Empate: prefere produto com preço do cliente.
+      function autoMatch(label, client) {
         const pt = new Set(tokens(label));
-        let best = null, bestN = 0;
+        const lw = weightOf(label);
+        let best = null, bestScore = -Infinity;
         data.products.forEach((p) => {
           const tk = tokens(p.name);
-          if (!tk.length || !tk.every((t) => pt.has(t))) return;
-          if (KEY.some((k) => pt.has(k) !== tk.includes(k))) return;
-          if (tk.length > bestN) { best = p; bestN = tk.length; }
+          if (!tk.some((t) => t !== "kg") || !tk.every((t) => t === "kg" || pt.has(t))) return;
+          const bolo = tk.includes("bolo");
+          if (KEY.some((k) => !(bolo && BOLO_FREE.has(k)) && pt.has(k) !== tk.includes(k))) return;
+          const pw = weightOf(p.name);
+          if (pw && lw && pw !== lw) return; // pesos diferentes (Bolo 500g × Bolo 1,5kg)
+          const score = tk.length * 10 + (pw && pw === lw ? 5 : 0) + (pt.has("kg") === tk.includes("kg") ? 3 : 0) + (hasOwnPrice(client, p) ? 1 : 0);
+          if (score > bestScore) { best = p; bestScore = score; }
         });
         return best;
       }
       const defaultFactor = (unit) => (["g", "gramas", "gr", "grama"].includes(fold(unit).trim()) ? 0.001 : 1);
-      // Cliente "somar" pode ter vínculos próprios (client.aliases), que valem antes dos globais.
+      // Fator automático: gramas → kg; produto vendido por kg e item em unidade com peso no nome
+      // (ex.: "Bolo 500g" em und → 0,5 kg cada).
+      function autoFactor(item, product) {
+        const f = defaultFactor(item.unit);
+        if (f !== 1 || !product || fold(product.unit).trim() !== "kg" || /kg|quilo|kilo/.test(fold(item.unit))) return f;
+        const w = weightOf(item.label);
+        return w ? w / 1000 : 1;
+      }
+      // Vínculos são por cliente (client.aliases). `data.aliases` global só existe em dado antigo
+      // (é migrado em lateSeeds) e fica como último recurso.
       function mappingFor(item, client) {
-        const a = (isSum(client) && client.aliases?.[item.key]) || data.aliases?.[item.key];
+        const a = client?.aliases?.[item.key] || data.aliases?.[item.key];
         if (a) return { productId: a.product || "", factor: toNum(a.factor) || 1, how: "saved" };
-        const p = autoMatch(item.label);
-        return { productId: p ? p.id : "", factor: defaultFactor(item.unit), how: p ? "auto" : "none" };
+        const p = autoMatch(item.label, client);
+        return { productId: p ? p.id : "", factor: autoFactor(item, p), how: p ? "auto" : "none" };
       }
       function detectClient(report) {
         const hay = fold(report.clientName);
@@ -750,19 +801,13 @@
           renderConv();
         };
       }
-      // Vínculo vale para todos os clientes (a tabela de produtos é uma só);
-      // cliente "somar" guarda o vínculo só para ele (client.aliases).
+      // Vínculo (produto escolhido, "não cobrar", fator) vale só para o cliente escolhido.
       function setAlias(key, patch) {
         const item = ui.report.items.find((i) => i.key === key);
         const client = clientById(ui.clientId);
+        if (!client) return;
         const cur = mappingFor(item, client);
-        const value = { product: cur.productId, factor: cur.factor, ...patch };
-        if (isSum(client)) {
-          client.aliases = { ...(client.aliases || {}), [key]: value };
-        } else {
-          data.aliases = data.aliases || {};
-          data.aliases[key] = value;
-        }
+        client.aliases = { ...(client.aliases || {}), [key]: { product: cur.productId, factor: cur.factor, ...patch } };
         save();
         renderConv();
       }
@@ -846,6 +891,7 @@
         c.prices = c.prices || {};
         const own = Object.entries(c.prices).map(([id, price]) => ({ id, price, p: productById(id) })).filter((x) => x.p);
         const free = data.products.filter((p) => !(p.id in c.prices));
+        const links = Object.entries(c.aliases || {}).sort(([a], [b]) => a.localeCompare(b));
         el("cliBody").innerHTML = `
           <div class="toolbar">
             <label class="field">Nome<input data-cli="name" value="${esc(c.name)}" style="min-width:260px" /></label>
@@ -875,7 +921,12 @@
           <div class="toolbar" style="margin-top:8px">
             <label class="field">Produto<select id="ownProd">${free.map((p) => `<option value="${esc(p.id)}">${esc(p.name)} — ${money(p.price)}</option>`).join("")}</select></label>
             <button type="button" class="btn small" id="ownAdd" ${free.length ? "" : "disabled"}>${isSum(c) ? "+ Preço" : "+ Preço diferente"}</button>
-          </div>`;
+          </div>
+          <h3>Itens do relatório já vinculados neste cliente (${links.length})</h3>
+          <p class="hint" style="margin-top:-4px">Produto escolhido ou "não cobrar" na tela de conversão — vale só para ${esc(c.name)}. "Esquecer" volta a reconhecer o item pelo nome.</p>
+          ${links.length ? `<div class="scroll"><table class="grid"><thead><tr><th>Item do relatório</th><th>Produto</th><th>Fator</th><th></th></tr></thead><tbody>
+            ${links.map(([k, a]) => `<tr class="${a.product ? "" : "ignored"}"><td class="left">${esc(k)}</td><td class="left">${a.product ? esc(productById(a.product)?.name || "(produto removido)") : "<em>não cobrar</em>"}</td><td>${fmt(a.factor, 4)}</td><td><button type="button" class="btn small" data-link-del="${esc(k)}">Esquecer</button></td></tr>`).join("")}
+          </tbody></table></div>` : `<p class="hint">Nenhum — os itens são reconhecidos pelo nome.</p>`}`;
 
         const body = el("cliBody");
         body.querySelectorAll("[data-cli]").forEach((inp) => (inp.oninput = () => { c[inp.dataset.cli] = inp.value; save(); }));
@@ -888,6 +939,12 @@
           save();
         }));
         body.querySelectorAll("[data-own]").forEach((inp) => (inp.oninput = () => { c.prices[inp.dataset.own] = toNum(inp.value); save(); }));
+        body.querySelectorAll("[data-link-del]").forEach((b) => (b.onclick = () => {
+          const rest = { ...(c.aliases || {}) };
+          delete rest[b.dataset.linkDel];
+          c.aliases = rest;
+          save(); renderClients();
+        }));
         body.querySelectorAll("[data-own-del]").forEach((b) => (b.onclick = () => { delete c.prices[b.dataset.ownDel]; save(); renderClients(); }));
         body.querySelectorAll("[data-tg-del]").forEach((b) => (b.onclick = () => { c.targets.splice(Number(b.dataset.tgDel), 1); save(); renderClients(); }));
         el("tgAdd").onclick = () => { c.targets.push({ id: newId("t"), name: "Novo pão", price: 1, pct: 0, unit: "und" }); save(); renderClients(); };
@@ -905,10 +962,9 @@
               <td class="left hint">${esc(owners(p.id).join(", "))}</td><td><button type="button" class="btn small danger" data-pr-del="${i}">×</button></td></tr>`).join("")}
           </tbody></table></div>
           <div class="toolbar" style="margin-top:8px"><button type="button" class="btn small" id="prAdd">+ Produto</button></div>
-          <h3>Itens do relatório já vinculados (${aliases.length})</h3>
-          ${aliases.length ? `<div class="scroll"><table class="grid"><thead><tr><th>Item do relatório</th><th>Produto</th><th>Fator</th><th></th></tr></thead><tbody>
+          ${aliases.length ? `<h3>Vínculos antigos, valendo para todos (${aliases.length})</h3><div class="scroll"><table class="grid"><thead><tr><th>Item do relatório</th><th>Produto</th><th>Fator</th><th></th></tr></thead><tbody>
             ${aliases.map(([k, a]) => `<tr><td class="left">${esc(k)}</td><td class="left">${esc(productById(a.product)?.name || "não cobrar")}</td><td>${fmt(a.factor, 4)}</td><td><button type="button" class="btn small" data-al-del="${esc(k)}">Esquecer</button></td></tr>`).join("")}
-          </tbody></table></div>` : `<p class="hint">Nenhum ainda — os itens são reconhecidos pelo nome. Ao escolher um produto na conversão, o vínculo aparece aqui.</p>`}`;
+          </tbody></table></div>` : `<p class="hint">Os itens do relatório já vinculados (produto escolhido ou "não cobrar") ficam <strong>em cada cliente</strong>, em "Regras dos clientes".</p>`}`;
         const body = el("prodBody");
         body.querySelectorAll("[data-pr]").forEach((inp) => (inp.oninput = () => {
           const row = data.products[Number(inp.dataset.pr)];
