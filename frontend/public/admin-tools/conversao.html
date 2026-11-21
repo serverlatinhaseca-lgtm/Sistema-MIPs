@@ -136,10 +136,16 @@
             <button class="btn small" type="button" id="addManual">+ Adicionar item à mão</button>
             <span class="hint">Escolher o produto de um item fica guardado: no próximo relatório desse cliente ele já vem certo.</span>
           </div>
-          <h3>Faturar em pão</h3>
+          <div id="sumBlock" hidden>
+            <h3>Soma dos produtos</h3>
+            <div class="scroll" id="sumTable"></div>
+          </div>
+          <h3 id="resultTitle">Faturar em pão</h3>
           <div class="cards" id="resultCards"></div>
-          <h3>Se fosse tudo em um pão só</h3>
-          <div class="scroll" id="altTable"></div>
+          <div id="altBlock">
+            <h3>Se fosse tudo em um pão só</h3>
+            <div class="scroll" id="altTable"></div>
+          </div>
           <div class="toolbar" style="margin-top:14px">
             <button class="btn primary" type="button" id="saveHist">Salvar no histórico</button>
             <button class="btn" type="button" id="printConv">Imprimir</button>
@@ -263,14 +269,61 @@
           targets: c.targets.map(([name, price, pct, unit]) => ({ id: slug(name), name, price, pct, unit })),
           prices: seedPrices(c, products),
         }));
-        return { v: 2, products, aliases: {}, clients, history: [] };
+        return lateSeeds({ v: 2, products, aliases: {}, clients, history: [], seeds: {} });
       }
+      // Clientes que entraram depois do 1º uso: são acrescentados uma vez só (marca em `seeds`),
+      // assim, se forem excluídos na tela, não voltam.
+      // Lanchonete Hospital Regional (21/11/2026): modo "somar" = não converte em pão, só soma os
+      // produtos iguais do romaneio e valoriza pela "Tabela GRSA 2026" (preços próprios do cliente).
+      const LANCH_ID = "lanchonete-hospital-regional";
+      // Bolo soma por quilo (Bolo 500g = 0,5 kg) a R$ 23,75/kg ("Bolo em placa (KG)" da GRSA).
+      // Pão francês (KG): R$ 13,00/kg = R$ 0,65 a unidade de 50 g (mesma ideia da tabela única);
+      // francês cortado = esse preço + R$ 0,10 (regra do mantenedor). Mussarela e presunto: o preço
+      // que já está na tabela única do banco (copiado na criação do cliente).
+      const LATE_PRODUCTS = [{ id: "bolo-kg", name: "Bolo (kg)", price: 23.75, unit: "kg" }];
+      const LANCH_PRICES = {
+        "pao-frances-embalado": 0.79, "mini-pao-frances-embalado": 0.58, "pao-de-leite-embalado": 0.95, "mini-pao-de-leite": 0.68,
+        "pao-frances-com-margarina": 1.26, "pao-de-forma": 12.5, "mini-pao-cenoura-embalado": 0.9, "hamburguer-80g": 1.5,
+        "pao-frances-kg": 0.65, "pao-frances-cortado": 0.75, "bolo-kg": 23.75, mussarela: null, presunto: null,
+      };
+      const LANCH_ALIASES = {
+        "bolo 500g - cenoura": { product: "bolo-kg", factor: 0.5 },
+        "bolo 500g - milho": { product: "bolo-kg", factor: 0.5 },
+        "bolo 500g - fuba": { product: "bolo-kg", factor: 0.5 },
+        "mussarela fatiada (kg)": { product: "mussarela", factor: 1 },
+        "mussarela fatiada (gramas)": { product: "mussarela", factor: 0.001 },
+        "presunto fatiado (kg)": { product: "presunto", factor: 1 },
+        "presunto fatiado (gramas)": { product: "presunto", factor: 0.001 },
+        "pao frances cortado": { product: "pao-frances-cortado", factor: 1 },
+      };
+      const PRODUCT_UNITS = { mussarela: "kg", presunto: "kg", "pao-frances-cortado": "und", "bolo-kg": "kg" };
+      function lateSeeds(d) {
+        d.seeds = d.seeds && typeof d.seeds === "object" ? d.seeds : {};
+        if (!d.seeds[LANCH_ID]) {
+          LATE_PRODUCTS.forEach((p) => { if (!d.products.some((x) => x.id === p.id)) d.products.push({ ...p }); });
+          d.products.forEach((p) => { if (PRODUCT_UNITS[p.id] && !p.unit) p.unit = PRODUCT_UNITS[p.id]; });
+          if (!d.clients.some((c) => c.id === LANCH_ID)) {
+            const prices = {};
+            Object.entries(LANCH_PRICES).forEach(([id, v]) => {
+              const p = d.products.find((x) => x.id === id);
+              if (p) prices[id] = v === null ? Number(String(p.price).replace(",", ".")) || 0 : v; // null = preço atual da tabela única
+            });
+            d.clients.push({ id: LANCH_ID, name: "Lanchonete Hospital Regional", match: "lanchonete hospital regional", mode: "somar", targets: [], prices, aliases: JSON.parse(JSON.stringify(LANCH_ALIASES)) });
+          }
+          d.seeds[LANCH_ID] = true;
+        }
+        return d;
+      }
+      const isSum = (client) => client?.mode === "somar";
       // Preço do produto para o cliente: o próprio dele, se tiver; senão o da tabela única.
       function priceFor(client, product) {
         if (!product) return 0;
         const own = client?.prices?.[product.id];
-        return own !== undefined && own !== "" && own !== null ? toNum(own) : toNum(product.price);
+        if (own !== undefined && own !== "" && own !== null) return toNum(own);
+        return isSum(client) ? 0 : toNum(product.price); // "somar": só vale a tabela do cliente
       }
+      // Cliente "somar" sem preço próprio para o produto = falta preço (não usa a tabela única).
+      const missingPrice = (client, product) => !!product && isSum(client) && !hasOwnPrice(client, product);
       const hasOwnPrice = (client, product) => !!product && client?.prices?.[product.id] !== undefined;
       const productById = (id) => data.products.find((p) => p.id === id);
 
@@ -342,6 +395,7 @@
           aliases: mergeMap(local.aliases, server.aliases, base?.aliases),
           clients: mergeList(local.clients, server.clients, base?.clients),
           history: mergeList(local.history, server.history, base?.history).sort((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, 300),
+          seeds: { ...(server.seeds || {}), ...(local.seeds || {}) },
         };
       }
       const authHeader = () => ({ Authorization: `Bearer ${localStorage.getItem("token")}` });
@@ -356,13 +410,14 @@
           return c;
         };
         if (d.v === 2) {
-          return {
+          return lateSeeds({
             v: 2,
             products: Array.isArray(d.products) ? d.products : [],
             aliases: d.aliases && typeof d.aliases === "object" ? d.aliases : {},
             clients: d.clients.map((c) => rename({ targets: [], prices: {}, match: "", ...c })),
             history,
-          };
+            seeds: d.seeds,
+          });
         }
         // Versão antiga (tabela por cliente) → tabela única. Base = tabela do Santos Dumont
         // (ou do 1º cliente sem preço próprio); o que só existir em outro cliente entra junto.
@@ -378,15 +433,19 @@
           if (own(c)) c.products.forEach((p) => { const g = products.find((x) => x.id === p.id); if (g && toNum(g.price) !== toNum(p.price)) prices[p.id] = toNum(p.price); });
           return { id: c.id, name: c.name, match: c.match, targets: c.targets, prices };
         });
-        return { v: 2, products, aliases, clients, history };
+        return lateSeeds({ v: 2, products, aliases, clients, history, seeds: {} });
       }
       async function readServer() {
         const r = await fetch(api, { headers: authHeader(), cache: "no-store" });
         if (r.status === 404) return null;
         if (!r.ok) throw httpError(r.status);
         const { dados } = await r.json();
-        return normalize(dados);
+        const n = normalize(dados);
+        // Cliente acrescentado agora (lateSeeds) ainda não está no banco: força o envio.
+        serverMissingSeeds = !equal(n.seeds, (dados && dados.seeds) || {});
+        return n;
       }
+      let serverMissingSeeds = false;
       function syncFailed(e) {
         ui.loaded = true;
         const expired = e?.status === 401 || e?.status === 403;
@@ -399,7 +458,7 @@
           const before = clone(data);
           const server = await readServer();
           const merged = mergeData(before, server, synced);
-          if (!server || !equal(merged, server)) {
+          if (!server || serverMissingSeeds || !equal(merged, server)) {
             setBadge("Salvando no banco...");
             const r = await fetch(api, { method: "PUT", headers: { "Content-Type": "application/json", ...authHeader() }, body: JSON.stringify({ dados: merged }) });
             if (!r.ok) throw httpError(r.status);
@@ -544,8 +603,9 @@
         return best;
       }
       const defaultFactor = (unit) => (["g", "gramas", "gr", "grama"].includes(fold(unit).trim()) ? 0.001 : 1);
-      function mappingFor(item) {
-        const a = data.aliases?.[item.key];
+      // Cliente "somar" pode ter vínculos próprios (client.aliases), que valem antes dos globais.
+      function mappingFor(item, client) {
+        const a = (isSum(client) && client.aliases?.[item.key]) || data.aliases?.[item.key];
         if (a) return { productId: a.product || "", factor: toNum(a.factor) || 1, how: "saved" };
         const p = autoMatch(item.label);
         return { productId: p ? p.id : "", factor: defaultFactor(item.unit), how: p ? "auto" : "none" };
@@ -560,18 +620,27 @@
       // ---------- Cálculo ----------
       function compute(client) {
         const rows = (ui.report?.items || []).map((it) => {
-          const m = mappingFor(it);
+          const m = mappingFor(it, client);
           const p = productById(m.productId);
           const qty = it.qty * m.factor;
           const price = priceFor(client, p);
-          return { kind: "pdf", item: it, ...m, product: p, qty, price, own: hasOwnPrice(client, p), value: p ? qty * price : 0 };
+          return { kind: "pdf", item: it, ...m, product: p, qty, price, own: hasOwnPrice(client, p), noPrice: missingPrice(client, p), value: p ? qty * price : 0 };
         });
         ui.manual.forEach((mm, i) => {
           const p = productById(mm.productId);
           const price = priceFor(client, p);
-          rows.push({ kind: "manual", index: i, product: p, productId: mm.productId, qty: toNum(mm.qty), price, own: hasOwnPrice(client, p), value: p ? toNum(mm.qty) * price : 0 });
+          rows.push({ kind: "manual", index: i, product: p, productId: mm.productId, qty: toNum(mm.qty), price, own: hasOwnPrice(client, p), noPrice: missingPrice(client, p), value: p ? toNum(mm.qty) * price : 0 });
         });
         const total = rows.reduce((t, r) => t + r.value, 0);
+        // Soma dos produtos iguais (itens do relatório que caem no mesmo produto da tabela).
+        const sums = [];
+        rows.filter((x) => x.product).forEach((x) => {
+          let s = sums.find((y) => y.product.id === x.product.id);
+          if (!s) sums.push((s = { product: x.product, price: x.price, noPrice: x.noPrice, qty: 0, value: 0, labels: [] }));
+          s.qty += x.qty;
+          s.value += x.value;
+          s.labels.push(x.item ? `${x.item.label} (${fmt(x.item.qty, 3)}${x.item.unit ? ` ${x.item.unit}` : ""})` : `adicionado à mão (${fmt(x.qty, 3)})`);
+        });
         const targets = client.targets.filter((t) => toNum(t.price) > 0);
         const split = targets.filter((t) => toNum(t.pct) > 0).map((t) => {
           const part = (total * toNum(t.pct)) / 100;
@@ -579,7 +648,7 @@
         });
         const pctSum = client.targets.reduce((s, t) => s + toNum(t.pct), 0);
         const alt = targets.map((t) => ({ ...t, qty: ceil(total / toNum(t.price)) }));
-        return { rows, total, split, alt, pctSum };
+        return { rows, total, split, alt, pctSum, sums };
       }
 
       // ---------- Abas ----------
@@ -597,7 +666,7 @@
       // ---------- Converter (tela) ----------
       const productOptions = (client, selected, ignoreLabel) =>
         `<option value="">${esc(ignoreLabel)}</option>` +
-        data.products.map((p) => `<option value="${esc(p.id)}" ${p.id === selected ? "selected" : ""}>${esc(p.name)} — ${money(priceFor(client, p))}</option>`).join("");
+        data.products.map((p) => `<option value="${esc(p.id)}" ${p.id === selected ? "selected" : ""}>${esc(p.name)} — ${missingPrice(client, p) ? "sem preço" : money(priceFor(client, p))}</option>`).join("");
 
       function renderConv() {
         const rep = ui.report;
@@ -615,7 +684,10 @@
         let warn = "";
         if (!detected) warn += `<div class="warn">O cliente "${esc(rep.clientName)}" não está cadastrado — confira se o cliente escolhido acima é o certo${rep.clientName ? ` ou <button type="button" class="btn link" id="newFromPdf">cadastre "${esc(rep.clientName)}" com as mesmas regras de ${esc(client.name)}</button>` : ""}.</div>`;
         if (missing.length) warn += `<div class="warn">${missing.length} item(ns) sem produto na tabela (em amarelo). Escolha o produto ou deixe "não cobrar" — a escolha fica guardada.</div>`;
-        if (Math.round(r.pctSum) !== 100) warn += `<div class="warn">A divisão da conversão soma ${fmt(r.pctSum)}% (deveria ser 100%). Ajuste em "Regras dos clientes".</div>`;
+        const sum = isSum(client);
+        const noPrice = r.sums.filter((s) => s.noPrice);
+        if (noPrice.length) warn += `<div class="warn">Sem preço na tabela de ${esc(client.name)}: ${noPrice.map((s) => esc(s.product.name)).join(", ")}. Cadastre em "Regras dos clientes" → "Preços deste cliente" (até lá conta R$ 0,00).</div>`;
+        if (!sum && Math.round(r.pctSum) !== 100) warn +=`<div class="warn">A divisão da conversão soma ${fmt(r.pctSum)}% (deveria ser 100%). Ajuste em "Regras dos clientes".</div>`;
         el("convWarn").innerHTML = warn;
 
         const body = r.rows.map((x, i) => {
@@ -623,7 +695,7 @@
             return `<tr><td class="left"><em>Adicionado à mão</em></td><td>—</td>
               <td><input class="n" data-man-qty="${x.index}" value="${esc(ui.manual[x.index].qty)}" inputmode="decimal" /></td>
               <td><select data-man-prod="${x.index}">${productOptions(client, x.productId, "— escolha o produto —")}</select></td>
-              <td>—</td><td class="right">${x.product ? money(x.price) + (x.own ? `<br><span class="tag">preço ${esc(client.name)}</span>` : "") : "—"}</td><td class="right">${money(x.value)}</td>
+              <td>—</td><td class="right">${x.noPrice ? "sem preço" : x.product ? money(x.price) + (x.own ? `<br><span class="tag">preço ${esc(client.name)}</span>` : "") : "—"}</td><td class="right">${money(x.value)}</td>
               <td><button type="button" class="btn small danger" data-man-del="${x.index}">×</button></td></tr>`;
           }
           const cls = x.how === "none" ? "missing" : !x.product ? "ignored" : "";
@@ -631,13 +703,22 @@
           return `<tr class="${cls}"><td class="left">${esc(x.item.label)}</td><td>${esc(x.item.unit || "—")}</td><td class="right">${fmt(x.item.qty, 3)}</td>
             <td><div class="pick"><select data-map="${esc(x.item.key)}">${productOptions(client, x.productId, x.how === "none" ? "— escolha o produto —" : "— não cobrar —")}</select>${tag}</div></td>
             <td><input class="n" data-factor="${esc(x.item.key)}" value="${esc(String(x.factor).replace(".", ","))}" inputmode="decimal" title="Multiplica a quantidade do relatório (ex.: gramas → kg = 0,001)" /></td>
-            <td class="right">${x.product ? money(x.price) + (x.own ? `<br><span class="tag">preço ${esc(client.name)}</span>` : "") : "—"}</td><td class="right">${money(x.value)}</td><td></td></tr>`;
+            <td class="right">${x.noPrice ? "sem preço" : x.product ? money(x.price) + (x.own ? `<br><span class="tag">preço ${esc(client.name)}</span>` : "") : "—"}</td><td class="right">${money(x.value)}</td><td></td></tr>`;
         }).join("");
         el("itemsTable").innerHTML = `<table class="grid"><thead><tr><th>Item do relatório</th><th>Unid.</th><th>Qtd.</th><th>Produto da tabela</th><th>Fator</th><th>Preço un.</th><th>Total</th><th></th></tr></thead>
           <tbody>${body}<tr class="total"><td class="left" colspan="6">TOTAL</td><td class="right">${money(r.total)}</td><td></td></tr></tbody></table>`;
 
-        el("resultCards").innerHTML = `<div class="card money"><span>Total em produtos</span><strong>${money(r.total)}</strong><small>${Object.keys(client.prices || {}).length ? `com os preços próprios de ${esc(client.name)}` : "pela tabela única de preços"}</small></div>` +
-          r.split.map((t) => `<div class="card main"><span>${esc(t.name)} · ${fmt(t.pct)}%</span><strong>${fmt(t.qty, 0)} ${esc(t.unit || "und")}</strong><small>${money(t.part)} ÷ ${money(t.price)}</small></div>`).join("");
+        el("sumBlock").hidden = !sum;
+        el("altBlock").hidden = sum;
+        el("resultTitle").textContent = sum ? "Total a faturar" : "Faturar em pão";
+        el("sumTable").innerHTML = sum
+          ? `<table class="grid"><thead><tr><th>Produto</th><th>Itens somados</th><th>Quantidade</th><th>Preço un.</th><th>Total</th></tr></thead><tbody>
+            ${r.sums.map((s) => `<tr class="${s.noPrice ? "missing" : ""}"><td class="left"><strong>${esc(s.product.name)}</strong></td><td class="left hint">${s.labels.map(esc).join("<br>")}</td>
+              <td><strong>${fmt(s.qty, 3)}${s.product.unit ? ` ${esc(s.product.unit)}` : ""}</strong></td><td class="right">${s.noPrice ? "sem preço" : money(s.price)}</td><td class="right">${money(s.value)}</td></tr>`).join("")}
+            <tr class="total"><td class="left" colspan="4">TOTAL</td><td class="right">${money(r.total)}</td></tr></tbody></table>`
+          : "";
+        el("resultCards").innerHTML = `<div class="card money"><span>Total em produtos</span><strong>${money(r.total)}</strong><small>${sum ? `só a soma dos produtos, pelos preços de ${esc(client.name)} (sem converter em pão)` : Object.keys(client.prices || {}).length ? `com os preços próprios de ${esc(client.name)}` : "pela tabela única de preços"}</small></div>` +
+          (sum ? [] : r.split).map((t) => `<div class="card main"><span>${esc(t.name)} · ${fmt(t.pct)}%</span><strong>${fmt(t.qty, 0)} ${esc(t.unit || "und")}</strong><small>${money(t.part)} ÷ ${money(t.price)}</small></div>`).join("");
         el("altTable").innerHTML = r.alt.length
           ? `<table class="grid"><thead><tr><th>Pão</th><th>Preço</th><th>Quantidade</th></tr></thead><tbody>${r.alt.map((t) => `<tr><td class="left">Tudo em ${esc(t.name)}</td><td class="right">${money(t.price)}</td><td><strong>${fmt(t.qty, 0)} ${esc(t.unit || "und")}</strong></td></tr>`).join("")}</tbody></table>`
           : `<p class="hint">Cadastre os pães de conversão em "Regras dos clientes".</p>`;
@@ -662,12 +743,19 @@
           renderConv();
         };
       }
-      // Vínculo vale para todos os clientes (a tabela de produtos é uma só).
+      // Vínculo vale para todos os clientes (a tabela de produtos é uma só);
+      // cliente "somar" guarda o vínculo só para ele (client.aliases).
       function setAlias(key, patch) {
         const item = ui.report.items.find((i) => i.key === key);
-        const cur = mappingFor(item);
-        data.aliases = data.aliases || {};
-        data.aliases[key] = { product: cur.productId, factor: cur.factor, ...patch };
+        const client = clientById(ui.clientId);
+        const cur = mappingFor(item, client);
+        const value = { product: cur.productId, factor: cur.factor, ...patch };
+        if (isSum(client)) {
+          client.aliases = { ...(client.aliases || {}), [key]: value };
+        } else {
+          data.aliases = data.aliases || {};
+          data.aliases[key] = value;
+        }
         save();
         renderConv();
       }
@@ -707,7 +795,8 @@
           file: ui.report.fileName || "",
           total: Math.round(r.total * 100) / 100,
           lines: r.rows.filter((x) => x.product).map((x) => ({ label: x.item?.label || "Adicionado à mão", product: x.product.name, qty: x.qty, price: x.price, value: Math.round(x.value * 100) / 100 })),
-          results: r.split.map((t) => ({ name: t.name, pct: toNum(t.pct), price: toNum(t.price), unit: t.unit || "und", qty: t.qty })),
+          results: isSum(client) ? [] : r.split.map((t) => ({ name: t.name, pct: toNum(t.pct), price: toNum(t.price), unit: t.unit || "und", qty: t.qty })),
+          ...(isSum(client) ? { mode: "somar", sums: r.sums.map((s) => ({ product: s.product.name, unit: s.product.unit || "", qty: Math.round(s.qty * 1000) / 1000, price: s.price, value: Math.round(s.value * 100) / 100 })) } : {}),
         });
         data.history = data.history.slice(0, 300);
         save();
@@ -718,6 +807,15 @@
         const client = clientById(ui.clientId);
         if (!client || !ui.report) return;
         const r = compute(client);
+        if (isSum(client)) {
+          el("printArea").innerHTML = `<h1>Romaneio — ${esc(client.name)}</h1>
+            <p>${ui.report.period ? `Período: <strong>${esc(ui.report.period)}</strong> · ` : ""}Relatório: ${esc(ui.report.fileName || "")} · Impresso em ${new Date().toLocaleString("pt-BR")}</p>
+            <table class="doc"><thead><tr><th>Produto</th><th>Itens somados</th><th>Quantidade</th><th>Preço un.</th><th>Total</th></tr></thead><tbody>
+            ${r.sums.map((s) => `<tr><td class="left"><strong>${esc(s.product.name)}</strong></td><td class="left">${s.labels.map(esc).join("<br>")}</td><td class="big">${fmt(s.qty, 3)}${s.product.unit ? ` ${esc(s.product.unit)}` : ""}</td><td class="right">${s.noPrice ? "sem preço" : money(s.price)}</td><td class="right">${money(s.value)}</td></tr>`).join("")}
+            <tr class="total"><td class="left" colspan="4">TOTAL</td><td class="right">${money(r.total)}</td></tr></tbody></table>`;
+          window.print();
+          return;
+        }
         el("printArea").innerHTML = `<h1>Conversão em pão — ${esc(client.name)}</h1>
           <p>${ui.report.period ? `Período: <strong>${esc(ui.report.period)}</strong> · ` : ""}Relatório: ${esc(ui.report.fileName || "")} · Impresso em ${new Date().toLocaleString("pt-BR")}</p>
           <table class="doc"><thead><tr><th>Item do relatório</th><th>Produto da tabela</th><th>Qtd.</th><th>Preço un.</th><th>Total</th></tr></thead><tbody>
@@ -745,7 +843,13 @@
           <div class="toolbar">
             <label class="field">Nome<input data-cli="name" value="${esc(c.name)}" style="min-width:260px" /></label>
             <label class="field">Reconhecer no PDF quando o nome tiver (separe por vírgula)<input data-cli="match" value="${esc(c.match)}" style="min-width:320px" placeholder="ex.: santos dumont" /></label>
+            <label class="field">O que fazer com o relatório<select id="cliMode">
+              <option value="" ${isSum(c) ? "" : "selected"}>Converter o total em pão</option>
+              <option value="somar" ${isSum(c) ? "selected" : ""}>Só somar os produtos iguais (sem converter)</option>
+            </select></label>
           </div>
+          ${isSum(c) ? `<p class="info">Este cliente <strong>não converte em pão</strong>: o relatório só soma os produtos iguais (ex.: bolos de sabores diferentes, mussarela em g + kg) e cobra pelos <strong>preços deste cliente</strong> abaixo. Produto sem preço aqui fica "sem preço" — a tabela única não vale para ele.</p>` : ""}
+          <div ${isSum(c) ? "hidden" : ""}>
           <h3>Converter o total em</h3>
           <div class="scroll"><table class="grid"><thead><tr><th>Pão</th><th>Preço un.</th><th>Unid.</th><th>% do total</th><th></th></tr></thead><tbody>
             ${c.targets.map((t, i) => `<tr><td><input data-tg="${i}" data-f="name" value="${esc(t.name)}" /></td><td><input class="n" data-tg="${i}" data-f="price" value="${esc(String(t.price).replace(".", ","))}" inputmode="decimal" /></td>
@@ -754,20 +858,22 @@
             <tr class="total"><td class="left" colspan="3">Soma das porcentagens</td><td id="pctSum">${fmt(pctSum)}%</td><td></td></tr>
           </tbody></table></div>
           <div class="toolbar" style="margin-top:8px"><button type="button" class="btn small" id="tgAdd">+ Pão de conversão</button><span class="hint">Pão com 0% não entra na divisão, mas aparece em "Se fosse tudo em um pão só".</span></div>
-          <h3>Preços diferentes deste cliente (${own.length})</h3>
-          <p class="hint" style="margin-top:-4px">Só para cliente com preço próprio (ex.: Ambev). O que não estiver aqui usa a tabela única de "Produtos e preços".</p>
+          </div>
+          <h3>${isSum(c) ? "Preços deste cliente" : "Preços diferentes deste cliente"} (${own.length})</h3>
+          <p class="hint" style="margin-top:-4px">${isSum(c) ? "Tabela de preços do cliente (ex.: Tabela GRSA 2026). Só estes preços valem para ele." : `Só para cliente com preço próprio (ex.: Ambev). O que não estiver aqui usa a tabela única de "Produtos e preços".`}</p>
           ${own.length ? `<div class="scroll"><table class="grid"><thead><tr><th>Produto</th><th>Tabela única</th><th>Preço deste cliente</th><th></th></tr></thead><tbody>
             ${own.map((x) => `<tr><td class="left">${esc(x.p.name)}</td><td class="right">${money(x.p.price)}</td><td><input class="n" data-own="${esc(x.id)}" value="${esc(String(x.price).replace(".", ","))}" inputmode="decimal" /></td>
-              <td><button type="button" class="btn small" data-own-del="${esc(x.id)}">Usar tabela única</button></td></tr>`).join("")}
+              <td><button type="button" class="btn small" data-own-del="${esc(x.id)}">${isSum(c) ? "Remover" : "Usar tabela única"}</button></td></tr>`).join("")}
           </tbody></table></div>` : ""}
           <div class="toolbar" style="margin-top:8px">
             <label class="field">Produto<select id="ownProd">${free.map((p) => `<option value="${esc(p.id)}">${esc(p.name)} — ${money(p.price)}</option>`).join("")}</select></label>
-            <button type="button" class="btn small" id="ownAdd" ${free.length ? "" : "disabled"}>+ Preço diferente</button>
+            <button type="button" class="btn small" id="ownAdd" ${free.length ? "" : "disabled"}>${isSum(c) ? "+ Preço" : "+ Preço diferente"}</button>
           </div>`;
 
         const body = el("cliBody");
         body.querySelectorAll("[data-cli]").forEach((inp) => (inp.oninput = () => { c[inp.dataset.cli] = inp.value; save(); }));
         body.querySelectorAll("[data-cli=name]").forEach((inp) => (inp.onchange = () => renderClients()));
+        el("cliMode").onchange = (e) => { if (e.target.value) c.mode = e.target.value; else delete c.mode; save(); renderClients(); };
         body.querySelectorAll("[data-tg]").forEach((inp) => (inp.oninput = () => {
           const row = c.targets[Number(inp.dataset.tg)];
           row[inp.dataset.f] = ["price", "pct"].includes(inp.dataset.f) ? toNum(inp.value) : inp.value;
@@ -786,8 +892,9 @@
         const owners = (id) => data.clients.filter((c) => c.prices && id in c.prices).map((c) => c.name);
         const aliases = Object.entries(data.aliases || {});
         el("prodBody").innerHTML = `
-          <div class="scroll"><table class="grid"><thead><tr><th>Produto</th><th>Preço un.</th><th>Preço diferente em</th><th></th></tr></thead><tbody>
+          <div class="scroll"><table class="grid"><thead><tr><th>Produto</th><th>Preço un.</th><th>Unid.</th><th>Preço diferente em</th><th></th></tr></thead><tbody>
             ${data.products.map((p, i) => `<tr><td><input data-pr="${i}" data-f="name" value="${esc(p.name)}" style="min-width:280px" /></td><td><input class="n" data-pr="${i}" data-f="price" value="${esc(String(p.price).replace(".", ","))}" inputmode="decimal" /></td>
+              <td><input data-pr="${i}" data-f="unit" value="${esc(p.unit || "")}" style="width:60px;min-width:60px" placeholder="und" title="Só para mostrar na soma (ex.: kg, und)" /></td>
               <td class="left hint">${esc(owners(p.id).join(", "))}</td><td><button type="button" class="btn small danger" data-pr-del="${i}">×</button></td></tr>`).join("")}
           </tbody></table></div>
           <div class="toolbar" style="margin-top:8px"><button type="button" class="btn small" id="prAdd">+ Produto</button></div>
@@ -818,7 +925,7 @@
         el("histTable").innerHTML = h.length
           ? `<table class="grid"><thead><tr><th>Salvo em</th><th>Cliente</th><th>Período</th><th>Total</th><th>Faturar em pão</th><th></th></tr></thead><tbody>
             ${h.map((x) => `<tr><td>${esc(new Date(x.at).toLocaleString("pt-BR"))}${x.by ? `<br><span class="hint">${esc(x.by)}</span>` : ""}</td><td class="left">${esc(x.client)}</td><td>${esc(x.period || "—")}</td>
-              <td class="right">${money(x.total)}</td><td class="left">${(x.results || []).map((t) => `<strong>${fmt(t.qty, 0)} ${esc(t.unit)}</strong> ${esc(t.name)} (${fmt(t.pct)}%)`).join("<br>")}</td>
+              <td class="right">${money(x.total)}</td><td class="left">${x.mode === "somar" ? `<span class="tag">só soma</span><br>${(x.sums || []).map((s) => `<strong>${fmt(s.qty, 3)}${s.unit ? ` ${esc(s.unit)}` : ""}</strong> ${esc(s.product)} = ${money(s.value)}`).join("<br>")}` : ""}${(x.results || []).map((t) => `<strong>${fmt(t.qty, 0)} ${esc(t.unit)}</strong> ${esc(t.name)} (${fmt(t.pct)}%)`).join("<br>")}</td>
               <td><button type="button" class="btn small danger" data-h-del="${esc(x.id)}">×</button></td></tr>`).join("")}
           </tbody></table>`
           : `<p class="hint">Nenhuma conversão salva ainda.</p>`;
