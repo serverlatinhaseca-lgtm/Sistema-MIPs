@@ -818,6 +818,9 @@
       }
       .batch-actions { display:flex; gap:6px; align-items:center; }
       .batch-actions .edit-order { color:var(--primary); }
+      .batch-actions .hide-print { display:flex; gap:4px; align-items:center; font-size:0.68rem; color:var(--muted); white-space:nowrap; cursor:pointer; }
+      .hide-print-banner { margin:0 0 10px; padding:8px 12px; border-radius:10px; background:#fff4d6; border:1px solid #e8c25c; color:#6b4a00; font-size:0.75rem; font-weight:700; }
+      .hide-print-banner button { margin-left:8px; border:0; background:transparent; color:var(--primary); font-weight:800; cursor:pointer; text-decoration:underline; }
       .order-edit-overlay { position:fixed; inset:0; z-index:1000; display:grid; place-items:center; padding:20px; background:rgba(25,20,17,.65); }
       .order-edit-overlay[hidden] { display:none; }
       .order-edit-card { width:min(520px,100%); padding:22px; border-radius:18px; background:var(--paper); box-shadow:0 24px 70px rgba(0,0,0,.3); }
@@ -2169,6 +2172,9 @@
         orders: [],
         archivedOrders: [],
         selectedOrderIds: new Set(),
+        // Pedidos ocultos na impressão (só sessão, não é salvo): viram espaço em branco
+        // na folha, sem mudar a posição das outras etiquetas (reimpressão de adição).
+        hiddenPrintIds: new Set(),
         // Dias marcados para impressão em massa (só sessão, não é salvo).
         bulkDates: new Set(),
         editingOrderId: null,
@@ -2344,6 +2350,8 @@
       const cancelBadge = (o) => o.cancel?.qty
         ? ` • <strong style="color:#a32a17">CANCELADO ${cancelQty(o) >= Number(o.labelCount || o.total) ? "(TODO — não imprime)" : `${cancelQty(o)} UND (imprime só o resto)`}${o.cancel.motivo ? ` — ${String(o.cancel.motivo).replace(/[<>&]/g, "")}` : ""}</strong>`
         : "";
+      const hideButton = (o) => `<label class="hide-print" title="Não imprime este pedido: o lugar dele fica em branco e os outros saem na mesma posição da folha"><input type="checkbox" data-hide-print="${o.id}" ${state.hiddenPrintIds.has(o.id) ? "checked" : ""}> Ocultar na impressão</label>`;
+      const hideBadge = (o) => state.hiddenPrintIds.has(o.id) ? ' • <strong style="color:#7a4a00">OCULTO NA IMPRESSÃO (fica em branco)</strong>' : "";
 
       function allDates() {
         return [
@@ -2360,7 +2368,31 @@
         ].sort();
       }
 
+      // Ocultar na impressão: o layout é montado com TODOS os pedidos e só depois as
+      // etiquetas dos ocultos viram "blank" — os visíveis ficam na mesma página/linha/coluna.
+      // Ids das etiquetas começam com o id do pedido (`${o.id}-...`); espaçadores não.
+      const labelOrderId = (l) => { const m = /^(\d+)-/.exec(String(l.id)); return m ? Number(m[1]) : null; };
+      function hiddenActiveCount() {
+        return activeOrders().filter((o) => state.hiddenPrintIds.has(o.id)).length;
+      }
       function labels() {
+        const labs = buildLabels();
+        if (!state.hiddenPrintIds.size) return labs;
+        let partial = false;
+        const out = labs.map((l) => {
+          if (l.kind === "blank" || !state.hiddenPrintIds.has(labelOrderId(l))) return l;
+          partial = true;
+          return { id: l.id, kind: "blank", hiddenOrder: true };
+        });
+        if (!partial) return labs;
+        while (out.length && out[out.length - 1].kind === "blank") out.pop(); // nada visível depois
+        out.partial = true; // reimpressão parcial: sem cabeçalho e sem folhas vazias
+        return out;
+      }
+      // Folha (80 etiquetas) sem nenhuma etiqueta visível não é impressa quando há ocultos.
+      const pageHasContent = (page) => page.some((l) => l.kind !== "blank");
+
+      function buildLabels() {
         if (state.delivery === "genericas")
           return printableOrders().flatMap((o) =>
             o.parts?.length
@@ -3509,8 +3541,9 @@
         el("breadTotals").innerHTML = Object.entries(totaisPorPao).length
           ? Object.entries(totaisPorPao).map(([nome,total])=>`<div class="bread-total-card"><span>${escapeHtml(nome)}</span><strong>${total.toLocaleString("pt-BR")} pães</strong></div>`).join("")
           : '<div class="bread-total-card"><span>Total por tipo</span><strong>0 pães</strong></div>';
+        const hiddenCount = hiddenActiveCount();
         el("orderQueue").innerHTML = orders.length
-          ? `<div class="batch-list">${orders
+          ? `${hiddenCount ? `<div class="hide-print-banner">${hiddenCount} pedido${hiddenCount === 1 ? "" : "s"} oculto${hiddenCount === 1 ? "" : "s"} na impressão — os outros saem na mesma posição da folha, sem cabeçalho. <button type="button" id="showAllPrintButton">Mostrar todos</button></div>` : ""}<div class="batch-list">${orders
               .map((o) =>
                 o.validityOnly
                   ? `<article class="batch-item"><label><input type="checkbox" data-archive-select="${o.id}" ${state.selectedOrderIds.has(o.id)?"checked":""} aria-label="Selecionar pedido"></label><div><strong>ETIQUETAS DE VALIDADE</strong><span>${
@@ -3530,7 +3563,7 @@
                     } etiquetas genéricas</span><small>${
                       [o.line2, o.line3].filter(Boolean).join(" • ") ||
                       "Somente texto principal"
-                    }${cancelBadge(o)}</small></div><div class="batch-actions"><button class="edit-order" type="button" data-edit-order="${o.id}">Editar</button>${cancelButtons(o)}<button type="button" data-remove="${o.id}">Remover</button></div></article>`
+                    }${cancelBadge(o)}${hideBadge(o)}</small></div><div class="batch-actions">${hideButton(o)}<button class="edit-order" type="button" data-edit-order="${o.id}">Editar</button>${cancelButtons(o)}<button type="button" data-remove="${o.id}">Remover</button></div></article>`
                   : `<article class="batch-item"><label><input type="checkbox" data-archive-select="${o.id}" ${state.selectedOrderIds.has(o.id)?"checked":""} aria-label="Selecionar pedido"></label><div><strong>${o.destination}${
                       o.shift ? ` • ${o.shift}` : ""
                     }${o.afternoon ? " • TARDE" : ""}</strong><span>${
@@ -3541,7 +3574,7 @@
                       o.parts.length === 1 ? "" : "s"
                     }</span><small>${o.parts.join(" + ")}${
                       o.source === "fixo" ? " • PEDIDO FIXO" : ""
-                    }${cancelBadge(o)}</small></div><div class="batch-actions"><button class="edit-order" type="button" data-edit-order="${o.id}">Editar</button>${cancelButtons(o)}<button type="button" data-remove="${o.id}">Remover</button></div></article>`
+                    }${cancelBadge(o)}${hideBadge(o)}</small></div><div class="batch-actions">${hideButton(o)}<button class="edit-order" type="button" data-edit-order="${o.id}">Editar</button>${cancelButtons(o)}<button type="button" data-remove="${o.id}">Remover</button></div></article>`
               )
               .join("")}</div>`
           : '<div class="empty-state"><span>6187</span><p>Os pedidos adicionados aparecerão aqui.</p></div>';
@@ -3563,6 +3596,11 @@
         document.querySelectorAll("[data-edit-order]").forEach(button=>button.onclick=()=>openOrderEdit(Number(button.dataset.editOrder)));
         document.querySelectorAll("[data-cancel-order]").forEach(button=>button.onclick=()=>cancelOrder(state.orders.find(o=>o.id===Number(button.dataset.cancelOrder))));
         document.querySelectorAll("[data-uncancel-order]").forEach(button=>button.onclick=()=>undoCancelOrder(state.orders.find(o=>o.id===Number(button.dataset.uncancelOrder))));
+        document.querySelectorAll("[data-hide-print]").forEach(input=>input.onchange=()=>{
+          const id=Number(input.dataset.hidePrint); input.checked ? state.hiddenPrintIds.add(id) : state.hiddenPrintIds.delete(id);
+          render(); // só sessão: não chama saveLocal
+        });
+        if (el("showAllPrintButton")) el("showAllPrintButton").onclick=()=>{ state.hiddenPrintIds.clear(); render(); };
         el("archiveSelectedButton").disabled = !state.selectedOrderIds.size;
         el("deleteSelectedButton").disabled = !state.selectedOrderIds.size;
         el("copyActiveDayButton").disabled = !orders.length;
@@ -3654,12 +3692,17 @@
         ]
           .filter(Boolean)
           .join(" • ");
+        // Reimpressão parcial (pedidos ocultos): sem cabeçalho (a folha reaproveitada já
+        // tem o seu) e folhas sem nenhuma etiqueta visível não saem.
+        const partial = !!labs.partial;
         return chunks
+          .map((page, pageIndex) => ({ page, pageIndex }))
+          .filter(({ page }) => !partial || pageHasContent(page))
           .map(
-            (page, pageIndex) =>
-              `<div class="label-sheet"><div class="print-sheet-header">${headerText}${
+            ({ page, pageIndex }) =>
+              `<div class="label-sheet">${partial ? "" : `<div class="print-sheet-header">${headerText}${
                 chunks.length > 1 ? ` (folha ${pageIndex + 1}/${chunks.length})` : ""
-              }</div>${page
+              }</div>`}${page
                 .map((l) =>
                   l.kind === "blank"
                     ? '<div class="label"></div>'
@@ -3779,8 +3822,15 @@
           stepX = 47.5,
           left = 14.5,
           top = 12.7;
+        // Reimpressão parcial: folhas sem etiqueta visível ficam fora do PDF.
+        let pdfPage = -1;
         labs.forEach((label, index) => {
-          if (index > 0 && index % 80 === 0) doc.addPage("letter", "portrait");
+          const sheet = Math.floor(index / 80);
+          if (labs.partial && !pageHasContent(labs.slice(sheet * 80, sheet * 80 + 80))) return;
+          if (sheet !== pdfPage) {
+            if (pdfPage !== -1) doc.addPage("letter", "portrait");
+            pdfPage = sheet;
+          }
           const local = index % 80,
             col = local % 4,
             row = Math.floor(local / 4),
