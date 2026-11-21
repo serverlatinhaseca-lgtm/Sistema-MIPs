@@ -58,6 +58,13 @@
       .grid tr.total td { background: var(--soft); font-weight: 800; }
       .grid tr.missing td { background: var(--warn-bg); }
       .grid tr.ignored td { color: var(--muted); }
+      /* Soma dos produtos (modo "somar"): produto e quantidade em destaque */
+      .grid.sum td { padding: 9px 10px; }
+      .grid.sum td.prod { font-size: 17px; font-weight: 800; color: var(--orange-dark); border-left: 5px solid var(--orange); }
+      .grid.sum td.qty { font-size: 18px; font-weight: 800; }
+      .grid.sum td.val { font-size: 15px; font-weight: 700; }
+      .grid.sum tr.total td { font-size: 17px; }
+      html[data-theme="dark"] .grid.sum td.prod { color: #ffb477; }
       .grid input, .grid select { width: 100%; min-width: 60px; padding: 5px 6px; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--ink); }
       .grid input.n { width: 90px; text-align: right; }
       .grid select { min-width: 200px; }
@@ -712,9 +719,9 @@
         el("altBlock").hidden = sum;
         el("resultTitle").textContent = sum ? "Total a faturar" : "Faturar em pão";
         el("sumTable").innerHTML = sum
-          ? `<table class="grid"><thead><tr><th>Produto</th><th>Itens somados</th><th>Quantidade</th><th>Preço un.</th><th>Total</th></tr></thead><tbody>
-            ${r.sums.map((s) => `<tr class="${s.noPrice ? "missing" : ""}"><td class="left"><strong>${esc(s.product.name)}</strong></td><td class="left hint">${s.labels.map(esc).join("<br>")}</td>
-              <td><strong>${fmt(s.qty, 3)}${s.product.unit ? ` ${esc(s.product.unit)}` : ""}</strong></td><td class="right">${s.noPrice ? "sem preço" : money(s.price)}</td><td class="right">${money(s.value)}</td></tr>`).join("")}
+          ? `<table class="grid sum"><thead><tr><th>Produto</th><th>Itens somados</th><th>Quantidade</th><th>Preço un.</th><th>Total</th></tr></thead><tbody>
+            ${r.sums.map((s) => `<tr class="${s.noPrice ? "missing" : ""}"><td class="left prod">${esc(s.product.name)}</td><td class="left hint">${s.labels.map(esc).join("<br>")}</td>
+              <td class="qty">${fmt(s.qty, 3)}${s.product.unit ? ` ${esc(s.product.unit)}` : ""}</td><td class="right">${s.noPrice ? "sem preço" : money(s.price)}</td><td class="right val">${money(s.value)}</td></tr>`).join("")}
             <tr class="total"><td class="left" colspan="4">TOTAL</td><td class="right">${money(r.total)}</td></tr></tbody></table>`
           : "";
         el("resultCards").innerHTML = `<div class="card money"><span>Total em produtos</span><strong>${money(r.total)}</strong><small>${sum ? `só a soma dos produtos, pelos preços de ${esc(client.name)} (sem converter em pão)` : Object.keys(client.prices || {}).length ? `com os preços próprios de ${esc(client.name)}` : "pela tabela única de preços"}</small></div>` +
@@ -811,7 +818,7 @@
           el("printArea").innerHTML = `<h1>Romaneio — ${esc(client.name)}</h1>
             <p>${ui.report.period ? `Período: <strong>${esc(ui.report.period)}</strong> · ` : ""}Relatório: ${esc(ui.report.fileName || "")} · Impresso em ${new Date().toLocaleString("pt-BR")}</p>
             <table class="doc"><thead><tr><th>Produto</th><th>Itens somados</th><th>Quantidade</th><th>Preço un.</th><th>Total</th></tr></thead><tbody>
-            ${r.sums.map((s) => `<tr><td class="left"><strong>${esc(s.product.name)}</strong></td><td class="left">${s.labels.map(esc).join("<br>")}</td><td class="big">${fmt(s.qty, 3)}${s.product.unit ? ` ${esc(s.product.unit)}` : ""}</td><td class="right">${s.noPrice ? "sem preço" : money(s.price)}</td><td class="right">${money(s.value)}</td></tr>`).join("")}
+            ${r.sums.map((s) => `<tr><td class="left big">${esc(s.product.name)}</td><td class="left">${s.labels.map(esc).join("<br>")}</td><td class="big">${fmt(s.qty, 3)}${s.product.unit ? ` ${esc(s.product.unit)}` : ""}</td><td class="right">${s.noPrice ? "sem preço" : money(s.price)}</td><td class="right">${money(s.value)}</td></tr>`).join("")}
             <tr class="total"><td class="left" colspan="4">TOTAL</td><td class="right">${money(r.total)}</td></tr></tbody></table>`;
           window.print();
           return;
